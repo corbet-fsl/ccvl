@@ -1,0 +1,34 @@
+# Opportunity-specific generated output
+/opportunities/*/*/output/
+
+# Private profile sources and working evidence
+/cvl/imports/*
+!/cvl/imports/README.md
+/cvl/evidence/*
+!/cvl/evidence/README.md
+
+# Local build state
+/.cache/
+/__pycache__/
+**/__pycache__/
+/result
+/target/
+/tmp/
+
+# Local review notes are not part of the public template
+/Schw*chen.md
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editor and office temporary files
+.DS_Store
+Thumbs.db
+.~lock.*#
+~$*.doc*
+~$*.xls*
+*.bak
+*.log
+*.tmp

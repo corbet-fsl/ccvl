@@ -1,0 +1,238 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: 1.92.0
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-native:
+    name: Native Rust compiler and document contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install exact Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" \
+            --profile minimal \
+            --component clippy,rustfmt
+          test "$(rustc "+$RUST_TOOLCHAIN" --version | awk '{print $2}')" = "$RUST_TOOLCHAIN"
+
+      - name: Check formatting
+        run: cargo "+$RUST_TOOLCHAIN" fmt --all -- --check
+
+      - name: Run locked unit and document tests
+        run: cargo "+$RUST_TOOLCHAIN" test --locked --all-features
+
+      - name: Run Clippy with warnings denied
+        run: cargo "+$RUST_TOOLCHAIN" clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Verify native reproducibility and public boundary
+        run: cargo "+$RUST_TOOLCHAIN" run --quiet --locked -- public-check
+
+  bootstrap-clean:
+    name: Bootstrap from a minimal Linux archive
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download source without assuming Git
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install and verify from an archive-shaped workspace
+        env:
+          CCVL_BOOTSTRAP_FORCE_LOCAL: "1"
+        run: |
+          mkdir -p "$RUNNER_TEMP/ccvl-archive"
+          tar --exclude='./.git' -cf - . | tar -xf - -C "$RUNNER_TEMP/ccvl-archive"
+          cd "$RUNNER_TEMP/ccvl-archive"
+          test ! -e .git
+          if command -v git >/dev/null 2>&1; then
+            echo "::error::The minimal bootstrap job unexpectedly contains Git."
+            exit 1
+          fi
+          bash ./ccvl setup
+
+  linux-arm-native:
+    name: Native Linux (aarch64) bootstrap and documents
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      CCVL_BOOTSTRAP_FORCE_LOCAL: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Prove empty, complete, and partial bootstrap states
+        run: |
+          plan="$(bash ./ccvl bootstrap)"
+          printf '%s\n' "$plan"
+          grep -Fq 'pinned local tools: typst typstyle uv' <<<"$plan"
+          bash ./ccvl setup
+          complete="$(bash ./ccvl bootstrap)"
+          grep -Fq 'pinned local tools: none' <<<"$complete"
+          mv .cache/ccvl/bin/typst "$RUNNER_TEMP/typst"
+          partial="$(bash ./ccvl bootstrap)"
+          printf '%s\n' "$partial"
+          grep -Fq 'pinned local tools: typst' <<<"$partial"
+          mv "$RUNNER_TEMP/typst" .cache/ccvl/bin/typst
+          bash ./ccvl public-check
+
+  macos-native:
+    name: Native macOS (${{ matrix.arch }}) bootstrap and documents
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      CCVL_BOOTSTRAP_FORCE_LOCAL: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Prove empty, complete, and partial bootstrap states
+        run: |
+          plan="$(bash ./ccvl bootstrap)"
+          printf '%s\n' "$plan"
+          grep -Fq 'pinned local tools: typst typstyle uv' <<<"$plan"
+          bash ./ccvl setup
+          complete="$(bash ./ccvl bootstrap)"
+          grep -Fq 'pinned local tools: none' <<<"$complete"
+          mv .cache/ccvl/bin/typst "$RUNNER_TEMP/typst"
+          partial="$(bash ./ccvl bootstrap)"
+          printf '%s\n' "$partial"
+          grep -Fq 'pinned local tools: typst' <<<"$partial"
+          mv "$RUNNER_TEMP/typst" .cache/ccvl/bin/typst
+          bash ./ccvl public-check
+
+  windows-native:
+    name: Native Windows (${{ matrix.arch }}) bootstrap and documents
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-2025
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      CCVL_BOOTSTRAP_FORCE_LOCAL: "1"
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Prove empty, complete, and partial bootstrap states
+        run: |
+          $Plan = (& .\scripts\bootstrap.ps1 plan | Out-String)
+          Write-Host $Plan
+          if (-not $Plan.Contains("pinned local tools: typst typstyle uv")) {
+            throw "empty Windows bootstrap plan was incomplete"
+          }
+          & .\ccvl.cmd setup
+          if ($LASTEXITCODE -ne 0) { throw "native Windows setup failed" }
+          $Complete = (& .\scripts\bootstrap.ps1 plan | Out-String)
+          if (-not $Complete.Contains("pinned local tools: none")) {
+            throw "complete Windows environment was not a no-op"
+          }
+          Move-Item .cache\ccvl\bin\typst.exe "$env:RUNNER_TEMP\typst.exe"
+          $Partial = (& .\scripts\bootstrap.ps1 plan | Out-String)
+          Write-Host $Partial
+          if (-not $Partial.Contains("pinned local tools: typst")) {
+            throw "partial Windows environment was not detected"
+          }
+          Move-Item "$env:RUNNER_TEMP\typst.exe" .cache\ccvl\bin\typst.exe
+          & .\ccvl.cmd public-check
+          if ($LASTEXITCODE -ne 0) { throw "native Windows public check failed" }
+
+  verify:
+    name: Linux release and independent PDF verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up the pinned ccvl runtime
+        run: bash ./ccvl setup
+
+      - name: Install secondary test tools
+        env:
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes file poppler-utils qpdf shellcheck
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP/bin" actionlint
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check workflows and shell scripts
+        run: |
+          actionlint -shellcheck shellcheck
+          shellcheck scripts/*.sh tests/*.sh ccvl
+
+      - name: Run Linux-specific independent PDF checks
+        run: bash scripts/check-linux-deep.sh
+
+      - name: Run public release checks
+        run: bash ./ccvl public-check
+
+      - name: Check REUSE licensing
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+      - name: Record tool versions
+        if: always()
+        run: |
+          {
+            echo "## Mechanical toolchain"
+            echo
+            echo '```text'
+            .cache/ccvl/bin/typst --version || typst --version
+            .cache/ccvl/bin/typstyle --version || typstyle --version
+            .cache/ccvl/bin/uv --version || uv --version
+            .cache/ccvl/bin/uv run --frozen --no-dev python --version
+            actionlint --version
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
