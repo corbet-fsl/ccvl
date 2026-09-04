@@ -57,12 +57,19 @@ git fetch upstream
 git merge --no-edit upstream/main
 ```
 
-For unattended updates, the private repository should call the reusable
-`.github/workflows/downstream-sync.yml` workflow on a schedule. It fetches and
-merges upstream only in the isolated runner, enforces the ownership policy,
-runs the complete deterministic document gate, and pushes only the verified
-merge. A conflict, structural deviation, document failure, or ownership breach
-leaves the remote branch unchanged.
+Do not poll for unattended updates. Trigger a trusted workflow from each push
+to the upstream default branch. It must merge the exact triggering commit,
+enforce the ownership policy, run the complete deterministic document gate,
+and push only the verified merge. A superseded event is a no-op; a conflict,
+structural deviation, document failure, or ownership breach leaves the private
+remote unchanged. `.github/workflows/downstream-sync.yml` provides the generic
+GitHub workflow, while the maintainer's self-hosted Crow workflow keeps private
+target and opportunity data off hosted runners.
+
+Keep its credentials in Crow's repository-scoped secret store and restrict
+them to push events. Crow image filters apply only to plugin steps; attaching
+one to a normal command step is a workflow compilation error, so a command
+step's secret boundary is the repository plus the allowed event.
 
 If private commits are already ahead, use a normal merge. Reserve a deliberate
 history rewrite for the one-time conversion of an existing standalone
