@@ -5,14 +5,16 @@ when:
   - event: manual
 skip_clone: true
 variables:
-  - name: SOURCE_ARCHIVE
+  SOURCE_ARCHIVE:
     default: ""
-  - name: SOURCE_SHA256
+  SOURCE_SHA256:
     default: ""
-  - name: CHECKS
+  CHECKS:
     default: rust
-  - name: RUST_TOOLCHAIN
+  RUST_TOOLCHAIN:
     default: "1.94.0"
+  CARGO_TARGET_DIR:
+    default: ""
 steps:
   - name: verified-source
     image: bash
@@ -28,12 +30,16 @@ steps:
     image: bash
     depends_on: [verified-source]
     environment:
-      CARGO_BUILD_JOBS: "2"
+      CARGO_BUILD_JOBS: "1"
       RUST_TEST_THREADS: "2"
     commands:
       - |
         set -eu
         case "$CHECKS" in
-          rust|lint|documents) bash .agent/scripts/ci-check.sh "$CHECKS" ;;
+          rust|lint|documents) ;;
           *) echo 'Choose rust, lint, or documents' >&2; exit 2 ;;
         esac
+        CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${CARGO_HOME:-$HOME/.cargo}/ci-targets/ccvl}"
+        export CARGO_TARGET_DIR
+        mkdir -p "$CARGO_TARGET_DIR"
+        exec flock --wait 60 "$CARGO_TARGET_DIR.ci.lock" timeout --kill-after=30s 45m bash .agent/scripts/ci-check.sh "$CHECKS"
