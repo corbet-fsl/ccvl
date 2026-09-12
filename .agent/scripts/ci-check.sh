@@ -16,9 +16,16 @@ for check in "$@"; do
   case "$check" in
     rust)
       ccvl_select_rust_toolchain
+      if [[ -n "${CI_COMMIT_SHA:-}" ]]; then
+        export CCVL_STYLE_EVIDENCE="${CARGO_TARGET_DIR:-target}/style-parity/$CI_COMMIT_SHA"
+      fi
       "${CCVL_CARGO_COMMAND[@]}" fmt --all -- --check
-      "${CCVL_CARGO_COMMAND[@]}" test --locked --all-features
-      "${CCVL_CARGO_COMMAND[@]}" clippy --locked --all-targets --all-features -- -D warnings
+      "${CCVL_CARGO_COMMAND[@]}" test --locked --workspace --all-features
+      "${CCVL_CARGO_COMMAND[@]}" clippy --locked --workspace --all-targets --all-features -- -D warnings
+      ;;
+    core-package)
+      ccvl_select_rust_toolchain
+      "${CCVL_CARGO_COMMAND[@]}" package --locked -p ccvl-core
       ;;
     lint)
       # shellcheck source=.agent/scripts/existing-tool-path.sh
