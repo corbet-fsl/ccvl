@@ -5,25 +5,32 @@ Every concrete job lives directly under a stable two-part key:
 ```text
 opportunities/<organisation-key>/<position-key>/
 ├── application.toml
-├── posting.md                 optional archived source
+├── posting.md                 required human-readable position reference
 ├── research.md                optional attributable company and role research
 ├── interview-<stage>.md       optional preparation
 ├── submission.md              optional observed submission
 ├── outcome.md                 optional observed outcome
 ├── typst/
-│   ├── cv.typ                 resolved standalone copy (generated, do not edit)
-│   └── cl.typ                 only when the cover letter is enabled (generated)
+│   ├── CV_<Last>_<org>_<pos>.typ   resolved standalone copy (generated, do not edit)
+│   └── CL_<Last>_<org>_<pos>.typ   only when the cover letter is enabled (generated)
 └── pdfs/
-    ├── cv.pdf
-    └── cl.pdf                 only when the cover letter is enabled
+    ├── CV_<Last>_<org>_<pos>.pdf
+    └── CL_<Last>_<org>_<pos>.pdf   only when the cover letter is enabled
 ```
+
+MECE split: `application.toml` holds the document build (options, tailored
+wording, recipient) plus the role identity. Everything else about the
+position — source, tasks, requirements, company context, preparation notes —
+lives in `posting.md`. The build refuses records whose sibling `posting.md`
+is missing.
 
 The `typst/` copies are the locale templates with their `sys.inputs`
 defaults resolved for the record (application and profile paths, page
 count, style), so each compiles standalone and reproduces its neighbour
 PDF. They are build artifacts: editing `application.toml` regenerates
 both `typst/` and `pdfs/`; editing a locale template regenerates both as
-well. Do not hand-edit `typst/` — re-run `build-opportunity`.
+well. Do not hand-edit `typst/` — re-run `build-opportunity`. `pdfs/` and
+`typst/` are tracked in git (PDFs via LFS); commit whenever you feel like it.
 
 Both keys use lowercase ASCII letters, numbers, hyphens, or underscores. The
 single `application.toml` owns the options (language, pages, cover-letter

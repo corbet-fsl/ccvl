@@ -1,6 +1,4 @@
-# Opportunity-specific generated output
-/opportunities/*/*/pdfs/
-/opportunities/*/*/typst/
+# Opportunity outputs (pdfs/ + typst/) are committed (PDFs via LFS).
 
 # Private user knowledge; only the public scaffold and station example ship.
 /interview/*

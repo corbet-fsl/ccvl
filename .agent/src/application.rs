@@ -1,4 +1,6 @@
-use anyhow::{Context, Result, ensure};
+use std::path::Path;
+
+use anyhow::{Context, Result, bail, ensure};
 use regex::Regex;
 use serde_json::{Map, Value};
 
@@ -20,6 +22,12 @@ const JOB_FIELDS: &[&str] = &[
     "company_context",
     "notes",
 ];
+
+/// Opportunity records keep only what code or the document build reads plus
+/// the role identity a human needs at a glance. Everything else about the
+/// position lives in the sibling `posting.md`, the one human-readable
+/// position reference. Showcase leaves keep the full table.
+const OPPORTUNITY_JOB_FIELDS: &[&str] = &["id", "title", "organization", "location"];
 
 const RECIPIENT_FIELDS: &[&str] = &[
     "name",
@@ -315,10 +323,19 @@ fn validate_record_scope(
         .context("options.application_date is missing")?;
 
     let job = object_at(application, "/job")?;
-    let mut allowed = JOB_FIELDS.to_vec();
+    // Location strings use the workspace-relative display form; normalize
+    // separators so the opportunities/ gate holds on every platform.
+    let normalized = location.replace('\\', "/");
+    let opportunity = normalized.starts_with("opportunities/");
+    let required: &[&str] = if opportunity {
+        OPPORTUNITY_JOB_FIELDS
+    } else {
+        JOB_FIELDS
+    };
+    let mut allowed = required.to_vec();
     allowed.push("cl_recipient");
     ensure_no_unknown(job, &allowed, location)?;
-    for field in JOB_FIELDS {
+    for field in required {
         job.get(*field)
             .and_then(Value::as_str)
             .with_context(|| format!("{location}.job.{field} is missing"))?;
@@ -345,6 +362,15 @@ fn validate_record_scope(
             .get(*field)
             .and_then(Value::as_str)
             .with_context(|| format!("{location}.job.cl_recipient.{field} is missing"))?;
+    }
+    if opportunity {
+        let posting = Path::new(&normalized)
+            .parent()
+            .with_context(|| format!("{location}: opportunity path has no parent"))?;
+        ensure!(
+            workspace.path(posting.join("posting.md")).is_file(),
+            "{location}: posting.md is missing; every opportunity keeps its human-readable position reference beside the record"
+        );
     }
 
     if document != Some("cl") {
@@ -374,6 +400,9 @@ fn validate_record_scope(
                 !require_text || !summary.trim().is_empty(),
                 "{location}.cv.summary: a rendered summary cannot be empty"
             );
+            if opportunity {
+                reject_dashes(summary, &format!("{location}.cv.summary"))?;
+            }
             if let Some(allow_thin) = cv.get("allow_thin") {
                 ensure!(
                     allow_thin.is_boolean(),
@@ -471,6 +500,16 @@ fn validate_record_scope(
                 index + 1,
                 line_index + 1
             );
+            if opportunity {
+                reject_dashes(
+                    text,
+                    &format!(
+                        "{location}.cl.paragraphs[{}].lines[{}]",
+                        index + 1,
+                        line_index + 1
+                    ),
+                )?;
+            }
         }
     }
     let total = counts.iter().sum::<usize>();
@@ -531,6 +570,31 @@ fn validate_record_scope(
             "{location}.cl.highlights[{}]: a rendered highlight cannot be empty",
             index + 1
         );
+        if opportunity {
+            reject_dashes(
+                text,
+                &format!("{location}.cl.highlights[{}]", index + 1),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// House style: document prose contains no dashes. Covers hyphen-minus and
+/// the common Unicode dash codepoints (non-breaking, figure, en, em).
+fn reject_dashes(text: &str, location: &str) -> Result<()> {
+    const DASHES: &[char] = &[
+        '-',
+        '\u{2010}',
+        '\u{2011}',
+        '\u{2012}',
+        '\u{2013}',
+        '\u{2014}',
+        '\u{2015}',
+        '\u{2212}',
+    ];
+    if let Some(found) = text.chars().find(|ch| DASHES.contains(ch)) {
+        bail!("{location}: document prose must not contain dashes (found {found:?}); rewrite without -/–/—");
     }
     Ok(())
 }
