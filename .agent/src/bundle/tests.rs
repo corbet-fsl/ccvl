@@ -37,6 +37,61 @@ fn bundles_exclude_showcase_records_and_unsupported_inputs() {
 }
 
 #[test]
+fn cluster_bundle_renders_resolved_content_with_an_explicit_summary_allowance() {
+    let workspace = source();
+    fs::create_dir_all(workspace.path(".agent/cache")).unwrap();
+    let scratch = tempfile::tempdir_in(workspace.path(".agent/cache")).unwrap();
+    let record_path = scratch.path().join("application.toml");
+    let profile_path = workspace.path("cvl/profile.toml");
+    for language in ["de", "en"] {
+        let locale = format!("{language}-ch");
+        let mut record = crate::content::read_record(
+            &workspace,
+            workspace.path(format!("cvl/cv/cluster/d-plus/{language}/ch/content.toml")),
+        )
+        .unwrap();
+        record["cv"]["allow_thin"] = json!(true);
+        crate::application::validate_record(&workspace, &record, "fixture", true).unwrap();
+        fs::write(&record_path, toml::to_string(&record).unwrap()).unwrap();
+        let bundle = export(
+            &workspace,
+            "cv",
+            &locale,
+            Some("cluster"),
+            Some("d-plus"),
+            Some(1),
+            None,
+        )
+        .unwrap();
+        let profile = workspace.read_toml_value("cvl/profile.toml").unwrap();
+        let project = bundle.with_record(record, profile).unwrap();
+        let renderer = StyleRenderer::new(&project.bundle).unwrap();
+        let compiled = renderer.compile(&project).unwrap();
+        let selection =
+            styles::selection(&workspace, "cv", Some("cluster"), Some("d-plus")).unwrap();
+        let leaf = styles::leaf(&workspace, "cv", &locale, &selection).unwrap();
+        let spec = crate::render::document_spec(
+            &workspace,
+            &leaf,
+            1,
+            &record_path,
+            &profile_path,
+            Some(&scratch.path().join("direct.pdf")),
+            None,
+        )
+        .unwrap();
+        let compiler = crate::render::Compiler::new(&workspace).unwrap();
+        let direct = compiler.compile(&workspace, &spec).unwrap();
+        compiler.export(&spec, &direct).unwrap();
+        assert_eq!(
+            renderer.pdf(&compiled).unwrap(),
+            fs::read(&spec.output).unwrap(),
+            "portable cluster parity: {locale}"
+        );
+    }
+}
+
+#[test]
 fn upstream_and_portable_renderers_produce_the_same_document() {
     let workspace = source();
     fs::create_dir_all(workspace.path(".agent/cache")).unwrap();
