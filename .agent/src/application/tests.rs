@@ -379,7 +379,10 @@ fn summary_rejects_formula_openings() {
 
 #[test]
 fn hyphen_marks_are_highlighted_for_author_judgment() {
-    assert!(hyphen_advisories("plain words", "here").is_empty());
+    assert_eq!(
+        hyphen_advisories("plain words", "here"),
+        Vec::<String>::new()
+    );
     let advisories = hyphen_advisories("RAG-Systeme und Cloud-Ökonomie", "here");
     assert_eq!(advisories.len(), 2, "unexpected advisories: {advisories:?}");
     assert!(advisories[0].contains("here"));
@@ -573,16 +576,16 @@ fn unknown_substyle_fails_with_available_list() {
 #[test]
 fn style_leaves_cover_every_substyle_and_locale() {
     let workspace = workspace();
-    assert_eq!(cv_leaves(&workspace).unwrap().len(), 16);
+    assert_eq!(cv_leaves(&workspace).unwrap().len(), 20);
     assert_eq!(cl_leaves(&workspace).unwrap().len(), 4);
     let documents = crate::render::cvl_specs(&workspace).unwrap();
-    assert_eq!(documents.len(), 36);
+    assert_eq!(documents.len(), 40);
     assert_eq!(
         documents
             .iter()
             .map(|spec| spec.expected_pages)
             .sum::<usize>(),
-        84
+        88
     );
     let cv = cv_leaves(&workspace)
         .unwrap()
