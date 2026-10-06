@@ -19,6 +19,14 @@ __pycache__/
 .env.*
 !.env.example
 
+# CI runtime state (moon/ccid per-run caches and generated configs): tool
+# outputs, never reviewed source. REUSE lint skips gitignored paths while
+# still reviewing all tracked source; the documents publication scan is
+# unaffected (it keys on symlinks, not ignore status).
+/.moon/
+/.ccid/
+/moon.yml
+
 # Editor and office temporary files
 .DS_Store
 Thumbs.db

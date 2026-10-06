@@ -11,6 +11,7 @@ use crate::workspace::Workspace;
 const EXCLUDED_ROOTS: &[&str] = &[
     ".cache",
     ".git",
+    ".moon",
     "applications",
     "evidence",
     "out",

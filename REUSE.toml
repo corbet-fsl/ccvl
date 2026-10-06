@@ -2,6 +2,7 @@ version = 1
 
 [[annotations]]
 path = [
+  ".ci/ccid.toml",
   ".agent/AGENT.md",
   ".agent/build.rs",
   ".agent/core/**",
@@ -16,6 +17,11 @@ path = [
   ".agent/typst/**/*.typ",
   ".agent/typst/letter/vendor/**",
   ".crow.yaml",
+  ".ci/run-cached.sh",
+  ".ci/toolchain-lock.sh",
+  ".ci/jobs.json",
+  ".crow/repository-jobs.yaml",
+  ".prototools",
   ".github/workflows/**",
   ".gitattributes",
   ".gitignore",

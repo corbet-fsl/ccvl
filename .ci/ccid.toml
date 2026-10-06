@@ -9,22 +9,35 @@ project = "ccvl"
 [checks.rust]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "rust"]]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
+cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 
 [checks.lint]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "lint"]]
+cache_tools = [["python3", "--version"], ["shellcheck", "--version"], ["actionlint", "--version"], ["reuse", "--version"]]
 
 [checks.documents]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "documents"]]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"], ["file", "--version"], ["qpdf", "--version"], ["pdfinfo", "-v"], ["jq", "--version"]]
+cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
+
+[checks.styles]
+kind = "commands"
+commands = [["bash", ".agent/scripts/ci-check.sh", "styles"]]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
+cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN", "CCVL_CHECK_STYLES"]
 
 [checks.candidate-date]
 kind = "commands"
 commands = [["python3", ".agent/scripts/candidate-date.py"]]
+cache_tools = [["python3", "--version"]]
 
 [checks.downstream-check]
 kind = "commands"
 commands = [["python3", ".agent/scripts/downstream-check.py"]]
+cache_tools = [["python3", "--version"]]
 
 # Manual trusted workflow only; credentials are absent from the build step.
 [checks.skill-eval-build]
@@ -66,3 +79,22 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "core-package"]]
 [checks.core-release]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package"]]
+
+# The always-run Linux CI gates (ci.yml jobs rust-native, documents, lint on
+# ubuntu-24.04) map to the rust/documents/lint selectors; [checks.styles]
+# (`bash .agent/scripts/ci-check.sh styles`) is the exact path CI's documents
+# job runs (with CCVL_CHECK_STYLES selection). jobs.verify lists the Linux
+# verify set; dispatch-only, secret-bearing, disabled, and
+# release/downstream/skill-eval gates stay defined but separate.
+# cache_tools pins the tool identities each script arm resolves
+# (rustc/cargo for the build arms; python3/shellcheck/actionlint/reuse for
+# lint; python3 for the python entry points).
+
+[render]
+tool_revision = "81ebac8e86e20bc93b69d5e912bbcb0c0d036d58"
+
+[jobs.verify]
+scheduler = "crow"
+checks = ["rust", "documents", "lint", "styles"]
+workflow = "repository-jobs"
+command = ["bash", ".ci/run-cached.sh"]

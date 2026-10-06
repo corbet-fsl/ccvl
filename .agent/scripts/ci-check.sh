@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Provider-independent checks using an already provisioned build worker.
 set -euo pipefail
+exec 2>&1
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 # shellcheck source=.agent/scripts/rust-toolchain.sh
 source .agent/scripts/rust-toolchain.sh
