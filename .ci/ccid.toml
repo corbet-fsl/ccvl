@@ -91,7 +91,7 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package
 # lint; python3 for the python entry points).
 
 [render]
-tool_revision = "81ebac8e86e20bc93b69d5e912bbcb0c0d036d58"
+tool_revision = "223adb5a008f4ed1ba36d1f52796ccd29077db6e"
 
 [jobs.verify]
 scheduler = "crow"
