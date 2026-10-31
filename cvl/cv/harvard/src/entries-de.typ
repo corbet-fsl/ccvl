@@ -155,7 +155,7 @@
       // ccvl-station: physics-degrees
       #cv-h[M.Sc. & B.Sc. Physik]
       #cv-gap("heading_after_pt")
-      #cv-s[Goethe-Universität Frankfurt · Abschluss 2024 · Note: 1,0 (DE) | 6.0 (CH) | GPA 4.0]
+      #cv-s[Goethe-Universität Frankfurt · Abschluss 2024 · Note: 6.0 (CH) | 1,0 (DE) | GPA 4.0]
       #cv-gap("subheading_after_pt")
       #cv-b[Schwerpunkte: KI/ML (1,0) | High-Tech-IP (1,15) | Elektronik (1,3) | Biophysik (1,3) | Chemie (1,0)]
       #cv-gap("bullet_after_pt")
@@ -164,13 +164,13 @@
       // ccvl-station: psychology-degree
       #cv-h[B.Sc. Psychologie]
       #cv-gap("heading_after_pt")
-      #cv-s[Goethe-Universität Frankfurt · Abschluss 2017 · Note: 1,6 (DE) | 5.6 (CH) | GPA 3.7]
+      #cv-s[Goethe-Universität Frankfurt · Abschluss 2017 · Note: 5.6 (CH) | 1,6 (DE) | GPA 3.7]
       #cv-gap("subheading_after_pt")
       #cv-b[Schwerpunkte: KI/ML & Neurowissenschaften | AR/VR-Trainings | Klinische/Organisationspsychologie (1,0)]
       #cv-gap("bullet_after_pt")
       #cv-b[FIAS-Forschung (9 Mon.): Stereosehen & neuronale Abstimmung per ML modelliert; Empathie quantifiziert]
       #cv-entry-gap()
-      #cv-hu[Matura (Abitur): *1,0 (DE) | 6.0 (CH) · Jahrgangsbester · Mathe-Olympiade · Schülerakademie*]
+      #cv-hu[Matura (Abitur): *6.0 (CH) | 1,0 (DE) · Jahrgangsbester · Mathe-Olympiade · Schülerakademie*]
     ]
 
     #block(breakable: false)[

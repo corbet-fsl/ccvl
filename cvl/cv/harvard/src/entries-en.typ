@@ -155,7 +155,7 @@
       // ccvl-station: physics-degrees
       #cv-h[M.Sc. & B.Sc. Physics]
       #cv-gap("heading_after_pt")
-      #cv-s[Goethe University Frankfurt · Graduated 2024 · Grade: 1.0 (DE) | 6.0 (CH) | GPA 4.0]
+      #cv-s[Goethe University Frankfurt · Graduated 2024 · Grade: 6.0 (CH) | 1.0 (DE) | GPA 4.0]
       #cv-gap("subheading_after_pt")
       #cv-b[Focus: AI/ML (1.0) | high-tech IP (1.15) | electronics (1.3) | biophysics (1.3) | chemistry (1.0)]
       #cv-gap("bullet_after_pt")
@@ -164,13 +164,13 @@
       // ccvl-station: psychology-degree
       #cv-h[B.Sc. Psychology]
       #cv-gap("heading_after_pt")
-      #cv-s[Goethe University Frankfurt · Graduated 2017 · Grade: 1.6 (DE) | 5.6 (CH) | GPA 3.7]
+      #cv-s[Goethe University Frankfurt · Graduated 2017 · Grade: 5.6 (CH) | 1.6 (DE) | GPA 3.7]
       #cv-gap("subheading_after_pt")
       #cv-b[Focus: AI/ML & neuroscience | AR/VR training | clinical/organisational psychology (1.0)]
       #cv-gap("bullet_after_pt")
       #cv-b[Research at #brand[FIAS] (9 mos.): Modelled stereovision and neural tuning with ML; quantified empathy]
       #cv-entry-gap()
-      #cv-hu[Matura (Abitur): *1.0 (DE) | 6.0 (CH) · Top of graduating class · Maths Olympiad · Student Academy*]
+      #cv-hu[Matura (Abitur): *6.0 (CH) | 1.0 (DE) · Top of graduating class · Maths Olympiad · Student Academy*]
     ]
 
     #block(breakable: false)[
