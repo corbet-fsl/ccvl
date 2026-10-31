@@ -1,7 +1,9 @@
 # Shared cluster wording, de-ch: the approved summary and seven Harvard
 # stations (2–3–2). Station wording is copied from Harvard unchanged.
 [cv]
-summary = """Als Physiker mit dem Schwerpunkt AI arbeite ich zwischen Technik und Management: Anforderungen klären, Umsetzung koordinieren, Entscheide vorbereiten. Ich baue AI-native Prototypen mit Claude Code, Codex, OpenCode sowie Open Source und analysiere Daten und Szenarien. Vor Stakeholdern und fachlichen Fragen scheue ich mich nicht und übernehme Mitverantwortung für Lieferung, Termine und Ergebnisse. Als Bürger der EU mit Ausweis B bin ich ab sofort flexibel für eine Festanstellung oder ein Mandat in der Schweiz verfügbar."""
+summary = """Als Physiker mit AI Schwerpunkt arbeite ich zwischen Technik und Management: Anforderungen klären, Umsetzung koordinieren, Entscheide vorbereiten. Ich baue AI-native Prototypen mit Claude Code, Codex, OpenCode und Open Source Technologien und führe Daten und Szenarioanalysen durch. Vor Stakeholdern und Fachlichkeit scheue ich mich nicht und übernehme Mitverantwortung für Lieferung, Termine und Ergebnis. Als EU Bürger mit Ausweis B bin ich ab sofort flexibel für Festanstellung oder Mandat in der Schweiz verfügbar."""
+# The approved wording keeps a thin first line instead of being rewritten to fill it.
+allow_thin = true
 
 [[cv.groups]]
 title = "Investments & Corporate Finance"
