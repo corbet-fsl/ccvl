@@ -34,9 +34,11 @@ exported as a reusable bundle. The
 [Harvard D+ substyle](../harvard/d-plus/README.md) remains available as the
 chronological CV and is the workspace's default CV.
 
-Earlier geometry samples remain available with Lorem Ipsum openings and the
-same continuation: `standard` has 2–2–2 stations, `middle-three` has 2–3–2,
-and `middle-three-spaced` balances the category gaps. D+ is the cluster
-default. Fonts, wording and line counts affect visible gaps: remeasure after
+The summary and the seven stations live once per language in
+`content/<language>/ch/wording.toml`; every substyle shows the same approved
+content with different spacing. `middle-three` and `middle-three-spaced` use
+the same 2–3–2 page as D+ (`middle-three-spaced` balances the category gaps);
+`standard` is 2–2–2 and therefore leaves out the consulting venture in
+technology. D+ is the cluster default. Fonts, wording and line counts affect visible gaps: remeasure after
 changing them rather than treating these calibrated values as universal
 constants.

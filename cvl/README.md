@@ -2,9 +2,9 @@
 
 `cvl/` owns the approved general documents and their showcase outputs. Private
 source evidence stays in `interview/`; concrete applications stay in
-`opportunities/`. Harvard contains the approved showcase; the Cluster D+ CV opens
-with a grouped first page under a finance-and-AI summary and continues with the
-unchanged Harvard pages, while older cluster samples keep Lorem Ipsum openings. The displayed
+`opportunities/`. Harvard and Cluster both show the approved showcase: they share
+the Harvard pages 2–4 and differ only in the first page, chronological in
+Harvard and grouped under a finance-and-AI summary in Cluster. The displayed
 name/contact come from the approved public profile.
 
 ## Full structure

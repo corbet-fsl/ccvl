@@ -80,7 +80,7 @@
     link(profile.website)[Web],
     localized.availability,
   ).filter(item => item != none)
-  align(center, text(size: 15.75pt, weight: "bold", strings.at("demo_heading", default: profile.name)))
+  align(center, text(size: 15.75pt, weight: "bold", profile.name))
   v(settings.header.after_pt * 1pt)
   align(center, text(size: 9.03pt, contacts.join([ | ])))
 

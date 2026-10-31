@@ -9,7 +9,7 @@ shared_pages = [1, 2]
 version = "1.7"
 tagged = true
 font_pattern = "^[A-Z]{6}\\+Archivo-(Bold|Italic|Medium|Regular)$"
-# Every page carries the name in its header (older samples label page 1).
+# Every page carries the name in its header.
 required_profile_fields = ["name", "email", "phone_label"]
 minimum_text_chars = 100
 
