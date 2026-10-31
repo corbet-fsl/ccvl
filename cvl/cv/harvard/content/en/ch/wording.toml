@@ -3,6 +3,6 @@
 
 [cv]
 # One flowing paragraph. It must typeset to exactly 5 lines; the checker
-# verifies instead of you counting. (The fifth sentence exposes the adaptation
-# formula for new users; a real application rewrites it target-specifically.)
-summary = """This CV is working example, technical product demonstration and open application combining technology and innovation management with strategy and finance in regulated environments. Evidence: GenAI and RAG search at CENVION, decision analysis for Swisscom and Airbus including M&A, banking-sector and consulting across four markets. If that fits, let us speak – gladly about your mandates, goals and open questions across Switzerland or remote. To adapt it: target profile | differentiation | two evidenced results | clear value for your team."""
+# verifies instead of you counting. This generic summary is shared with the
+# cluster CV; a real application rewrites it target-specifically.
+summary = """As a physicist specialising in AI, I work at the interface of technology and management: clarifying requirements, coordinating delivery and preparing a basis for decisions. I build AI-native prototypes with Claude Code, Codex, OpenCode and open source technologies, and carry out data and scenario analyses. I engage confidently with stakeholders and technical questions, taking shared responsibility for delivery, deadlines and results. As an EU citizen with a Swiss B permit, I am available immediately for permanent roles or contracts in Switzerland."""

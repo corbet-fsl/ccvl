@@ -1,7 +1,5 @@
 # ccvl
 
-[![CI](https://github.com/corbet-libs/ccvl/actions/workflows/ci.yml/badge.svg)](https://github.com/corbet-libs/ccvl/actions/workflows/ci.yml)
-[![Skill evaluation](https://github.com/corbet-libs/ccvl/actions/workflows/skill-eval.yml/badge.svg)](https://github.com/corbet-libs/ccvl/actions/workflows/skill-eval.yml)
 [Verification and release checks](.agent/docs/ci.md)
 
 ccvl is a local-first, forkable CV and application system built as a native
@@ -56,14 +54,14 @@ Included are:
 
 ## Quick start
 
-On Linux x86_64, no Git or Typst experience is required. [Download and extract the Linux bundle](https://github.com/corbet-libs/ccvl/releases/latest), or
+On Linux x86_64, no Git or Typst experience is required. Download and extract the Linux bundle from this repository's latest release, or
 clone the repository if you already use Git. Open the folder in a
 filesystem-capable coding agent and ask it to set up ccvl using `AGENTS.md`.
 The complete novice and terminal workflows are in [Getting
 started](.agent/docs/getting-started.md).
 
 ```sh
-git clone https://github.com/corbet-libs/ccvl.git
+git clone <ccvl repository URL> ccvl
 cd ccvl
 bash ./ccvl setup
 bash ./ccvl check

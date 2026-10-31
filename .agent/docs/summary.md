@@ -21,8 +21,8 @@ final line stays ragged.
     closing-line maximum; past it fails. Cover-letter closing lines have
     their own 100% maximum in `.agent/docs/cover-letter.md`.
 
-The public Summary is both a working example and an invitation to contact
-its author. Its closing exposes the adaptation formula:
+The public Summary is the author's generic profile, shared by the Harvard
+and cluster CVs. Tailored summaries follow the formula:
 
 ```text
 target profile | differentiation | two evidenced results | value offered

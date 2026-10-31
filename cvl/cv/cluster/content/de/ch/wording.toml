@@ -1,7 +1,7 @@
 # Shared cluster wording, de-ch: the approved summary and seven Harvard
 # stations (2–3–2). Station wording is copied from Harvard unchanged.
 [cv]
-summary = """Physiker mit M.Sc. und B.Sc. (Abschlussnote 6.0), der Finance und KI verbindet. Bei CENVION Claude fürs Investment Reporting eingeführt und eine RAG-Suche über Portfoliodaten gebaut; bei Swisscom achtstellige Infrastrukturinvestitionen im SteerCo präsentiert; bei Airbus per ML-Analyse von 20+ Jahren Sicherheitsdaten eine achtstellige Investition ausgelöst. Bei COVENDIT schon vor ChatGPT ein KI-Longlisting entwickelt und M&A-Recherchezeit um 80 % reduziert; bei NEXGEN ETL-Laufzeit um 99 % verkürzt. Lassen Sie uns sprechen."""
+summary = """Als Physiker mit dem Schwerpunkt AI arbeite ich zwischen Technik und Management: Anforderungen klären, Umsetzung koordinieren, Entscheide vorbereiten. Ich baue AI-native Prototypen mit Claude Code, Codex, OpenCode sowie Open Source und analysiere Daten und Szenarien. Vor Stakeholdern und fachlichen Fragen scheue ich mich nicht und übernehme Mitverantwortung für Lieferung, Termine und Ergebnisse. Als Bürger der EU mit Ausweis B bin ich ab sofort flexibel für eine Festanstellung oder ein Mandat in der Schweiz verfügbar."""
 
 [[cv.groups]]
 title = "Investments & Corporate Finance"
