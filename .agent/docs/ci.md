@@ -1,12 +1,12 @@
 # Selecting CI checks
 
-GitHub Actions is preferred when available for public source checks. Pushes to
-`main` and pull requests run the checks their changes require when Actions is
-available; see [Change-scoped GitHub checks](#change-scoped-github-checks).
+Hosted CI runners are preferred when available for public source checks. Pushes
+to `main` and pull requests run the checks their changes require when hosted CI
+is available; see [Change-scoped hosted checks](#change-scoped-hosted-checks).
 Release preparation and publication remain an explicit manual
 dispatch, using the platform set in `.agent/release-platforms.txt`, currently
 Linux x86_64. Crow independently provides selected checks and the complete
-release path when Actions is unavailable; do not
+release path when hosted CI is unavailable; do not
 run both providers for the same validation without a missing result or changed
 input. Private downstream data and credential-bearing jobs stay on trusted
 internal workers.
@@ -26,7 +26,7 @@ and test-thread budget through the shared `ccid` adapter. A direct invocation
 without those environment settings retains conservative script defaults.
 Run only checks whose inputs changed or whose results are
 missing. Private downstream data must remain on trusted internal workers.
-GitHub-hosted jobs install the current stable channel and report the actual
+Hosted CI jobs install the current stable channel and report the actual
 compiler version. Crow reuses suitable preinstalled Rust, preferring an installed
 stable channel and otherwise the provisioned rustup default or standalone
 compiler. `Cargo.toml` declares the minimum supported version, not an exact
@@ -37,9 +37,10 @@ installed Nix store packages omitted from the worker's PATH. The lightweight
 bootstrap and CI-selector behavior tests run with lint. A future advertised
 Windows binary must also pass bootstrap checks on its actual native platform.
 
-## Change-scoped GitHub checks
+## Change-scoped hosted checks
 
-The first `ci.yml` job, `changes`, runs `.agent/scripts/ci-changes.sh github`.
+The first job of the GitHub Actions workflow in `.github/workflows/ci.yml`,
+`changes`, runs `.agent/scripts/ci-changes.sh github`.
 It lists changed paths with `git diff --no-renames --name-only`: a pull request
 compares its head with the merge base of base and head (`base...head`); a push
 to `main` compares `before..after`. A missing, all-zero or unresolvable commit,
@@ -143,8 +144,8 @@ remain authoritative. `CI_JOBS`, `CI_TEST_THREADS`, `CI_MEMORY_MB` and
 `CI_TIMEOUT` permit explicit bounded overrides; memory admission still applies.
 The superseded single-core `verify` workflow has been removed.
 
-The staged archive avoids a source clone from GitHub. The Crow forge integration
-may still need GitHub to retrieve workflow configuration; a submission failure
+The staged archive avoids a source clone from a forge. The Crow forge integration
+may still need forge access to retrieve workflow configuration; a submission failure
 is not a test result. The operator owns registration and staging configuration.
 
 These selectors provide source validation. The separate Crow `release-linux`,
@@ -172,7 +173,7 @@ provider credentials. Its second step binds the repository secret
 `ccvl_groq_api_key` to `GROQ_API_KEY`. That secret must be configured by an
 authorized operator before dispatch; adding the workflow does not provision a
 credential or prove the provider is available. A missing key is a configuration
-failure, never a passing evaluation. The legacy GHA skill job remains disabled.
+failure, never a passing evaluation. The legacy hosted CI skill job remains disabled.
 Once the exact public candidate and credential are ready, the operator submission
 is `crow-ci run --repo /path/to/ccvl --workflow skill-eval` using the configured
 shared helper; use `plan` in place of `run` to inspect the staged identities first.

@@ -159,13 +159,40 @@ fi
 # shellcheck source=.agent/scripts/runtime-id.sh
 source "$repo_root/.agent/scripts/runtime-id.sh"
 
+# Runtime releases live beside the source on whichever forge this checkout was
+# cloned from: the HTTPS form of `origin` plus /releases/download, a path shared
+# by the common forges. CCVL_RELEASE_BASE overrides the complete base.
+origin_release_root() {
+  local url host path
+  url="$(git -C "$repo_root" remote get-url origin 2>/dev/null)" || return 1
+  case "$url" in
+    https://*) url="${url#https://}" ;;
+    ssh://*) url="${url#ssh://}" ;;
+    *@*:*) url="${url%%:*}/${url#*:}" ;;
+    *) return 1 ;;
+  esac
+  url="${url#*@}"
+  host="${url%%/*}"
+  path="${url#*/}"
+  [[ -n "$host" && "$path" != "$url" && -n "$path" ]] || return 1
+  printf 'https://%s/%s/releases/download\n' "${host%%:*}" "${path%.git}"
+}
+release_base_for() {
+  local root
+  if [[ -n "${CCVL_RELEASE_BASE:-}" ]]; then
+    printf '%s\n' "$CCVL_RELEASE_BASE"
+  elif root="$(origin_release_root)"; then
+    printf '%s/runtime-%s\n' "$root" "$1"
+  fi
+}
+
 binary_state=install
 fingerprint="$(source_fingerprint 2>/dev/null)" || fingerprint=
 if [[ -x "$binary" && -n "$fingerprint" ]] \
   && [[ "$("$binary" runtime-id 2>/dev/null)" == "$fingerprint" ]]; then
   binary_state=ready
 fi
-release_base="${CCVL_RELEASE_BASE:-https://github.com/corbet-libs/ccvl/releases/download/runtime-$fingerprint}"
+release_base="$(release_base_for "$fingerprint")"
 if [[ "$binary_state" != ready && "$from_source" != 1 ]] \
   && ! grep -Fxq -- "${release_asset#ccvl-}" "$repo_root/.agent/release-platforms.txt"; then
   printf 'No prebuilt runtime is released for %s in this workspace. See .agent/docs/tooling.md for developer source builds.\n' "$platform" >&2
@@ -381,6 +408,7 @@ fetch_prebuilt() {
   local staged="$bootstrap_tmp/$release_asset"
   local staged_checksum="$staged.sha256"
   local expected current
+  [[ -n "$release_base" ]] || return 1
   fetch "$release_base/$release_asset" "$staged" || return 1
   fetch "$release_base/$release_asset.sha256" "$staged_checksum" || return 1
   expected="$(awk '{ print $1 }' "$staged_checksum")" || return 1
@@ -397,7 +425,7 @@ fetch_prebuilt() {
 }
 
 fingerprint="$(source_fingerprint)"
-release_base="${CCVL_RELEASE_BASE:-https://github.com/corbet-libs/ccvl/releases/download/runtime-$fingerprint}"
+release_base="$(release_base_for "$fingerprint")"
 fetched_binary=0
 if [[ "$binary_state" == install && -n "$release_asset" && "$from_source" != 1 ]] \
   && { probe curl >/dev/null || probe wget >/dev/null; } \

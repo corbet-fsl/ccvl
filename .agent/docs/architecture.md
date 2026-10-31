@@ -17,8 +17,8 @@ interview/ -> cvl/ -> opportunities/<organisation>/<position>/
      +----- verified facts ----+
 ```
 
-`.github/` contains forge automation and `LICENSES/` contains complete legal
-texts. Neither is a product-data domain.
+`.github/` contains hosted CI workflows and contributor metadata, and
+`LICENSES/` contains complete legal texts. Neither is a product-data domain.
 
 ## `interview/`: user knowledge
 

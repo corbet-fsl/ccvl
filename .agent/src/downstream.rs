@@ -21,7 +21,10 @@ struct Policy {
 #[serde(deny_unknown_fields)]
 struct Upstream {
     remote: String,
-    url: String,
+    /// Optional because the source is mirrored to several forges: without a
+    /// URL only the named remote and branch are required.
+    #[serde(default)]
+    url: Option<String>,
     branch: String,
 }
 
@@ -42,12 +45,13 @@ pub fn validate(
         workspace,
         &["config", "--local", "--get-all", &remote_url_key],
     )?;
-    ensure!(
-        actual_url == policy.upstream.url,
-        "remote {:?} points to {actual_url:?}; expected {:?}",
-        policy.upstream.remote,
-        policy.upstream.url
-    );
+    if let Some(expected) = &policy.upstream.url {
+        ensure!(
+            actual_url == *expected,
+            "remote {:?} points to {actual_url:?}; expected {expected:?}",
+            policy.upstream.remote,
+        );
+    }
 
     let default_ref = format!(
         "refs/remotes/{}/{}",
@@ -120,13 +124,16 @@ fn validate_policy(policy: &Policy) -> Result<()> {
     );
     validate_atom("upstream.remote", &policy.upstream.remote)?;
     validate_atom("upstream.branch", &policy.upstream.branch)?;
-    ensure!(
-        policy.upstream.url.starts_with("https://github.com/")
-            && Path::new(&policy.upstream.url)
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("git")),
-        "upstream.url must be an explicit HTTPS GitHub URL ending in .git"
-    );
+    if let Some(url) = &policy.upstream.url {
+        ensure!(
+            url.strip_prefix("https://")
+                .is_some_and(|rest| rest.contains('/') && !rest.starts_with('/'))
+                && Path::new(url)
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("git")),
+            "upstream.url must be an explicit HTTPS repository URL ending in .git"
+        );
+    }
     ensure!(
         !policy.allowed_paths.is_empty(),
         "allowed_paths must not be empty"
@@ -205,7 +212,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    const TEST_UPSTREAM: &str = "https://github.com/corbet-libs/ccvl.git";
+    const TEST_UPSTREAM: &str = "https://forge.example.invalid/ccvl/ccvl.git";
 
     fn git_at(root: &Path, args: &[&str]) -> String {
         let output = Command::new("git")
@@ -231,14 +238,29 @@ mod tests {
 
     #[test]
     fn file_rules_are_exact() {
-        assert!(allows(
-            ".github/workflows/upstream-sync.yml",
-            ".github/workflows/upstream-sync.yml"
-        ));
-        assert!(!allows(
-            ".github/workflows/upstream-sync.yml",
-            ".github/workflows/other.yml"
-        ));
+        assert!(allows(".ci/upstream-sync.yml", ".ci/upstream-sync.yml"));
+        assert!(!allows(".ci/upstream-sync.yml", ".ci/other.yml"));
+    }
+
+    fn policy(url: Option<&str>) -> Policy {
+        Policy {
+            schema_version: POLICY_VERSION,
+            upstream: Upstream {
+                remote: "upstream".into(),
+                url: url.map(str::to_owned),
+                branch: "main".into(),
+            },
+            allowed_paths: vec!["interview/".into()],
+        }
+    }
+
+    #[test]
+    fn upstream_url_is_optional_and_forge_neutral() {
+        assert!(validate_policy(&policy(None)).is_ok());
+        assert!(validate_policy(&policy(Some(TEST_UPSTREAM))).is_ok());
+        assert!(validate_policy(&policy(Some("http://forge.example.invalid/ccvl.git"))).is_err());
+        assert!(validate_policy(&policy(Some("https://forge.example.invalid/ccvl"))).is_err());
+        assert!(validate_policy(&policy(Some("https:///ccvl.git"))).is_err());
     }
 
     #[test]
@@ -268,13 +290,13 @@ mod tests {
             root,
             &[
                 "config",
-                "url.git@github.com:.insteadOf",
-                "https://github.com/",
+                "url.git@forge.example.invalid:.insteadOf",
+                "https://forge.example.invalid/",
             ],
         );
         assert_eq!(
             git_at(root, &["remote", "get-url", "upstream"]),
-            "git@github.com:corbet-libs/ccvl.git"
+            "git@forge.example.invalid:ccvl/ccvl.git"
         );
 
         fs::create_dir(root.join("interview")).unwrap();
@@ -286,7 +308,7 @@ mod tests {
                 "  \"schema_version\": 1,\n",
                 "  \"upstream\": {\n",
                 "    \"remote\": \"upstream\",\n",
-                "    \"url\": \"https://github.com/corbet-libs/ccvl.git\",\n",
+                "    \"url\": \"https://forge.example.invalid/ccvl/ccvl.git\",\n",
                 "    \"branch\": \"main\"\n",
                 "  },\n",
                 "  \"allowed_paths\": [\"ccvl-downstream.json\", \"interview/\"]\n",

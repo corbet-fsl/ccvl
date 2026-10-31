@@ -8,10 +8,10 @@ neither Git nor Rust is required.
 
 ## Required delivery path
 
-Eligible public GitHub Actions remains supported and preferred when available.
+Eligible public hosted CI runners remain supported and preferred when available.
 Crow independently provides release preparation and publication; delivery does
-not wait for Actions. Routine GitHub pushes and pull requests run applicable
-source checks when Actions is available; Crow provides explicit equivalent
+not wait for hosted CI. Routine pushes and pull requests run applicable
+source checks when hosted CI is available; Crow provides explicit equivalent
 checks. Releases remain manual actions. Both providers call the same native
 build, package and publication scripts.
 Current stable Rust is selected without an exact compiler pin; Crow uses an
@@ -22,7 +22,7 @@ The explicit released platform set is **Linux x86_64**, declared in
 `python3 .agent/scripts/release-evidence.py platforms`. Missing artifacts never
 shrink that set. Linux ARM64, both macOS architectures and both Windows
 architectures have no verified prebuilt release. Their native developer paths
-and Actions runner mappings remain available. Any future advertised target
+and hosted CI runner mappings remain available. Any future advertised target
 needs its own native proof; either provider can supply eligible evidence.
 
 For every released target, the native command verifies the running
@@ -38,7 +38,7 @@ native host, runtime identity and asset checksums. The publisher requires every
 released platform's receipt and four gate receipts from the same source and
 dependency identity;
 the Linux deep/archive gates additionally identify their exact native receipt.
-GHA and Crow archives may encode tar metadata differently, so canonical source
+Hosted CI and Crow archives may encode tar metadata differently, so canonical source
 file/mode hashes establish equal source contents across providers. Reports are
 retained beside the artifacts. They are trusted CI evidence, not cryptographic
 attestations against a compromised executor.
@@ -56,8 +56,8 @@ matching immutable runtime can be reused by later workspace-only revisions.
 
 Use the existing shared `crow-ci` dispatcher for committed source staging,
 verified ccid execution, memory admission and the actual persistent Cargo target
-lock. Prefer an eligible available GHA execution where it can complete the
-selected work; otherwise use Crow without waiting for GHA. Do not dispatch
+lock. Prefer an eligible available hosted CI execution where it can complete the
+selected work; otherwise use Crow without waiting for hosted CI. Do not dispatch
 duplicate work or treat a real failed check as provider unavailability.
 
 | Workflow | Action | Existing executor requirement |
@@ -74,8 +74,10 @@ packages/receipts to that directory. A future platform must be explicitly added
 to release policy before it is advertised. Transfer exact files without
 replacing a different existing artifact; run `release-ci.sh check` before publication.
 `release-publish` requires the manual-event repository secret
-`ccvl_release_github_token`; it never compiles with that credential. Registry or
-GitHub authorization settings are not changed by these commands.
+`ccvl_release_github_token`; it never compiles with that credential. The current
+publisher script, `.agent/scripts/publish-release.sh`, targets a GitHub-compatible
+release API; it is the only forge-specific release step. Registry or forge
+authorization settings are not changed by these commands.
 
 An already provisioned sandbox can be selected for `release-archive` with the
 paired `ARCHIVE_EXECUTOR` and `ARCHIVE_EXECUTOR_SHA256` inputs. The workflow
@@ -134,12 +136,17 @@ executable independently checks its workspace, including when called directly.
 CV text, Typst templates, profile data, interview evidence, and opportunities
 are runtime inputs rather than compiled code and do not force recompilation.
 
+Setup downloads the matching runtime from
+`<origin>/releases/download/runtime-<fingerprint>/`, where `<origin>` is the
+HTTPS form of the checkout's `origin` remote; `CCVL_RELEASE_BASE` overrides it.
+An extracted release bundle has no origin remote and needs no download because
+it ships its binary.
 Setup verifies both the download checksum and embedded source identity before
 installing it. It never labels an arbitrary downloaded binary as current and
 never silently falls back to compilation. Developers use `setup --from-source`
 to request a local build with a suitable installed stable compiler, or a
 repository-local stable toolchain when none meets the `Cargo.toml` minimum.
-GHA release CI installs current stable; Crow reuses a provisioned compatible
+Hosted release CI installs current stable; Crow reuses a provisioned compatible
 compiler. Both record the actual compiler version.
 The channel file remains part of the runtime source identity; download hashes,
 source fingerprints, every released target's native checks and all four shared
@@ -148,7 +155,7 @@ gates remain mandatory.
 ## Reusing work
 
 Crow retains dependencies in dedicated, locked Cargo storage keyed by repository
-identity. On GHA, the pinned Rust cache action retains dependency downloads and
+identity. On hosted CI, the pinned Rust cache action retains dependency downloads and
 compiled dependencies, keyed by OS, architecture, compiler, dependency
 lockfile, and build settings; only `main` saves these separate test, document
 and release caches, and a daily scheduled `main` run refreshes the first two
@@ -158,9 +165,9 @@ disabled for the CI test build to reduce cache size. Successful dependency work
 remains available when a later test fails, so fixes do not repeat a cold build.
 
 Release binaries are built once per released platform per run and retained for
-later gates and publication. GHA artifacts have a three-day retention period;
+later gates and publication. Hosted CI artifacts have a three-day retention period;
 Crow retains packages under its explicit release directory. Published downloads
-remain release assets. Eligible public source can use GitHub-hosted runners.
+remain release assets. Eligible public source can use hosted CI runners.
 Private downstream content stays on trusted internal workers, with its own
 ownership and document gates.
 

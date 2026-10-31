@@ -1,19 +1,20 @@
 # Create a private downstream
 
-GitHub does not allow a private repository inside the fork network of a public
-repository. Use a standalone private repository with shared Git history.
+Some forges do not allow private forks of public repositories, so create a
+separate private repository with shared Git history and add ccvl as the
+`upstream` remote.
 
 ```sh
 git clone <ccvl repository URL> applications
 cd applications
 git remote rename origin upstream
-gh repo create OWNER/applications --private
+# Create an empty private repository on your forge, then:
 git remote add origin <private applications repository URL>
 git push --set-upstream origin main
 ```
 
-This is a private downstream in Git terms even though GitHub does not display
-the “forked from” badge.
+This is a private downstream in Git terms even though the forge may not display
+it as a fork.
 
 The clone temporarily contains the reference-only personal showcase under the
 narrow replacement permission in
@@ -37,7 +38,10 @@ upstream remote and the only paths the downstream may own. A personalised
 downstream normally owns its policy, sync workflow, `interview/`, `cvl/`, and
 `opportunities/`; `.agent/`, the root launchers, schemas, skills, tests, and
 fixed layout contracts remain upstream-owned. Narrow this list when a
-downstream intentionally keeps the public showcase unchanged.
+downstream intentionally keeps the public showcase unchanged. `upstream.url` is
+optional: when omitted, the check only requires the named remote (e.g.
+`upstream`) and its branch to exist; when present, it must be an
+`https://…/….git` URL on any forge and must match the remote.
 
 Run the boundary gate after fetching upstream:
 
@@ -47,7 +51,8 @@ cargo run --locked -- downstream-check \
 ```
 
 The command fails if the downstream does not contain the fetched upstream
-commit, if the configured remote differs, or if even one unlisted path differs.
+commit, if the named remote or its branch is missing or differs from a configured
+`upstream.url`, or if even one unlisted path differs.
 There is no implicit exception.
 
 ## Updating from ccvl
@@ -64,9 +69,12 @@ to the upstream default branch. It must merge the exact triggering commit,
 enforce the ownership policy, run the complete deterministic document gate,
 and push only the verified merge. A superseded event is a no-op; a conflict,
 structural deviation, document failure, or ownership breach leaves the private
-remote unchanged. `.github/workflows/downstream-sync.yml` provides the generic
-workflow. The maintainer's self-hosted Crow workflow keeps private interview
-and opportunity data off hosted runners.
+remote unchanged. The GitHub Actions workflow in
+`.github/workflows/downstream-sync.yml` provides the generic workflow. The
+maintainer's self-hosted Crow workflow keeps private interview and opportunity
+data off hosted runners. Both Crow routes read the public repository from
+`CCVL_UPSTREAM_URL` (`https://<forge>/<owner>/ccvl.git`), so the same scripts work
+against any mirror.
 
 Keep credentials in the workflow runner's repository-scoped secret store and
 restrict them to the intended event. Never expose personal downstream content
@@ -83,7 +91,8 @@ The inherited `.crow/downstream-check.yaml` is a manual, check-only route for a
 private repository. Run it on the existing trusted Linux x86_64 Crow worker,
 selecting the exact private commit and an explicit 40-character
 `UPSTREAM_COMMIT` that it already contains. It never merges or pushes. The
-public repository and GitHub Actions are refused before the check runner starts.
+public repository and runs outside Crow, including hosted CI, are refused before
+the check runner starts.
 
 The shared Crow transport supplies the committed source archive and the complete
 `DOWNSTREAM_SOURCE_BUNDLE` declared in `.ci/archives.toml`, with both digests.
@@ -99,7 +108,7 @@ The check uses the bootstrap runtime identity algorithm and the matching public
 match the downloaded official checksum and its executable runtime identity.
 Without that input, the binary is downloaded into disposable job storage.
 No compiler, packages, worker tools, or user runtime cache are installed.
-Missing published runtime assets or unavailable GitHub access produce a failed
+Missing published runtime assets or an unreachable release host produce a failed
 prerequisite, not a source build or a successful validation result.
 
 The published runtime runs `downstream-check --policy ccvl-downstream.json

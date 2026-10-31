@@ -30,7 +30,7 @@ cvl/                                     approved general CV and cover letter
 opportunities/<organisation>/<position>/ one concrete job and its documents
 ```
 
-`.github/` contains hosting automation and `LICENSES/` contains the complete
+`.github/` contains hosted CI workflows and `LICENSES/` contains the complete
 legal texts. There is no separate market map. General preferences discovered
 with the user belong in `interview/`; company and role research belongs beside
 the concrete job in `opportunities/`.

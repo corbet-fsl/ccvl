@@ -71,6 +71,7 @@ path = [
   "cvl/*/*/*/*/*/content.toml",
   "cvl/*/*/content/*/*/wording.toml",
   "cvl/cv/harvard/src/entries-*.typ",
+  "cvl/cv/cluster/drafts/*.md",
   "cvl/assets/signature.png",
   "interview/stations.toml",
 ]

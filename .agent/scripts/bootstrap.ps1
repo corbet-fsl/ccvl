@@ -149,8 +149,22 @@ if ($Assets.Count -ne 1) {
 $Asset = $Assets[0]
 
 $Fingerprint = Get-SourceFingerprint
+# Runtime releases live beside the source on the forge this checkout came from:
+# the HTTPS form of `origin` plus /releases/download, a path the common forges
+# share. CCVL_RELEASE_BASE overrides the complete base.
+function Get-OriginReleaseRoot {
+    $Url = (& git -C $RepoRoot remote get-url origin 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $Url) { return $null }
+    $Url = "$Url".Trim()
+    if ($Url -match '^https://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+?)(?:\.git)?/?$') { }
+    elseif ($Url -match '^ssh://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+?)(?:\.git)?/?$') { }
+    elseif ($Url -match '^[^@/]+@([^:/]+):(.+?)(?:\.git)?/?$') { }
+    else { return $null }
+    return "https://$($Matches[1])/$($Matches[2])/releases/download"
+}
 $ReleaseBase = if (Test-Path Env:CCVL_RELEASE_BASE) { $env:CCVL_RELEASE_BASE } else {
-    "https://github.com/corbet-libs/ccvl/releases/download/runtime-$Fingerprint"
+    $ReleaseRoot = Get-OriginReleaseRoot
+    if ($ReleaseRoot) { "$ReleaseRoot/runtime-$Fingerprint" } else { "" }
 }
 $BinaryState = "install"
 if (Test-Path -LiteralPath $Binary -PathType Leaf) {
@@ -234,6 +248,7 @@ try {
     $FetchedBinary = $false
     if ($BinaryState -eq "install" -and $FetchEnabled) {
         try {
+            if (-not $ReleaseBase) { throw "No release location: clone with an origin remote or set CCVL_RELEASE_BASE" }
             $Staged = Join-Path $TemporaryRoot $ReleaseAsset
             Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/$ReleaseAsset" -OutFile $Staged
             Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/$ReleaseAsset.sha256" -OutFile "$Staged.sha256"

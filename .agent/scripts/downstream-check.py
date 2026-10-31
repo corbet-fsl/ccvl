@@ -15,7 +15,8 @@ import tempfile
 
 
 PUBLIC_REPO = 'corbet-libs/ccvl'
-PUBLIC_URL = 'https://github.com/' + PUBLIC_REPO + '.git'
+# The public source is mirrored to several forges; CI names the one it reads.
+PUBLIC_URL = os.environ.get('CCVL_UPSTREAM_URL', '')
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -58,6 +59,8 @@ def check():
             and not os.environ.get('GITHUB_ACTIONS'),
             'Private downstream checks require a private repository on Crow.')
     require(os.environ.get('CI_PIPELINE_EVENT') == 'manual', 'Private downstream checks require a manual event.')
+    require(re.fullmatch(r'https://[^/\s]+/\S+\.git', PUBLIC_URL),
+            'Set CCVL_UPSTREAM_URL to the public ccvl repository (https://<forge>/<owner>/ccvl.git).')
     target = os.environ.get('CARGO_TARGET_DIR')
     require(target and os.environ.get('CCID_TARGET_LOCK_HELD') == target,
             'Private downstream checks require the verified ccid target lock.')
@@ -107,7 +110,7 @@ def check():
         policy = json.loads((checkout / 'ccvl-downstream.json').read_text())
         configuration = policy.get('upstream', {})
         remote = configuration.get('remote', '')
-        require(configuration.get('url') == PUBLIC_URL and re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]*', remote),
+        require(configuration.get('url') in (None, PUBLIC_URL) and re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]*', remote),
                 'Private policy must name the public ccvl upstream.')
         # The Git bundle clone has no private origin URL or push credentials.
         run('Remove bundle origin', 'git', 'remote', 'remove', 'origin', cwd=checkout)
@@ -126,7 +129,7 @@ def check():
         require(os.uname().sysname == 'Linux' and os.uname().machine == 'x86_64',
                 'This Crow route requires the existing Linux x86_64 executor.')
         asset = 'ccvl-linux-x86_64'
-        base = 'https://github.com/' + PUBLIC_REPO + '/releases/download/runtime-' + fingerprint
+        base = PUBLIC_URL[:-len('.git')] + '/releases/download/runtime-' + fingerprint
         checksum_file = scratch / (asset + '.sha256')
         curl = ('curl', '-q', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
                 '--tlsv1.2', '--silent', '--show-error')

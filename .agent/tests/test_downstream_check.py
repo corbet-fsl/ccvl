@@ -43,7 +43,7 @@ class DownstreamCheck(unittest.TestCase):
         self.upstream = self.git('rev-parse', 'HEAD').decode().strip()
         self.write('ccvl-downstream.json', json.dumps({
             'schema_version': 1,
-            'upstream': {'remote': 'upstream', 'url': 'https://github.com/corbet-libs/ccvl.git', 'branch': 'main'},
+            'upstream': {'remote': 'upstream', 'url': 'https://forge.example.invalid/corbet-libs/ccvl.git', 'branch': 'main'},
             'allowed_paths': ['ccvl-downstream.json', 'interview/'],
         }))
         self.write('interview/profile.md', 'PRIVATE_SENTINEL\n')
@@ -90,7 +90,7 @@ else: sys.exit(99)
         curl.write_text('#!' + sys.executable + '\n' + '''import os, pathlib, shutil, sys
 name = sys.argv[-1].rsplit('/', 1)[1]
 assert sys.argv[1] == '-q'
-assert sys.argv[-1] == 'https://github.com/corbet-libs/ccvl/releases/download/runtime-' + os.environ['TEST_RUNTIME_ID'] + '/' + name
+assert sys.argv[-1] == 'https://forge.example.invalid/corbet-libs/ccvl/releases/download/runtime-' + os.environ['TEST_RUNTIME_ID'] + '/' + name
 with open(os.environ['TEST_TRACE'], 'a') as log: log.write('download:' + name + '\\n')
 if os.environ.get('TEST_RUNTIME_UNAVAILABLE'): sys.exit(22)
 shutil.copyfile(pathlib.Path(os.environ['TEST_ASSETS']) / name, sys.argv[sys.argv.index('--output') + 1])
@@ -98,6 +98,7 @@ shutil.copyfile(pathlib.Path(os.environ['TEST_ASSETS']) / name, sys.argv[sys.arg
         curl.chmod(0o700)
         self.environment.update(
             PATH=str(self.bin) + os.pathsep + self.environment['PATH'], CI='crow',
+            CCVL_UPSTREAM_URL='https://forge.example.invalid/corbet-libs/ccvl.git',
             CI_REPO='fixture/private-downstream', CI_REPO_PRIVATE='true', CI_PIPELINE_EVENT='manual',
             CI_COMMIT_SHA=self.commit, UPSTREAM_COMMIT=self.upstream,
             CARGO_TARGET_DIR=str(self.base / 'target'), CCID_TARGET_LOCK_HELD=str(self.base / 'target'),

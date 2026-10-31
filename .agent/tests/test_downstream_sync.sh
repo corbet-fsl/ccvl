@@ -22,6 +22,7 @@ export SOURCE_SHA256 UPSTREAM_SOURCE_SHA256
 export CARGO_HOME="$fixture/cargo" CI_CACHE_ROOT="$fixture/cargo"
 export CI_JOBS=1 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
 export DOWNSTREAM_PUSH_KEY=fixture-only DOWNSTREAM_SSH_URL=fixture-only
+export CCVL_UPSTREAM_URL=https://forge.example.invalid/corbet-libs/ccvl.git
 export PATH="$fixture/bin:$PATH"
 unset RUST_TOOLCHAIN RUSTUP_TOOLCHAIN
 

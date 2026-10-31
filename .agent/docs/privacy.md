@@ -21,5 +21,5 @@ publication.
 
 ## Public forks
 
-A public GitHub fork is suitable for generic improvements, not a personal job
+A public fork is suitable for generic improvements, not a personal job
 search. Anyone personalising ccvl should use a standalone private downstream.

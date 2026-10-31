@@ -91,7 +91,7 @@ binary or silently compile on a normal user's machine. Developer source builds
 require `setup --from-source`. Other platform source paths remain available for
 development, without a verified binary release claim.
 Crow can complete validation and publication independently. Retain eligible
-GitHub Actions routes; unavailable Actions or unadvertised native platforms
+hosted CI routes; unavailable hosted CI or unadvertised native platforms
 must not block the available release path.
 
 For a new or uncertain environment, route to `ccvl-install`. Use

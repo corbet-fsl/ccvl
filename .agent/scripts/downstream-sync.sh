@@ -103,7 +103,7 @@ export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$scratch/known_hosts"
 git clone --quiet --single-branch --branch main "$DOWNSTREAM_SSH_URL" "$scratch/downstream"
 cd "$scratch/downstream"
-git remote add upstream https://github.com/corbet-libs/ccvl.git
+git remote add upstream "${CCVL_UPSTREAM_URL:?Public ccvl repository URL (https://<forge>/<owner>/ccvl.git) required}"
 git fetch --quiet --no-tags "$UPSTREAM_SOURCE_BUNDLE" refs/heads/source
 test "$(git rev-parse FETCH_HEAD)" = "$source_commit"
 git update-ref refs/remotes/upstream/main "$source_commit"
@@ -114,13 +114,13 @@ if git merge-base --is-ancestor "$source_commit" HEAD; then
 fi
 
 git config user.name "ccvl downstream sync"
-git config user.email "ccvl-downstream-sync@users.noreply.github.com"
+git config user.email "ccvl-downstream-sync@noreply.invalid"
 git merge --no-edit refs/remotes/upstream/main
 "$gate" downstream-check --policy ccvl-downstream.json --upstream-ref refs/remotes/upstream/main
 "$gate" check
 
 # Re-read the authoritative public branch immediately before publication. A
-# changed branch or unavailable GitHub authentication fails without a push.
+# changed branch or unavailable forge authentication fails without a push.
 upstream_head="$(git ls-remote --exit-code upstream refs/heads/main | awk '{print $1}')"
 if [[ "$upstream_head" != "$source_commit" ]]; then
   echo 'Public main changed during verification; refusing a stale downstream push.' >&2
