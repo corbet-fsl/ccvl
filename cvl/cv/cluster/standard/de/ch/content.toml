@@ -6,7 +6,7 @@ source = "../../../content/de/ch/wording.toml"
 
 [options]
 language = "de-ch"
-pages = 1
+pages = 4
 cv_style = "cluster"
 cv_substyle = "standard"
 generate_cl = false

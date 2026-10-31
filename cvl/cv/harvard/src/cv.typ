@@ -288,6 +288,10 @@
     ]
   ]
 
+  // Pages 2–4 after another page-1 opening: the continuation's first break
+  // then advances to content page 2, exactly as after the Harvard opening.
+  let begin-continuation() = content-page.update(1)
+
   let apply-style(body) = {
     set document(title: "Curriculum Vitae | " + profile.name, author: (profile.name,))
     document-style(locale: doc-locale, style: cv-style, body)
@@ -311,6 +315,7 @@
     cv-subheading-after: cv-subheading-after,
     cv-superheading: cv-superheading,
     render-cv-start: render-cv-start,
+    begin-continuation: begin-continuation,
     assert-page-count: assert-page-count,
     apply-style: apply-style,
   )

@@ -2,8 +2,9 @@
 
 `cvl/` owns the approved general documents and their showcase outputs. Private
 source evidence stays in `interview/`; concrete applications stay in
-`opportunities/`. Harvard contains the approved showcase; Cluster retains
-explicitly unfinished Lorem Ipsum for its layout milestone. The displayed
+`opportunities/`. Harvard contains the approved showcase; the Cluster D+ CV opens
+with a grouped first page under a finance-and-AI summary and continues with the
+unchanged Harvard pages, while older cluster samples keep Lorem Ipsum openings. The displayed
 name/contact come from the approved public profile.
 
 ## Full structure
@@ -40,7 +41,7 @@ cvl/
     ├── harvard/
     │   ├── style.toml, contract.toml, scaffold.toml, src/
     │   ├── content/{de,en}/ch/wording.toml
-    │   ├── left-rule/{de,en}/ch/<leaf>  # default
+    │   ├── left-rule/{de,en}/ch/<leaf>
     │   └── frame/{de,en}/ch/<leaf>
     └── {slot-2,slot-3,slot-4}/style.toml # empty style slots
 
@@ -79,16 +80,16 @@ for the exact source and override rules.
 
 | Style | CV substyles | CL substyles | Font | Locale / paper | CV pages | CL pages |
 | --- | --- | --- | --- | --- | --- | --- |
-| Harvard | d-plus, standard, compact, aligned | left-rule, frame | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | 1 |
-| Cluster | d-plus, standard, middle-three, middle-three-spaced | — | Archivo | de-ch / en-ch, portrait A4 | 1 | — |
+| Harvard | d-plus, standard, compact, aligned | frame, left-rule | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | 1 |
+| Cluster | d-plus, standard, middle-three, middle-three-spaced | — | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | — |
 | Modern | standard, timeline | — | Archivo | de-ch / en-ch, portrait A4 | 1 | — |
 
 Substyles are listed in order; the first is each style's default.
-This produces **40 registered PDFs / 88 pages**, plus two five-page D+
-comparisons. The [cluster example](cv/cluster/README.md) is a typesetting
-milestone with unfinished Lorem Ipsum content. [Modern](cv/modern/README.md)
+This produces **56 registered PDFs / 152 pages**. The
+[cluster CV](cv/cluster/README.md) pairs a grouped first page with the
+unchanged Harvard D+ pages 2–4. [Modern](cv/modern/README.md)
 is a scaffold whose design is not yet defined. The defaults are Harvard D+ for
-CV and Harvard left-rule for CL. All styles declare their page presets;
+CV and Harvard frame for CL. All styles declare their page presets;
 Harvard's station and five-line-summary contracts apply only to Harvard.
 
 Each document offers four styles with five substyles each. Like save slots
@@ -104,10 +105,10 @@ for full-resolution pages. All shipped styles use portrait A4.
 
 | Family / substyle | CV | Cover letter |
 | --- | --- | --- |
-| harvard / d-plus + left-rule (defaults) | [![D+ preview](cv/harvard/d-plus/en/ch/preview/cv-4-1.png)](cv/harvard/d-plus/en/ch/pdf/cv-4.pdf) | [![Letter preview](cl/harvard/left-rule/en/ch/preview/cl-1.png)](cl/harvard/left-rule/en/ch/pdf/cl.pdf) |
-| harvard / standard + frame | [![CV preview](cv/harvard/standard/en/ch/preview/cv-4-1.png)](cv/harvard/standard/en/ch/pdf/cv-4.pdf) | [![Letter preview](cl/harvard/frame/en/ch/preview/cl-1.png)](cl/harvard/frame/en/ch/pdf/cl.pdf) |
+| harvard / d-plus + frame (defaults) | [![D+ preview](cv/harvard/d-plus/en/ch/preview/cv-4-1.png)](cv/harvard/d-plus/en/ch/pdf/cv-4.pdf) | [![Letter preview](cl/harvard/frame/en/ch/preview/cl-1.png)](cl/harvard/frame/en/ch/pdf/cl.pdf) |
+| harvard / standard + left-rule | [![CV preview](cv/harvard/standard/en/ch/preview/cv-4-1.png)](cv/harvard/standard/en/ch/pdf/cv-4.pdf) | [![Letter preview](cl/harvard/left-rule/en/ch/preview/cl-1.png)](cl/harvard/left-rule/en/ch/pdf/cl.pdf) |
 | harvard / compact | [![CV preview](cv/harvard/compact/en/ch/preview/cv-4-1.png)](cv/harvard/compact/en/ch/pdf/cv-4.pdf) | — |
-| cluster / d-plus (unfinished example) | [![Cluster preview](cv/cluster/d-plus/en/ch/preview/cv-1-1.png)](cv/cluster/d-plus/en/ch/pdf/comparison-5.pdf) | — |
+| cluster / d-plus | [![Cluster preview](cv/cluster/d-plus/en/ch/preview/cv-4-1.png)](cv/cluster/d-plus/en/ch/pdf/cv-4.pdf) | — |
 
 ## Selection and defaults
 
@@ -131,7 +132,7 @@ showcase. Unsupported choices fail instead of shrinking text or adding pages.
 
 ```sh
 bash ./ccvl build-cv en-ch 4 --style harvard --substyle d-plus
-bash ./ccvl build-cv en-ch 1 --style cluster --substyle d-plus
+bash ./ccvl build-cv en-ch 4 --style cluster --substyle d-plus
 bash ./ccvl build-cl en-ch --style harvard --substyle frame
 bash ./ccvl build-cv de-ch 4 --style harvard --substyle standard --paper a4
 bash ./ccvl list-documents
@@ -159,5 +160,6 @@ into their adjacent `preview/` directory. Unchanged PDFs reuse previews when
 the rasterizer and rendering settings match and every image is intact; local
 cache records live in `.agent/cache/previews/`. It consumes the actual PDFs; it does not
 invent mockups. Inspect every changed page at full resolution as well as in
-this comparison. A shorter PDF's surplus page previews are removed after a
+this comparison; `bash .agent/scripts/compare-pages.sh` assembles any pages
+side by side for review. A shorter PDF's surplus page previews are removed after a
 successful refresh. Remove obsolete previews if entire page presets are removed.

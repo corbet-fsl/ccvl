@@ -6,7 +6,7 @@ source = "../../../content/de/ch/wording.toml"
 
 [options]
 language = "de-ch"
-pages = 1
+pages = 4
 cv_style = "cluster"
 cv_substyle = "d-plus"
 generate_cl = false
@@ -17,12 +17,12 @@ id = "cluster-d-plus-de-ch"
 title = ""
 organization = ""
 location = ""
-source = "Explicitly requested Lorem Ipsum geometry study"
+source = "Approved Harvard showcase entries"
 url = ""
 description = ""
 connections = ""
 company_context = ""
-notes = "Layout only; no candidate claims on the opening page."
+notes = "Clustered opening built only from the approved Harvard summary and bullets."
 
 [job.cl_recipient]
 name = ""
@@ -31,82 +31,85 @@ company = ""
 address_line_1 = ""
 address_line_2 = ""
 
-# Explicit geometry fixture override: arrays replace the shared six-station array.
-[[cv.groups]]
-title = "Lorem ipsum dolor sit amet · 1"
-
-[[cv.groups.stations]]
-id = "group-1-station-1"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
-bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-]
-
-[[cv.groups.stations]]
-id = "group-1-station-2"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
-bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-]
+# Cluster summary written from the approved stations; entries are copied from Harvard unchanged.
+[cv]
+summary = """Physiker mit M.Sc. und B.Sc. (Abschlussnote 6.0), der Finance und KI verbindet. Bei CENVION Claude fürs Investment Reporting eingeführt und eine RAG-Suche über Portfoliodaten gebaut; bei Swisscom achtstellige Infrastrukturinvestitionen im SteerCo präsentiert; bei Airbus per ML-Analyse von 20+ Jahren Sicherheitsdaten eine achtstellige Investition ausgelöst. Bei COVENDIT schon vor ChatGPT ein KI-Longlisting entwickelt und M&A-Recherchezeit um 80 % reduziert; bei NEXGEN ETL-Laufzeit um 99 % verkürzt. Lassen Sie uns sprechen."""
 
 [[cv.groups]]
-title = "Lorem ipsum dolor sit amet · 2"
+title = "Investments & Corporate Finance"
 
 [[cv.groups.stations]]
-id = "group-2-station-1"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
+id = "cenvion"
+heading = "Infrastructure Investments & Asset Management: CENVION"
+role = "Associate Intern | Infrastructure Investments · Jan 2026 – Mär 2026 (plus freie Mitarbeit) · Wollerau (CH)"
 bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
+  "Claude für Investment Reporting eingeführt; GenAI in Analyse- und Berichtsworkflows des Teams integriert",
+  "RAG-basierte KI-Suche über Projekt- und Portfoliodaten entwickelt; internes Wissen durchsuchbar gemacht",
+  "Excel-Projektfinanzierungsmodelle erstellt; Cashflows, Renditen und Finanzierungsszenarien analysiert",
 ]
 
 [[cv.groups.stations]]
-id = "group-2-station-2"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
+id = "covendit"
+heading = "M&A & Corporate Finance: COVENDIT"
+role = "Investment Banking Analyst | Werkstudent · Apr 2022 – Jun 2022 · Frankfurt"
 bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-]
-
-[[cv.groups.stations]]
-id = "group-2-station-3"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
-bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
+  "Live Buy-/Sell-Side-M&A-Mandate begleitet; DCF-/Multiples-Excel-Modelle, Teaser und IMs erstellt",
+  "KI-Longlisting vor ChatGPT entwickelt; Target-Screening automatisiert, Recherchezeit 80 % reduziert",
+  "PE-Kunden zu Targets beraten; Retainer gewonnen und Rückkehrangebot auf Associate-Level erhalten",
 ]
 
 [[cv.groups]]
-title = "Lorem ipsum dolor sit amet · 3"
+title = "Cloud, KI & Transformation"
 
 [[cv.groups.stations]]
-id = "group-3-station-1"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
+id = "swisscom"
+heading = "Cloud Strategy & Transformation: Swisscom Financial Services"
+role = "Executive Assistant & Consultant | B2B & Infrastruktur · Jun 2024 – Mär 2025 · Bern + Zürich"
 bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
+  "Achtstellige Infrastrukturinvestitionen im SteerCo präsentiert; Optionen mit Senior Stakeholdern diskutiert",
+  "Lieferantenverhandlungen über CHF 10 Mio. begleitet; sofort CHF 100k+ Einsparpotenzial identifiziert",
+  "Cloud-Ökonomie und 2× Rechendichte unter DC-Limits modelliert; für TOM-Workstream ausgewählt",
 ]
 
 [[cv.groups.stations]]
-id = "group-3-station-2"
-heading = "Lorem ipsum dolor sit amet"
-role = "Lorem ipsum dolor sit amet · Consectetur adipiscing elit · 2022–2026"
+id = "airbus"
+heading = "AI Engineering: AIRBUS Defence & Space"
+role = "Risk & Compliance Analyst | KI/ML-Masterarbeit · Jul 2023 – Mär 2024 · Ingolstadt"
 bullets = [
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore dolore.",
+  "Sicherheitskritische Daten aus 20+ Jahren per ML ausgewertet & für Risiko- und Kostenanalysen genutzt",
+  "Einzelfall: Sechsstelliges Einsparpotenzial p. a.; standortübergreifende achtstellige Investition ausgelöst",
+  "KI-Pilot von Grund auf für 3 Fachbereiche entwickelt; Stakeholder mit Business Case überzeugt",
+]
+
+[[cv.groups.stations]]
+id = "consulting-venture"
+heading = "Management- & Technologieberatung: A Softer Space & Corbet Consulting"
+role = "Head of Business Development | Management Consultant · Jan 2018 – Jun 2023 · CH, DE, IS, UK"
+bullets = [
+  "Über Trusted-Advisor-Vertrieb auf mittleren sechsstelligen Umsatz in vier europäischen Märkten skaliert",
+  "Management- & IT-Mandate zu Leadership, Prozessen, Cloud und DLT von Analyse bis Umsetzung geführt",
+  "Projekt-P&L ganzheitlich gesteuert: Akquise, Angebote, Pricing, Verträge, Budgets, Margen und Cashflow",
+]
+
+[[cv.groups]]
+title = "Strategie- & Innovationsberatung"
+
+[[cv.groups.stations]]
+id = "nexgen"
+heading = "Strategie- & Technologieberatung: NEXGEN Business Consultants"
+role = "Junior Consultant (Werkstudent) | Banking-IT & Regulierung · Apr 2022 – Jun 2022 · Frankfurt"
+bullets = [
+  "BAIT | MaRisk: Regeln für T+1-Settlement in Cloud-Migrationsleitfaden für Tier-1-Banking-IT übersetzt",
+  "ETL-Engpass für Kundenpitch diagnostiziert; Laufzeit um 99 % von 24 h auf 15 min reduziert",
+  "Regulatorik- und IT-Analysen für Fachbeiträge und Kundenpitches aufbereitet; Mandatsakquise unterstützt",
+]
+
+[[cv.groups.stations]]
+id = "student-consulting"
+heading = "Studentische Unternehmens- & Innovationsberatung"
+role = "GREEN Finance Consulting (BDSU) | Enactus | AIESEC · 2016 – 2023 · je 2 Semester · Frankfurt"
+bullets = [
+  "GREEN: Stipendienabwicklung auf 10× Kapazität skaliert; Datenbanksystem für Roland Berger entwickelt",
+  "ENACTUS X: Social Venture für Wohnungslose mitaufgebaut; Jobs geschaffen und Medienresonanz erzielt",
+  "AIESEC: International Placements mit DAX-Unternehmen koordiniert; Talent-Prozesse per CRM digitalisiert",
 ]

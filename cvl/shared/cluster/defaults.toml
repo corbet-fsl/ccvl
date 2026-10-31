@@ -1,4 +1,4 @@
-# Cluster comparison inherits the initial Harvard presentation settings; locale layout overrides are applied last.
+# The cluster opening inherits the initial Harvard presentation settings; locale layout overrides are applied last.
 id = "cluster"
 api = 1
 

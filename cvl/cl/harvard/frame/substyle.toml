@@ -1,4 +1,4 @@
-# frame: full-border cover-letter panel variant. Same renderer and
+# frame: the default cover-letter substyle; full-border panel. Same renderer and
 # contracts as left-rule; padding and border geometry only.
 
 [cover]

@@ -1,4 +1,4 @@
-// Measured three-category openings; study records keep station placeholders explicit.
+// Measured three-category opening page; a continuation renders the following pages.
 #import "/.agent/typst/application.typ": load-application
 #import "/.agent/typst/profile.typ": load-profile
 #import "/.agent/typst/paper.typ": paper-settings, resolve-paper
@@ -14,7 +14,8 @@
   defaults-path: none,
   layout-path: none,
   paper-input: "",
-  pages: 1,
+  pages: 4,
+  continuation: none,
 ) = {
   let application = load-application(application-path)
   let content = application.cv
@@ -28,7 +29,8 @@
     recorded: application.options.at("cv_paper", default: none),
   )
   let settings = paper-settings((toml(defaults-path), toml(substyle-path), toml(layout-path)), paper)
-  assert(pages == 1, message: "Cluster opening page must request exactly one page")
+  assert(pages in (2, 3, 4), message: "Cluster CV must request 2, 3 or 4 pages")
+  assert(continuation != none, message: "Cluster CV needs a continuation for pages 2 onwards")
   assert(application.options.language == strings.locale, message: "Cluster locale mismatch")
   assert(content.groups.len() == 3, message: "Cluster page requires exactly three categories")
   let allocation = settings.cluster.stations_per_group
@@ -48,7 +50,7 @@
       station-ids.push(station.id)
     }
   }
-  set document(title: "Cluster CV | " + profile.name, author: (profile.name,))
+  set document(title: "Curriculum Vitae | " + profile.name, author: (profile.name,))
   show: apply-document-settings.with(settings)
   show link: it => text(fill: rgb(settings.accents.link), it)
 
@@ -78,7 +80,7 @@
     link(profile.website)[Web],
     localized.availability,
   ).filter(item => item != none)
-  align(center, text(size: 15.75pt, weight: "bold", strings.demo_heading))
+  align(center, text(size: 15.75pt, weight: "bold", strings.at("demo_heading", default: profile.name)))
   v(settings.header.after_pt * 1pt)
   align(center, text(size: 9.03pt, contacts.join([ | ])))
 
@@ -190,6 +192,11 @@
     ]
   }
   context {
-    assert(counter(page).final().first() == 1, message: "Cluster content overflowed its single page")
+    assert(here().page() == 1, message: "Cluster content overflowed its single page")
+  }
+  continuation()
+  context {
+    let actual = counter(page).final().first()
+    assert(actual == pages, message: "Cluster CV rendered " + str(actual) + " pages; expected " + str(pages))
   }
 }

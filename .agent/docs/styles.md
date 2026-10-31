@@ -115,7 +115,7 @@ pagination. Substyles without overrides retain their original spacing path.
 has its own existing paragraph settings and is unaffected by that switch.
 These are style-owned settings, not engine-wide requirements. See
 [Harvard D+](../../cvl/cv/harvard/d-plus/README.md) and the
-[unfinished cluster example](../../cvl/cv/cluster/README.md).
+[cluster CV](../../cvl/cv/cluster/README.md).
 
 Substyles can share wording for the same document, style, language and country.
 Each style owns its source, even when two styles happen to contain equal text.
@@ -203,7 +203,7 @@ into temporary validation outputs.
 
 ```sh
 bash ./ccvl build-cv en-ch 4 --style harvard --substyle d-plus --paper a4
-bash ./ccvl build-cv en-ch 1 --style cluster --substyle d-plus --paper a4
+bash ./ccvl build-cv en-ch 4 --style cluster --substyle d-plus --paper a4
 bash ./ccvl explain-style cv en-ch --style cluster --paper a4
 ```
 
@@ -308,8 +308,8 @@ applications repositories. Private content stays downstream.
 ## Shipped styles
 
 Harvard supplies chronological CVs and cover letters; D+ is its default CV
-substyle and left-rule its default letter substyle. Cluster supplies a grouped
-CV opening with the D+ comparison workflow. Modern is a scaffold with `standard`
+substyle and frame its default letter substyle. Cluster supplies a CV with a
+grouped first page followed by the unchanged Harvard D+ pages 2–4. Modern is a scaffold with `standard`
 and `timeline` substyles whose design is not yet defined. The remaining style
 positions are empty slots: `cvl/cv/slot-4` and `cvl/cl/slot-2` to `slot-4`.
 All designed styles support German and English Swiss locales on portrait A4. See [the gallery](../../cvl/README.md) for PDFs,
@@ -335,9 +335,22 @@ original evidence. A locale does not automatically override the selected paper.
 [Independent review](review.md) checks the actual selected contracts and pages,
 including general documents without a vacancy.
 
+## Comparing pages
+
+`bash .agent/scripts/compare-pages.sh <name> <pdf>[:<pages>] ...` assembles
+selected pages of built PDFs, from any styles, substyles, locales or presets,
+into one review PDF with 1600-pixel previews under
+`.agent/cache/comparisons/`. It reads only existing outputs, so build the
+variants first; comparisons are review material and are never committed.
+
+```sh
+bash .agent/scripts/compare-pages.sh openings-en \
+  cvl/cv/cluster/d-plus/en/ch/pdf/cv-4.pdf:1 cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf:1
+```
+
 ## Portable consumer bundles
 
-`ccvl export-style cv en-ch --style cluster --substyle d-plus --paper a4
+`ccvl export-style cv en-ch --style modern --substyle standard --paper a4
 --output style.json` exports an exact variant, including template sources,
 contracts, fonts and license notices. A bundle contains no profile, application,
 wording records or rendered showcase output. Styles with embedded candidate

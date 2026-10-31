@@ -11,7 +11,7 @@ pages = 4
 generate_cl = true
 application_date = "2026-09"
 # Render look: one entry of cvl/cl/harvard/style.toml substyles. This leaf is the
-# left-rule cover letter; records without the field render as left-rule.
+# left-rule cover letter; records without the field render as frame.
 cl_substyle = "left-rule"
 
 [job]

@@ -1,6 +1,8 @@
 // Approved personal showcase entries, shared by this locale’s CV substyles.
 // Never reuse these claims or wording for another person.
-#let render-entries(cv) = {
+// Page 1 (the chronological experience opening) and pages 2–4 are separate so
+// another opening, such as the cluster page, can reuse the continuation.
+#let render-opening(cv) = {
   let (
     brand,
     cv-b,
@@ -111,7 +113,30 @@
       #cv-gap("bullet_after_pt")
       #cv-b[Built and ran my own side venture for 16 years, spanning technical services, repairs and eCommerce]
     ]
+  ]
+}
 
+#let render-continuation(cv) = {
+  let (
+    brand,
+    cv-b,
+    cv-bullet-after,
+    cv-compact-heading,
+    cv-competency-heading-after,
+    cv-entry-gap,
+    cv-gap,
+    cv-h,
+    cv-heading-after,
+    cv-hu,
+    cv-pagebreak,
+    cv-pages,
+    cv-s,
+    cv-spacious-heading,
+    cv-strings,
+    cv-subheading-after,
+    cv-superheading,
+  ) = cv
+  [
     #cv-pagebreak()
 
     #block(breakable: false)[
@@ -416,3 +441,9 @@
     ]
   ]
 }
+
+#let render-entries(cv) = [
+  #render-opening(cv)
+
+  #render-continuation(cv)
+]
