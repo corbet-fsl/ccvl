@@ -236,8 +236,8 @@ An optional `contract.toml` can declare:
   if supplied, it must cover every supported locale.
 - `portable_bundle = true`: every variant must export as a self-contained
   [portable bundle](#portable-consumer-bundles); `check` renders each leaf's
-  bundle and requires the same PDF bytes. It excludes `source_files`. Cluster
-  declares it.
+  bundle and requires the same PDF bytes. It excludes `source_files`, so
+  Harvard and Cluster, whose pages 2–4 embed candidate entries, do not declare it.
 
 Harvard additionally uses its summary and paragraph contracts and the
 `layout_contract` / `source_files` four-page station-marker protocol. Those

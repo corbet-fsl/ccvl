@@ -1,1 +1,8 @@
-# The first comparison uses the existing Harvard typography at its original size.
+# 2-2-2 opening in the existing Harvard typography at its original size.
+# Heading, station, role-to-bullet and bullet gaps grow 47.5 % each, keeping
+# the default rhythm, so the 2-2-2 page reaches the D+ ink edge.
+[cv]
+compact_heading_spacing_pt = 13.95
+entry_spacing_pt = 17.35
+subheading_after_pt = 10.85
+bullet_after_pt = 12.4

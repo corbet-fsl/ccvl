@@ -2,3 +2,10 @@
 [cluster]
 stations_per_group = [2, 3, 2]
 category_extra_before_mm = 0
+# Heading, station, role-to-bullet and bullet gaps grow 14.8 % each, keeping
+# the default rhythm, so the 2-3-2 page reaches the D+ ink edge.
+[cv]
+compact_heading_spacing_pt = 10.85
+entry_spacing_pt = 13.5
+subheading_after_pt = 8.45
+bullet_after_pt = 9.65
