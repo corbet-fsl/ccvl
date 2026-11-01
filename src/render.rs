@@ -1,12 +1,14 @@
 use anyhow::{Context, Result, ensure};
 use ctypst::{CompileRequest, Document, Engine, EngineBuilder, PageConstraint};
 
+pub use crate::style::{ENGINE_PACKAGE, Packages, is_engine_package};
 use crate::{StyleBundle, StyleDocument};
 
-/// Project path of the generated correspondence module. Styles import the
-/// cletter facade from here, `#import "/.agent/typst/correspondence.typ": ...`,
-/// so no Typst source names a cletter version.
-pub const CORRESPONDENCE_MODULE: &str = ".agent/typst/correspondence.typ";
+/// Package-relative path of the generated correspondence module inside the
+/// engine package. Styles import the cletter facade through it,
+/// `#import correspondence: opening, ...`, so no Typst source names a cletter
+/// version.
+pub const CORRESPONDENCE_MODULE: &str = "correspondence.typ";
 
 /// Source of [`CORRESPONDENCE_MODULE`]: a glob import of the linked cletter
 /// package. Typst exports every binding of a module, imported ones included,
@@ -16,21 +18,40 @@ pub fn correspondence_module() -> String {
     format!("#import \"{}\": *\n", cletter::typst::spec())
 }
 
-/// Register the correspondence family with an engine: the cletter, cnice,
-/// cdate and cink Typst packages embedded in the linked crates, plus the
-/// [`CORRESPONDENCE_MODULE`] that re-exports cletter at its linked version.
+/// Register every Typst package a ccvl engine serves: the supplied engine
+/// package, extended with the generated [`CORRESPONDENCE_MODULE`], and the
+/// cletter, cnice, cdate and cink packages embedded in the linked crates.
 ///
 /// Cargo selects the newest compatible library releases (see
 /// `cletter::typst::packages`), and the Typst code always comes from exactly
-/// those crates; nothing is downloaded or copied into the project.
-pub fn with_correspondence(builder: EngineBuilder) -> Result<EngineBuilder> {
-    let mut builder = builder
-        .source(CORRESPONDENCE_MODULE, correspondence_module())
-        .context("cannot register the correspondence module")?;
+/// those crates. Everything is served from memory; nothing is downloaded,
+/// installed or read from a project directory.
+pub fn with_packages(builder: EngineBuilder, packages: &Packages) -> Result<EngineBuilder> {
+    let mut builder = builder;
     for package in cletter::typst::packages() {
         builder = builder
             .package(&package.spec, package.files)
             .with_context(|| format!("cannot register Typst package {}", package.spec))?;
+    }
+    for (spec, files) in packages {
+        ensure!(
+            is_engine_package(spec),
+            "only the ccvl engine package can be supplied, not {spec}"
+        );
+        ensure!(
+            !files.contains_key(CORRESPONDENCE_MODULE),
+            "{spec} must not supply the generated {CORRESPONDENCE_MODULE}"
+        );
+        let files = files
+            .iter()
+            .map(|(path, bytes)| (path.clone(), bytes.clone()))
+            .chain([(
+                CORRESPONDENCE_MODULE.to_owned(),
+                correspondence_module().into_bytes(),
+            )]);
+        builder = builder
+            .package(spec, files)
+            .with_context(|| format!("cannot register Typst package {spec}"))?;
     }
     Ok(builder)
 }
@@ -44,7 +65,10 @@ pub struct StyleRenderer {
 impl StyleRenderer {
     pub fn new(bundle: &StyleBundle) -> Result<Self> {
         bundle.validate()?;
-        let mut builder = with_correspondence(Engine::builder().fonts(ctypst::fonts::documents()))?;
+        let mut builder = with_packages(
+            Engine::builder().fonts(ctypst::fonts::documents()),
+            &bundle.packages,
+        )?;
         for (path, bytes) in &bundle.files {
             builder = if std::path::Path::new(path)
                 .extension()
@@ -118,6 +142,7 @@ impl StyleRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn correspondence_module_reexports_the_linked_cletter_family() {
@@ -128,7 +153,8 @@ mod tests {
                 cletter::typst::VERSION
             )
         );
-        let source = "#import \"/.agent/typst/correspondence.typ\": closing, long-date, opening, salutation, signature-image\n\
+        let source = "#import \"@local/ccvl:1.0.0\": correspondence\n\
+            #import correspondence: closing, long-date, opening, salutation, signature-image\n\
             #set text(font: \"Archivo\")\n\
             #metadata((\n\
               opening(\"de-ch\", name: \"Frau Dr. Müller\"),\n\
@@ -137,12 +163,30 @@ mod tests {
               long-date(\"de-ch\", 2026, 9, 7),\n\
             )) <probe>\n\
             #signature-image(bytes(\"<svg xmlns='http://www.w3.org/2000/svg' width='80' height='20'><path d='M0 10L80 10' stroke='black'/></svg>\"), 20)\n";
-        let engine = with_correspondence(Engine::builder().fonts(ctypst::fonts::documents()))
-            .unwrap()
-            .source("main.typ", source)
-            .unwrap()
-            .build()
-            .unwrap();
+        // A minimal engine package: the generated module is its only content.
+        let packages = Packages::from([(
+            "@local/ccvl:1.0.0".to_owned(),
+            BTreeMap::from([
+                (
+                    "typst.toml".to_owned(),
+                    b"[package]\nname = \"ccvl\"\nversion = \"1.0.0\"\nentrypoint = \"lib.typ\"\n"
+                        .to_vec(),
+                ),
+                (
+                    "lib.typ".to_owned(),
+                    b"#import \"correspondence.typ\"\n".to_vec(),
+                ),
+            ]),
+        )]);
+        let engine = with_packages(
+            Engine::builder().fonts(ctypst::fonts::documents()),
+            &packages,
+        )
+        .unwrap()
+        .source("main.typ", source)
+        .unwrap()
+        .build()
+        .unwrap();
         let output = engine.compile(CompileRequest::new("main.typ")).unwrap();
         assert_eq!(
             ctypst::query_json(&output.document, "probe").unwrap(),
@@ -153,5 +197,19 @@ mod tests {
                 "7. September 2026",
             ])]
         );
+    }
+
+    #[test]
+    fn only_the_engine_package_can_be_supplied() {
+        assert!(is_engine_package("@local/ccvl:1.0.0"));
+        assert!(!is_engine_package("@local/ccvl"));
+        assert!(!is_engine_package("@local/ccvl-extra:1.0.0"));
+        let other = Packages::from([("@preview/other:1.0.0".to_owned(), BTreeMap::new())]);
+        assert!(with_packages(Engine::builder(), &other).is_err());
+        let shadowing = Packages::from([(
+            "@local/ccvl:1.0.0".to_owned(),
+            BTreeMap::from([(CORRESPONDENCE_MODULE.to_owned(), Vec::new())]),
+        )]);
+        assert!(with_packages(Engine::builder(), &shadowing).is_err());
     }
 }
