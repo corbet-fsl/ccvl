@@ -13,9 +13,13 @@ opportunities/<organisation-key>/<position-key>/
 ├── typst/
 │   ├── CV_<Last>_<org>_<pos>.typ   resolved standalone copy (generated, do not edit)
 │   └── CL_<Last>_<org>_<pos>.typ   only when the cover letter is enabled (generated)
-└── pdfs/
-    ├── CV_<Last>_<org>_<pos>.pdf
-    └── CL_<Last>_<org>_<pos>.pdf   only when the cover letter is enabled
+├── pdfs/
+│   ├── CV_<Last>_<org>_<pos>.pdf
+│   └── CL_<Last>_<org>_<pos>.pdf   only when the cover letter is enabled
+└── versions/                  optional superseded versions, reference only
+    └── <n>-<label>/           e.g. 2-values; higher numbers are later
+        ├── application.toml   the record as it was; never built or checked
+        └── *.pdf              its rendered documents
 ```
 
 MECE split: `application.toml` holds the document build (options, tailored

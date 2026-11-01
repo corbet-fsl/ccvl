@@ -63,6 +63,11 @@ for sufficient natural line width; see `.agent/docs/cover-letter.md`.
 The opportunity directory is the lifecycle unit. An archived posting,
 research, working rules, interview preparation, or outcome may sit beside the
 TOML file. Summary and cover-letter fields remain solely in `application.toml`.
+It is the one current application: only it is built, checked and submitted,
+and it supersedes every earlier version. Superseded versions, for example
+drafts discussed with an assistant, may be kept for reference under
+`versions/<n>-<label>/` as a copy of their record and documents, numbered in
+order; they are never built or checked.
 
 Measure and render one opportunity from the repository root:
 
