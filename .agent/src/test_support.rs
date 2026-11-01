@@ -40,6 +40,17 @@ pub(crate) fn fixture_view() -> Workspace {
     Workspace::at(&fixture_root()).unwrap()
 }
 
+/// An engine rooted at `root` with the bundled fonts, the embedded engine
+/// package and the correspondence libraries, as the document compiler builds it.
+pub(crate) fn engine(root: &Path) -> anyhow::Result<ctypst::Engine> {
+    Ok(crate::engine_package::with_packages(
+        ctypst::Engine::builder()
+            .root(root)
+            .fonts(ctypst::fonts::documents()),
+    )?
+    .build()?)
+}
+
 /// Copy one engine-owned repository file or directory into a test workspace.
 pub(crate) fn copy_repository(root: &Path, relative: &str) {
     let source = repository().join(relative);
@@ -140,17 +151,8 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
         })
         .to_string(),
     );
-    for relative in [
-        ".agent/typst/paper.typ",
-        ".agent/typst/document.typ",
-        ".agent/typst/document-settings.typ",
-        ".agent/typst/document-settings.json",
-    ] {
-        write(
-            relative,
-            &fs::read_to_string(source.join(relative)).unwrap(),
-        );
-    }
+    let schema = ".agent/typst/document-settings.json";
+    write(schema, &fs::read_to_string(source.join(schema)).unwrap());
     for relative in ["cvl/shared/ledger/defaults.toml", "cvl/profile.toml"] {
         write(
             relative,
@@ -205,8 +207,8 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
                 &format!("{base}/typst/{document}.typ"),
                 &format!(
                     r#"
-#import "/.agent/typst/document.typ": apply-document-settings
-#import "/.agent/typst/paper.typ": resolve-paper, paper-settings
+#import "@local/ccvl:1.0.0": apply-document-settings
+#import "@local/ccvl:1.0.0": resolve-paper, paper-settings
 #let record = toml(sys.inputs.at("application", default: "/{base}/content.toml"))
 #let preset = resolve-paper(toml("/cvl/{document}/probe/style.toml"), "en-{region}", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("{document}_paper", default: none))
 #let settings = paper-settings((toml("/cvl/shared/ledger/defaults.toml"), toml(sys.inputs.at("layout", default: "/{base}/layout.toml"))), preset)

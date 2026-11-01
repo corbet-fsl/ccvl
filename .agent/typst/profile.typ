@@ -1,6 +1,8 @@
 // Machine-readable profile adapter shared by the CV and cover letter.
-#let load-profile(profile-path) = {
-  let profile-data = toml(profile-path)
+// `read` returns the bytes of a workspace path; see `load-application`.
+#let load-profile(profile-path, read: none) = {
+  assert(type(read) == function, message: "load-profile needs read: a style function returning workspace file bytes")
+  let profile-data = toml(read(profile-path))
   assert(profile-data.schema_version == 1, message: "unsupported profile schema version")
 
   let profile = (

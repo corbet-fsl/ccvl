@@ -160,7 +160,7 @@ fn build_engine(workspace: &Workspace, fonts: &[PathBuf]) -> Result<Engine> {
                 .with_context(|| format!("cannot read selected style font {}", path.display()))
         })
         .collect::<Result<Vec<_>>>()?;
-    ccvl_core::render::with_correspondence(
+    crate::engine_package::with_packages(
         Engine::builder()
             .root(workspace.root())
             .fonts(ctypst::fonts::documents())

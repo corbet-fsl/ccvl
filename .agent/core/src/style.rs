@@ -6,7 +6,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-pub const BUNDLE_SCHEMA: u32 = 1;
+pub const BUNDLE_SCHEMA: u32 = 2;
+
+/// Namespace and name of the ccvl engine Typst package. Styles import it as
+/// `@local/ccvl:<version>`; its host supplies the files.
+pub const ENGINE_PACKAGE: &str = "@local/ccvl";
+
+/// Typst packages by `@namespace/name:version` spec, each with its
+/// package-relative paths and bytes.
+pub type Packages = BTreeMap<String, BTreeMap<String, Vec<u8>>>;
+
 const INPUT_PREFIX: &str = "__ccvl_inputs/";
 
 /// One selected style/substyle/locale/page/paper variant, with exact upstream assets.
@@ -28,6 +37,9 @@ pub struct StyleBundle {
     pub scaffold: Value,
     pub fonts: Vec<String>,
     pub files: BTreeMap<String, Vec<u8>>,
+    /// The engine Typst package by spec (`@local/ccvl:<version>`), with its
+    /// package-relative files. The renderer adds the correspondence module.
+    pub packages: Packages,
 }
 
 /// User data is separate from the reusable bundle. Both file and API adapters
@@ -71,6 +83,22 @@ impl StyleBundle {
             total = total
                 .checked_add(bytes.len())
                 .context("style asset size overflow")?;
+        }
+        for (spec, files) in &self.packages {
+            ensure!(
+                is_engine_package(spec),
+                "a style bundle can carry only the ccvl engine package, not {spec}"
+            );
+            ensure!(
+                files.contains_key("typst.toml"),
+                "bundled package {spec} has no typst.toml"
+            );
+            for (path, bytes) in files {
+                validate_path(path)?;
+                total = total
+                    .checked_add(bytes.len())
+                    .context("style asset size overflow")?;
+            }
         }
         ensure!(total <= 64 * 1024 * 1024, "style bundle exceeds 64 MiB");
         validate_path(&self.entry)?;
@@ -208,6 +236,14 @@ impl StyleDocument {
         }
         Ok(())
     }
+}
+
+/// Whether `spec` names a version of the engine package.
+#[must_use]
+pub fn is_engine_package(spec: &str) -> bool {
+    spec.strip_prefix(ENGINE_PACKAGE)
+        .and_then(|rest| rest.strip_prefix(':'))
+        .is_some_and(|version| !version.is_empty())
 }
 
 pub fn validate_path(path: &str) -> Result<()> {

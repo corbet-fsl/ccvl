@@ -33,6 +33,20 @@ mod tests {
         fs::create_dir_all(directory.path().join("cvl")).unwrap();
         fs::write(directory.path().join("cvl/profile.toml"), "personal edit").unwrap();
         verify(directory.path()).unwrap();
+        // The engine Typst package is compiled in; its fonts and docs stay data.
+        let package = directory.path().join(".agent/typst/lib.typ");
+        let original = fs::read(&package).unwrap();
+        fs::write(&package, [original.as_slice(), b"// edited\n"].concat()).unwrap();
+        assert!(verify(directory.path()).is_err());
+        fs::write(&package, original).unwrap();
+        fs::create_dir_all(directory.path().join(".agent/typst/fonts")).unwrap();
+        fs::write(
+            directory.path().join(".agent/typst/fonts/NOTICE.md"),
+            "data\n",
+        )
+        .unwrap();
+        fs::write(directory.path().join(".agent/typst/README.md"), "data\n").unwrap();
+        verify(directory.path()).unwrap();
         fs::write(
             directory.path().join(".agent/src/new.rs"),
             "// new source\n",

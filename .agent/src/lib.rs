@@ -7,6 +7,7 @@ pub mod check;
 pub mod cli;
 pub mod content;
 pub mod downstream;
+mod engine_package;
 pub mod format;
 pub mod measure;
 pub mod opportunity;

@@ -1,6 +1,6 @@
 // Optional CV study treatment. Measure natural text before expanding spaces;
 // justification must never make underfilled wording pass a content contract.
-#import "/.agent/typst/line-contract.typ": line-contract-marker, measured-content-line
+#import "line-contract.typ": line-contract-marker, measured-content-line
 
 #let measured-bullet(id, kind, body, min-fill, target-fill, max-fill, justify: false) = {
   if not justify {

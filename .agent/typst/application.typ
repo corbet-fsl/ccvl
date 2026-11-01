@@ -9,8 +9,15 @@
   }
   result
 }
-#let load-application(path) = {
-  let record = toml(path)
+// `read` returns the bytes of a workspace path. Define it in style code, such
+// as `path => read(path, encoding: none)`: inside this package, absolute paths
+// would name package files.
+#let load-application(path, read: none) = {
+  assert(
+    type(read) == function,
+    message: "load-application needs read: a style function returning workspace file bytes",
+  )
+  let record = toml(read(path))
   if not ("wording" in record) { return record }
   assert(
     type(record.wording) == dictionary and record.wording.keys() == ("source",),
@@ -29,20 +36,20 @@
     record.wording.source == expected,
     message: "wording.source must be " + repr(expected) + "; sharing is scoped to the same document, style and locale",
   )
-  let shared = toml(style-root + "/content/" + language + "/" + country + "/wording.toml")
+  let shared = toml(read(style-root + "/content/" + language + "/" + country + "/wording.toml"))
   assert(
     shared.keys() == ("cv",) or shared.keys() == ("cl",),
     message: "shared wording must contain only [cv] or [cl]; nested sources and cross-document content are forbidden",
   )
   let document = shared.keys().first()
-  let manifest = json("/ccvl.json")
+  let manifest = json(read("/ccvl.json"))
   let key = if document == "cv" { "cv" } else { "cover_letter" }
   let root = "/" + manifest.documents.at(key).root.trim("/") + "/"
   assert(path.starts-with(root), message: "shared wording table must match its owning document root")
   let relative = path.slice(root.len()).split("/")
   assert(relative.len() == 5, message: "wording references require a registered document/style/substyle/locale leaf")
   let (style, substyle, _, _, _) = relative
-  let definition = toml(root + style + "/style.toml")
+  let definition = toml(read(root + style + "/style.toml"))
   assert(
     definition.id == style and definition.documents == (document,),
     message: "wording style definition does not match its owner",

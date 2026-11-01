@@ -12,12 +12,19 @@ function Get-SourceFingerprint {
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot "Cargo.lock")
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot "rust-toolchain.toml")
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot ".agent/build.rs")
-        Get-ChildItem -ErrorAction Stop -LiteralPath @((Join-Path $RepoRoot ".agent\src"), (Join-Path $RepoRoot ".agent\core\src")) -Recurse -File -Filter "*.rs" |
-            Sort-Object FullName
     )
-    $Lines = foreach ($File in $Files) {
-        $Relative = $File.FullName.Substring($RepoRoot.Length + 1).Replace("\", "/")
-        $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $File.FullName).Hash.ToLowerInvariant()
+    # Rust sources and the embedded engine Typst package, sorted by the byte
+    # order of their relative paths like runtime_source.rs.
+    $Sources = @(
+        Get-ChildItem -ErrorAction Stop -LiteralPath @((Join-Path $RepoRoot ".agent\src"), (Join-Path $RepoRoot ".agent\core\src")) -Recurse -File -Filter "*.rs"
+        Get-ChildItem -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot ".agent\typst") -File |
+            Where-Object { $_.Extension -cin @(".typ", ".toml", ".json") }
+    )
+    $Relatives = { process { $_.FullName.Substring($RepoRoot.Length + 1).Replace("\", "/") } }
+    $Ordered = [string[]]@($Sources | & $Relatives)
+    [Array]::Sort($Ordered, [StringComparer]::Ordinal)
+    $Lines = foreach ($Relative in @($Files | & $Relatives) + $Ordered) {
+        $Hash = (Get-FileHash -ErrorAction Stop -Algorithm SHA256 -LiteralPath (Join-Path $RepoRoot $Relative)).Hash.ToLowerInvariant()
         "$Relative $Hash"
     }
     $Bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Lines -join "`n") + "`n")

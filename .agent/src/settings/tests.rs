@@ -67,11 +67,7 @@ fn rust_and_direct_typst_reject_the_same_invalid_adapter_settings() {
     )
     .unwrap()["settings"]
         .clone();
-    let engine = ctypst::Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .build()
-        .unwrap();
+    let engine = crate::test_support::engine(workspace.root()).unwrap();
     for (group, key, value) in [
         ("block", "align", json!("centre")),
         ("page", "binding", json!("lef")),
@@ -94,7 +90,7 @@ fn rust_and_direct_typst_reject_the_same_invalid_adapter_settings() {
         invalid[group][key] = value;
         assert!(validate(&invalid, &schema, true).is_err(), "{group}.{key}");
         let source = format!(
-            "#import \"/.agent/typst/document.typ\": apply-document-settings\n#let settings = json(bytes({:?}))\n#show: apply-document-settings.with(settings)\nValidation fixture.",
+            "#import \"@local/ccvl:1.0.0\": apply-document-settings\n#let settings = json(bytes({:?}))\n#show: apply-document-settings.with(settings)\nValidation fixture.",
             invalid.to_string()
         );
         let error = engine
@@ -119,7 +115,7 @@ fn rust_and_direct_typst_reject_the_same_invalid_adapter_settings() {
     extended["page"]["height_mm"] = 160.into();
     validate(&extended, &schema, true).unwrap();
     let source = format!(
-        "#import \"/.agent/typst/document.typ\": apply-document-settings\n#let settings = json(bytes({:?}))\n#show: apply-document-settings.with(settings)\nValidation fixture.",
+        "#import \"@local/ccvl:1.0.0\": apply-document-settings\n#let settings = json(bytes({:?}))\n#show: apply-document-settings.with(settings)\nValidation fixture.",
         extended.to_string()
     );
     engine

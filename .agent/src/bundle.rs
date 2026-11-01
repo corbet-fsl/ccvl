@@ -47,8 +47,9 @@ pub fn export(
     inputs.remove("profile");
     let mut files = BTreeMap::new();
     add(workspace, &workspace.path("REUSE.toml"), &mut files)?;
+    // Engine Typst travels as the package below; its fonts stay data files.
     for directory in [
-        workspace.path(".agent/typst"),
+        workspace.path(".agent/typst/fonts"),
         leaf.style_dir().to_path_buf(),
         workspace.path(format!("cvl/shared/{}", leaf.style)),
         workspace.path("LICENSES"),
@@ -97,6 +98,7 @@ pub fn export(
         scaffold,
         fonts,
         files,
+        packages: crate::engine_package::packages().clone(),
     };
     bundle.version = format!("sha256:{}", bundle.sha256()?);
     bundle.validate()?;

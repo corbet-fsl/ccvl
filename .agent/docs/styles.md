@@ -44,7 +44,7 @@ substyle and locale it expects:
 ```
 
 The contents of `substyle.toml` and `strings.toml` belong to the style.
-A style importing `.agent/typst/document.typ` declares
+A style using the engine package's `apply-document-settings` declares
 `settings_adapter = "document-v1"`. This opts into the family → substyle →
 locale → selected paper deep merge and shared validation. The adapter reserves only `page`,
 `text`, `paragraph` and `block`; additional tables remain style-owned.
@@ -151,8 +151,9 @@ value. Arrays are never appended or patched by position. No text is rewritten
 or shortened automatically. A leaf can keep all its wording inline by omitting
 `[wording]`.
 
-Renderers using shared wording import `load-application` from
-`.agent/typst/application.typ` and call it with the supplied application path.
+Renderers using shared wording import `load-application` from the engine
+package and call it with the supplied application path and a project reader
+(see [Typst imports](#typst-imports)).
 This applies the same source/override rules when compiling a Typst entry point
 directly. Reading the raw leaf with `toml(application-path)` would bypass its
 shared wording. Independent renderers using inline content can keep their
@@ -177,8 +178,8 @@ independent renderers can consume their own fields. Avoid duplicate paper
 defaults in locale layouts. The PDF dimensions verify the renderer's output
 rather than resizing it.
 
-Shipped renderers import `resolve-paper` and `paper-settings` from
-`.agent/typst/paper.typ`. Resolve the style's own metadata and locale with
+Shipped renderers import `resolve-paper` and `paper-settings` from the engine
+package. Resolve the style's own metadata and locale with
 `requested: paper-input` and the record's owning `cv_paper` or `cl_paper` as
 `recorded`. The result exposes `id`, `label`, `size_pt` and `settings`.
 `paper-settings((family, substyle, layout), preset)` validates and merges the
@@ -253,7 +254,8 @@ PDF integrity, embedded fonts with Unicode maps and a usable text layer. For
 every leaf, `check` also requires that the build reads nothing in the other
 document's tree and that the resolved copy `build-opportunity` emits compiles
 without CLI inputs to the same PDF, so give every `sys.inputs` value a literal
-default and import with absolute paths.
+default. The copy sits at another location, so an entry point imports its
+style modules by absolute paths; see [Typst imports](#typst-imports).
 
 All 16 bundled ctypst font faces are available. A style may declare additional
 workspace font files; provide their redistribution licenses when publishing.
@@ -305,6 +307,33 @@ clear unsupported-adapter error instead of a guessed explanation.
 Keep reusable style changes upstream in ccvl, then merge them into personal
 applications repositories. Private content stays downstream.
 
+## Typst imports
+
+Engine helpers come from the embedded Typst package `@local/ccvl:1.0.0`
+(`.agent/typst`, see [its README](../typst/README.md)). Its version is the
+style interface version: its major number matches the style `api`, and it
+changes only with an incompatible interface change.
+
+```typst
+#import "@local/ccvl:1.0.0": load-application, load-profile, paper-settings, resolve-paper
+#let read-project(path) = read(path, encoding: none)
+#let application = load-application(application-path, read: read-project)
+```
+
+Inside a package, absolute paths name package files, so `load-application`
+and `load-profile` read workspace files through the `read` function the style
+passes. Define it in style code, where absolute paths resolve in the
+workspace. The cletter facade is the package's `correspondence` module:
+`#import correspondence: opening, salutation`.
+
+Modules that are not entry points, such as `src/cv.typ`, `layout.typ` and the
+shared family code, import each other by relative paths
+(`#import "../../../shared/harvard/style.typ": document-style`) and read
+style files such as `../contract.toml` relative to themselves. Moving the
+document tree as a whole therefore needs no Typst edit. Entry points keep
+absolute imports, because their opportunity copies compile from another
+directory.
+
 ## Shipped styles
 
 Harvard supplies chronological CVs and cover letters; D+ is its default CV
@@ -354,7 +383,7 @@ bash .agent/scripts/compare-pages.sh openings-en \
 
 `ccvl export-style cv en-ch --style modern --substyle standard --paper a4
 --output style.json` exports an exact variant, including template sources,
-contracts, fonts and license notices. A bundle contains no profile, application,
+the engine package under `packages`, contracts, fonts and license notices. A bundle contains no profile, application,
 wording records or rendered showcase output. Styles with embedded candidate
 `source_files` must move those facts into explicit inputs before export.
 

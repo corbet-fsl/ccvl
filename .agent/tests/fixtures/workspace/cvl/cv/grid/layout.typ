@@ -1,8 +1,8 @@
 // Synthetic independent grid layout: two columns and fixed item metrics.
-#import "/.agent/typst/application.typ": load-application
-#import "/.agent/typst/document.typ": apply-document-settings
-#import "/.agent/typst/paper.typ": paper-settings, resolve-paper
-#import "/.agent/typst/profile.typ": load-profile
+#import "@local/ccvl:1.0.0": apply-document-settings, load-application, load-profile, paper-settings, resolve-paper
+
+// Engine helpers run inside the package; this reader resolves workspace paths here.
+#let read-project(path) = read(path, encoding: none)
 
 #let render(
   application-path: none,
@@ -14,9 +14,9 @@
   paper-input: "",
   pages: 1,
 ) = {
-  let record = load-application(application-path)
+  let record = load-application(application-path, read: read-project)
   let strings = toml(strings-path)
-  let (profile, localized-profile) = load-profile(profile-path)
+  let (profile, localized-profile) = load-profile(profile-path, read: read-project)
   let paper = resolve-paper(
     toml("style.toml"),
     strings.locale,

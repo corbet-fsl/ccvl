@@ -34,6 +34,15 @@ fn bundles_exclude_showcase_records_and_unsupported_inputs() {
     );
     assert!(!bundle.files.contains_key("cvl/profile.toml"));
     assert!(bundle.files.contains_key("cvl/cv/grid/layout.typ"));
+    // Engine Typst travels as the embedded package, not as project files.
+    assert_eq!(&bundle.packages, crate::engine_package::packages());
+    assert!(
+        !bundle
+            .files
+            .keys()
+            .any(|path| path.starts_with(".agent/typst/")
+                && !path.starts_with(".agent/typst/fonts/"))
+    );
     let mut bad = bundle.clone();
     bad.engine_api += 1;
     assert!(bad.validate().is_err());

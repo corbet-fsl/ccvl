@@ -23,6 +23,7 @@ impl Fixture {
         let root = directory.path();
         fs::create_dir_all(root.join(".agent/src")).unwrap();
         fs::create_dir_all(root.join(".agent/core/src")).unwrap();
+        fs::create_dir_all(root.join(".agent/typst")).unwrap();
         for path in [
             "ccvl.json",
             "Cargo.toml",

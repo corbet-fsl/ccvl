@@ -1,5 +1,5 @@
 // Application records store calendar values, never preformatted locale text.
-#import "/.agent/typst/correspondence.typ": long-date, month-year
+#import "correspondence.typ": long-date, month-year
 
 #let format-application-date(locale, value) = {
   assert(type(value) == str, message: "options.application_date must be a quoted date string")

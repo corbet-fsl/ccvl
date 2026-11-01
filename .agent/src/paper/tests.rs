@@ -156,13 +156,7 @@ fn independent_renderer_owns_custom_paper_geometry_and_settings() {
         "ccvl.json",
         r#"{"format":"ccvl-workspace","schema_version":8,"documents":{"cv":{"root":"cvl/cv","default_style":"orbit"}}}"#,
     );
-    for source in [
-        ".agent/typst/paper.typ",
-        ".agent/typst/document.typ",
-        ".agent/typst/document-settings.typ",
-        ".agent/typst/document-settings.json",
-        "cvl/profile.toml",
-    ] {
+    for source in [".agent/typst/document-settings.json", "cvl/profile.toml"] {
         write(
             root,
             source,
@@ -214,7 +208,7 @@ height = 140
         root,
         "cvl/cv/orbit/plain/en/us/typst/cv.typ",
         r#"
-#import "/.agent/typst/paper.typ": resolve-paper
+#import "@local/ccvl:1.0.0": resolve-paper
 #let record = toml(sys.inputs.at("application", default: "/cvl/cv/orbit/plain/en/us/content.toml"))
 #let preset = resolve-paper(toml("/cvl/cv/orbit/style.toml"), "en-us", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("cv_paper", default: none))
 #set page(width: preset.settings.canvas.width * 1pt, height: preset.settings.canvas.height * 1pt, margin: 10pt)

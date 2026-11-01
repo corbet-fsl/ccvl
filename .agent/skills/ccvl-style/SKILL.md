@@ -72,10 +72,14 @@ that name selects the workspace default.
   `[wording].source` in each leaf. Keep record metadata and explicit exceptions
   local. Nested fields merge; arrays replace whole arrays. Never reference
   another style's wording or import public showcase wording into an opportunity.
-  Use `load-application` from `.agent/typst/application.typ` so direct Typst
-  compilation resolves the same content as the CLI.
+  Use `load-application` from the engine package `@local/ccvl:1.0.0`, with a
+  project reader defined in style code, so direct Typst compilation resolves
+  the same content as the CLI.
+- Import engine helpers from `@local/ccvl:1.0.0` and the style's own modules by
+  relative paths; only `typst/<cv|cl>.typ` entry points use absolute workspace
+  paths. Follow the Typst imports section of the styles guide.
 - Put explicit page, text, paragraph and block decisions in style-owned
-  defaults. The optional `.agent/typst/document.typ` adapter applies those
+  defaults. The optional `apply-document-settings` adapter applies those
   values; it does not choose a design. Declare `settings_adapter = "document-v1"`
   when using it; the engine and direct Typst adapter share one validation schema.
   Use `paragraph.leading_em` as the single line-spacing authority, and

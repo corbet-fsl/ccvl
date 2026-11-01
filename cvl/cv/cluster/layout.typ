@@ -1,10 +1,11 @@
 // Measured three-category opening page; a continuation renders the following pages.
-#import "/.agent/typst/application.typ": load-application
-#import "/.agent/typst/profile.typ": load-profile
-#import "/.agent/typst/paper.typ": paper-settings, resolve-paper
-#import "/.agent/typst/document.typ": apply-document-settings
-#import "/.agent/typst/line-contract.typ": measured-content-line, measured-paragraph, wrap-exact
-#import "/.agent/typst/justified-bullet.typ": measured-bullet
+#import "@local/ccvl:1.0.0": (
+  apply-document-settings, load-application, load-profile, measured-bullet, measured-content-line, measured-paragraph,
+  paper-settings, resolve-paper, wrap-exact,
+)
+
+// Engine helpers run inside the package; this reader resolves workspace paths here.
+#let read-project(path) = read(path, encoding: none)
 
 #let render(
   application-path: none,
@@ -17,10 +18,10 @@
   pages: 4,
   continuation: none,
 ) = {
-  let application = load-application(application-path)
+  let application = load-application(application-path, read: read-project)
   let content = application.cv
   let strings = toml(strings-path)
-  let (profile, localized-profile) = load-profile(profile-path)
+  let (profile, localized-profile) = load-profile(profile-path, read: read-project)
   let localized = localized-profile.at(strings.locale)
   let paper = resolve-paper(
     toml("style.toml"),

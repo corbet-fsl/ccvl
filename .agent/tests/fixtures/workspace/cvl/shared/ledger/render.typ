@@ -1,10 +1,10 @@
 // Synthetic ledger renderer for engine tests. It applies the document-v1
 // settings and paper preset, loads resolved wording and emits fixed metrics
 // that satisfy the family contracts without measuring text.
-#import "/.agent/typst/application.typ": load-application
-#import "/.agent/typst/document.typ": apply-document-settings
-#import "/.agent/typst/paper.typ": paper-settings, resolve-paper
-#import "/.agent/typst/profile.typ": load-profile
+#import "@local/ccvl:1.0.0": apply-document-settings, load-application, load-profile, paper-settings, resolve-paper
+
+// Engine helpers run inside the package; this reader resolves workspace paths here.
+#let read-project(path) = read(path, encoding: none)
 
 #let metric(kind, id, actual, bounds, layout: false, unit: none) = {
   let value = (
@@ -61,12 +61,12 @@
   paper-input: "",
   pages: 4,
 ) = {
-  let record = load-application(application-path)
+  let record = load-application(application-path, read: read-project)
   let strings = toml(strings-path)
   let contract = toml("../../cv/ledger/contract.toml")
   assert(pages in contract.presets, message: "unsupported ledger CV page count")
   assert(record.options.language == strings.locale, message: "ledger locale mismatch")
-  let (profile, localized-profile) = load-profile(profile-path)
+  let (profile, localized-profile) = load-profile(profile-path, read: read-project)
   show: apply-document-settings.with(settings(
     "cv",
     strings.locale,
@@ -100,14 +100,14 @@
   layout-path: none,
   paper-input: "",
 ) = {
-  let record = load-application(application-path)
+  let record = load-application(application-path, read: read-project)
   let strings = toml(strings-path)
   let contract = letter-contract()
   assert(record.options.language == strings.locale, message: "ledger locale mismatch")
   let letter = record.cl
   assert(letter.paragraphs.len() == contract.paragraphs.len(), message: "ledger paragraph count")
   assert(letter.highlights.len() == contract.highlights.count, message: "ledger highlight count")
-  let (profile, localized-profile) = load-profile(profile-path)
+  let (profile, localized-profile) = load-profile(profile-path, read: read-project)
   show: apply-document-settings.with(settings(
     "cl",
     strings.locale,

@@ -95,8 +95,12 @@ def source():
     required = ('Cargo.toml', '.agent/core/Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.agent/build.rs')
     if not all(path in files for path in (*required, '.agent/release-platforms.txt')):
         fail('Incomplete source archive.')
+    def engine_package(path):
+        name = path.removeprefix('.agent/typst/')
+        return name != path and '/' not in name and name.endswith(('.typ', '.toml', '.json'))
     fingerprint_paths = list(required) + sorted(
-        path for path in files if path.startswith(('.agent/src/', '.agent/core/src/')) and path.endswith('.rs'))
+        path for path in files
+        if (path.startswith(('.agent/src/', '.agent/core/src/')) and path.endswith('.rs')) or engine_package(path))
     fingerprint = digest(''.join(f'{path} {digest(files[path][0])}\n' for path in fingerprint_paths).encode())
     # Canonical file content/mode identity permits differently encoded provider archives.
     workspace = digest(''.join(

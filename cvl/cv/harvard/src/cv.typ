@@ -1,11 +1,10 @@
-#import "/.agent/typst/paper.typ": paper-settings, resolve-paper
-#import "/.agent/typst/application.typ": load-application
+#import "@local/ccvl:1.0.0": (
+  load-application, load-profile, measured-bullet, measured-content-line, measured-paragraph, paper-settings,
+  resolve-paper, wrap-exact,
+)
 // Shared Harvard CV renderer. Each leaf supplies its inputs explicitly.
 #import "../../../shared/harvard/style.typ": document-style
-#import "../../../shared/harvard/application.typ": validate-application
-#import "/.agent/typst/line-contract.typ": measured-content-line, measured-paragraph, wrap-exact
-#import "/.agent/typst/justified-bullet.typ": measured-bullet
-#import "/.agent/typst/profile.typ": load-profile
+#import "../../../shared/harvard/application.typ": read-project, validate-application
 
 #let cv-contract = toml("../contract.toml")
 // The CV closing line has its own allowance; CL paragraphs use their own bounds.
@@ -22,7 +21,7 @@
   layout-path: none,
   paper-input: "",
 ) = {
-  let (profile, localized-profile) = load-profile(profile-path)
+  let (profile, localized-profile) = load-profile(profile-path, read: read-project)
   // Merge the shared base knobs with this leaf's substyle delta (a standard
   // leaf merges an empty delta). Whitespace below comes from cv-style, never
   // from forked literals.
@@ -30,7 +29,7 @@
   // Locale comes from the leaf's strings file and is cross-checked against
   // the record below: a de-ch record through en-ch strings fails here.
   let doc-locale = cv-strings.locale
-  let application = load-application(application-path)
+  let application = load-application(application-path, read: read-project)
   let paper = resolve-paper(toml("../style.toml"), doc-locale, requested: paper-input, recorded: application.options.at(
     "cv_paper",
     default: none,

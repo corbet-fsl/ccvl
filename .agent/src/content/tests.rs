@@ -45,23 +45,14 @@ fn fixture() -> (tempfile::TempDir, Workspace) {
             }
         }
     }
-    write(
-        root,
-        ".agent/typst/application.typ",
-        &fs::read_to_string(crate::test_support::repository().join(".agent/typst/application.typ"))
-            .unwrap(),
-    );
     let workspace = Workspace::at(root).unwrap();
     (temporary, workspace)
 }
 
 fn query_record(workspace: &Workspace, path: &str) -> Result<Value> {
-    let engine = ctypst::Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .build()?;
+    let engine = crate::test_support::engine(workspace.root())?;
     let source = format!(
-        "#import \"/.agent/typst/application.typ\": load-application\n#set text(font: \"Archivo\")\n#metadata(load-application(\"/{path}\")) <resolved-record>\nWording fixture.\n"
+        "#import \"@local/ccvl:1.0.0\": load-application\n#set text(font: \"Archivo\")\n#let read-project(path) = read(path, encoding: none)\n#metadata(load-application(\"/{path}\", read: read-project)) <resolved-record>\nWording fixture.\n"
     );
     let output = engine
         .compile(ctypst::CompileRequest::new("fixture.typ").source_file("fixture.typ", source))?;

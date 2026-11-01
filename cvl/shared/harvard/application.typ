@@ -8,6 +8,9 @@
 // (which cv/cl look a record selects) is enforced in Rust before the compile;
 // here the selection keys only need to be strings when present.
 
+// Engine helpers run inside the package; this reader resolves workspace paths here.
+#let read-project(path) = read(path, encoding: none)
+
 #let require-fields(value, fields, scope) = {
   for field in fields {
     assert(field in value, message: scope + "." + field + " is required")

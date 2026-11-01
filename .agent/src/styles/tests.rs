@@ -485,23 +485,12 @@ fn pdf_geometry_is_selected_per_locale_and_missing_locale_fails() {
 fn layout_input_changes_exported_paper_and_font_and_pdf_policy_is_enforced() {
     let (_temporary, workspace) = independent_workspace();
     let original = Workspace::at(crate::test_support::repository()).unwrap();
-    for (source, destination) in [
-        (".agent/typst/document.typ", ".agent/typst/document.typ"),
-        (
-            ".agent/typst/document-settings.typ",
-            ".agent/typst/document-settings.typ",
-        ),
-        (
-            ".agent/typst/document-settings.json",
-            ".agent/typst/document-settings.json",
-        ),
-    ] {
-        write(
-            workspace.root(),
-            destination,
-            &fs::read_to_string(original.path(source)).unwrap(),
-        );
-    }
+    let schema = ".agent/typst/document-settings.json";
+    write(
+        workspace.root(),
+        schema,
+        &fs::read_to_string(original.path(schema)).unwrap(),
+    );
     write(
         workspace.root(),
         "defaults.toml",
@@ -514,7 +503,7 @@ fn layout_input_changes_exported_paper_and_font_and_pdf_policy_is_enforced() {
         workspace.root(),
         "cvl/cv/orbit/standard/en/us/typst/cv.typ",
         r#"
-#import "/.agent/typst/document.typ": apply-document-settings, merge-settings
+#import "@local/ccvl:1.0.0": apply-document-settings, merge-settings
 #let config = merge-settings(toml("/defaults.toml"), toml(sys.inputs.at("layout")))
 #show: apply-document-settings.with(config)
 Example#linebreak()Applicant

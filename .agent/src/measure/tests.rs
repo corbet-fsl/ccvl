@@ -112,11 +112,7 @@ fn metric_set(paragraph_lengths: &[usize]) -> Vec<Value> {
 #[test]
 fn cover_letter_templates_enforce_body_closing_and_highlight_bounds() {
     let (_fixture, workspace) = crate::test_support::fixture_workspace();
-    let engine = ctypst::Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .build()
-        .unwrap();
+    let engine = crate::test_support::engine(workspace.root()).unwrap();
     let cases: [(&str, f64, &[Option<&str>]); 8] = [
         ("cl-body", 85.0, &[Some("too short"), None]),
         ("cl-body", 85.0, &[None]),
@@ -148,7 +144,7 @@ fn cover_letter_templates_enforce_body_closing_and_highlight_bounds() {
             };
             let source = format!(
                 "#import \"/cvl/shared/ledger/render.typ\": with-body-fill, with-highlight-fill\n\
-                     #import \"/.agent/typst/line-contract.typ\": measured-paragraph, measured-line\n\
+                     #import \"@local/ccvl:1.0.0\": measured-paragraph, measured-line\n\
                      #set page(width: 200pt, height: 100pt, margin: 10pt)\n\
                      #set text(font: \"Archivo\", size: 10pt, hyphenate: false)\n\
                      #let evidence = \"Verified engineering work\"\n\
@@ -201,15 +197,11 @@ fn closing_line_spill_renders_without_wrapping() {
     // to ten lines over two pages. The block width makes the spill
     // explicit, independent of any style's page geometry.
     let (_fixture, workspace) = crate::test_support::fixture_workspace();
-    let engine = ctypst::Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .build()
-        .unwrap();
+    let engine = crate::test_support::engine(workspace.root()).unwrap();
     let spill = "Synthetic closing line that spills slightly past its measured block.";
     let source = |exact: bool| {
         format!(
-            "#import \"/.agent/typst/line-contract.typ\": measured-lines\n\
+            "#import \"@local/ccvl:1.0.0\": measured-lines\n\
              {FIXTURE_SETTINGS}\
              #set page(height: 60mm)\n\
              #set text(hyphenate: false)\n\
@@ -242,8 +234,8 @@ fn closing_line_spill_renders_without_wrapping() {
 
 /// The fixture family's document-v1 settings: the shared adapter baseline
 /// (A4, 12/15mm margins, Archivo 10.5pt, no block spacing).
-const FIXTURE_SETTINGS: &str = "#import \"/.agent/typst/document.typ\": apply-document-settings\n\
-    #import \"/.agent/typst/paper.typ\": resolve-paper, paper-settings\n\
+const FIXTURE_SETTINGS: &str = "#import \"@local/ccvl:1.0.0\": apply-document-settings\n\
+    #import \"@local/ccvl:1.0.0\": resolve-paper, paper-settings\n\
     #let preset = resolve-paper(toml(\"/cvl/cv/ledger/style.toml\"), \"de-ch\")\n\
     #show: apply-document-settings.with(paper-settings((toml(\"/cvl/shared/ledger/defaults.toml\"), toml(\"/cvl/cv/ledger/primary/substyle.toml\"), toml(\"/cvl/cv/ledger/primary/de/ch/layout.toml\")), preset))\n";
 
@@ -255,15 +247,11 @@ fn paragraph_closing_spill_renders_without_wrapping() {
     // with a short line plus a 101% closing line fit one 60mm page; with
     // flowing text the closings re-wrap to nine lines over two pages.
     let (_fixture, workspace) = crate::test_support::fixture_workspace();
-    let engine = ctypst::Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .build()
-        .unwrap();
+    let engine = crate::test_support::engine(workspace.root()).unwrap();
     let short = "Short synthetic line.";
     let spill = "Synthetic paragraph closing line that may spill a little.";
     let source = format!(
-        "#import \"/.agent/typst/line-contract.typ\": measured-paragraph\n\
+        "#import \"@local/ccvl:1.0.0\": measured-paragraph\n\
              {FIXTURE_SETTINGS}\
              #set page(height: 60mm)\n\
              #set text(hyphenate: false)\n\
@@ -565,15 +553,9 @@ fn empty_recipient_name_warns_but_stays_valid() {
 fn typst_salutation_helper_keeps_only_the_last_token() {
     // Typst-level coverage for the shared helper: the same edge cases
     // as the Rust mirror must hold inside the renderer.
-    let engine = ccvl_core::render::with_correspondence(
-        ctypst::Engine::builder()
-            .root(crate::test_support::repository())
-            .fonts(ctypst::fonts::documents()),
-    )
-    .unwrap()
-    .build()
-    .unwrap();
-    let source = "#import \"/.agent/typst/correspondence.typ\": salutation-last-name, salutation, opening\n\
+    let engine = crate::test_support::engine(crate::test_support::repository()).unwrap();
+    let source = "#import \"@local/ccvl:1.0.0\": correspondence\n\
+            #import correspondence: salutation-last-name, salutation, opening\n\
             #assert(salutation-last-name(\"Dr. Jane Doe\") == \"Doe\", message: \"title prefix\")\n\
             #assert(salutation-last-name(\"Ms Test Person\") == \"Person\", message: \"multi-token\")\n\
             #assert(salutation-last-name(\"Madonna\") == \"Madonna\", message: \"single token\")\n\
@@ -616,7 +598,7 @@ fn summary_counsel_uses_shared_wording_and_leaf_exceptions_like_typst() {
     let root = directory.path();
     let leaf = "cvl/cv/ledger/primary/en/ch/content.toml";
     let shared = "cvl/cv/ledger/content/en/ch/wording.toml";
-    for relative in [leaf, shared, ".agent/typst/application.typ"] {
+    for relative in [leaf, shared] {
         std::fs::create_dir_all(root.join(relative).parent().unwrap()).unwrap();
     }
     std::fs::write(
@@ -630,15 +612,10 @@ fn summary_counsel_uses_shared_wording_and_leaf_exceptions_like_typst() {
     std::fs::write(root.join("cvl/cv/ledger/style.toml"),
         "id = \"ledger\"\napi = 1\ndocuments = [\"cv\"]\nsupports_locales = [\"en-ch\"]\npages = [4]\ndefault_pages = 4\nsubstyles = [\"primary\"]\n"
     ).unwrap();
-    std::fs::copy(
-        crate::test_support::repository().join(".agent/typst/application.typ"),
-        root.join(".agent/typst/application.typ"),
-    )
-    .unwrap();
     let workspace = Workspace::at(root).unwrap();
     let spec = cv_spec(leaf);
     let source = format!(
-        "#import \"/.agent/typst/application.typ\": load-application\n#set text(font: \"Archivo\")\n#metadata(load-application(\"/{leaf}\").cv.allow_thin) <thin-policy>\nPolicy fixture.\n"
+        "#import \"@local/ccvl:1.0.0\": load-application\n#set text(font: \"Archivo\")\n#let read-project(path) = read(path, encoding: none)\n#metadata(load-application(\"/{leaf}\", read: read-project).cv.allow_thin) <thin-policy>\nPolicy fixture.\n"
     );
     for (shared_allowance, leaf_override, expected) in [
         (true, None, true),
@@ -668,11 +645,7 @@ fn summary_counsel_uses_shared_wording_and_leaf_exceptions_like_typst() {
                 .any(|warning| warning.contains("explicitly wanted")),
             expected
         );
-        let engine = ctypst::Engine::builder()
-            .root(root)
-            .fonts(ctypst::fonts::documents())
-            .build()
-            .unwrap();
+        let engine = crate::test_support::engine(root).unwrap();
         let output = engine
             .compile(
                 ctypst::CompileRequest::new("fixture.typ")

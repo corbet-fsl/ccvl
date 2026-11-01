@@ -1,0 +1,10 @@
+# The ccvl engine package. ccvl embeds this directory's Typst sources at build
+# time and serves them from memory as `@local/ccvl:<version>`; it is never
+# installed or downloaded. The version is the style interface version: its
+# major number matches the style `api`. Change it only for an incompatible
+# interface change, and then update every style import with it.
+[package]
+name = "ccvl"
+version = "1.0.0"
+entrypoint = "lib.typ"
+description = "Profile, application, paper, settings and line contract helpers for ccvl styles"

@@ -1,5 +1,5 @@
 // Harvard selects values; the neutral adapter applies the declared Typst settings.
-#import "/.agent/typst/document.typ": apply-document-settings, merge-settings
+#import "@local/ccvl:1.0.0": apply-document-settings, merge-settings
 #let merge-style = merge-settings
 #let document-style(locale: "en-ch", style: none, doc) = {
   assert(style != none, message: "Harvard needs explicit settings")

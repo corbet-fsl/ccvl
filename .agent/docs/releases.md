@@ -126,15 +126,19 @@ identity must be resolved explicitly before publication.
 ## Source identity and setup
 
 The build embeds a SHA-256 identity over `Cargo.toml`, `Cargo.lock`,
-`rust-toolchain.toml`, `.agent/build.rs`, and the sorted Rust source files in
-`.agent/src/`. Each input contributes its relative path and SHA-256 digest.
+`rust-toolchain.toml`, `.agent/build.rs`, the sorted Rust source files in
+`.agent/src/` and `.agent/core/src/`, and the engine Typst package files
+(`*.typ`, `*.toml` and `*.json` directly in `.agent/typst/`), which the binary
+embeds. Each input contributes its relative path and SHA-256 digest; the
+sources sort by byte order of their relative paths.
 The Rust, Bash, and PowerShell implementations must produce the same value;
 native CI tests enforce this agreement.
 
 The launcher checks the executable's `runtime-id` before every command. The
 executable independently checks its workspace, including when called directly.
-CV text, Typst templates, profile data, interview evidence, and opportunities
-are runtime inputs rather than compiled code and do not force recompilation.
+CV text, style Typst templates, profile data, interview evidence, and
+opportunities are runtime inputs rather than compiled code and do not force
+recompilation.
 
 Setup downloads the matching runtime from
 `<origin>/releases/download/runtime-<fingerprint>/`, where `<origin>` is the
