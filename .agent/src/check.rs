@@ -49,6 +49,9 @@ pub fn run_selected(
     application::validate_profiles(workspace)?;
     application::validate_station_files(workspace)?;
     application::validate_all(workspace)?;
+    for hint in crate::lint::check_hints(workspace)? {
+        println!("WARN {hint}");
+    }
     skills::validate(workspace)?;
     public::validate_repository(workspace)?;
     format::format_typst(workspace, true)?;

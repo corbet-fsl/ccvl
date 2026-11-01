@@ -8,6 +8,7 @@ pub mod cli;
 pub mod content;
 pub mod downstream;
 pub mod format;
+pub mod lint;
 pub mod measure;
 pub mod opportunity;
 pub mod ownership;

@@ -4,6 +4,17 @@ updated = "2026-11-01"
 # The author's showcase record. Every fact mirrors the approved Harvard CV
 # (cvl/cv/harvard/src/entries-en.typ): one fact per role line and bullet.
 
+# Claims that are not true of the author. Every occurrence in application
+# wording or cvl/ sources is printed as a hint by ccvl check.
+[[not_true]]
+term = "SAP"
+note = "No professional SAP or ERP experience; the own mini ERP of the hardware business is the only ERP work"
+
+[[not_true]]
+term = "ERP"
+note = "No professional SAP or ERP experience; the own mini ERP of the hardware business is the only ERP work"
+except = ["mini-ERP", "mini ERP"]
+
 [[stations]]
 id = "cenvion"
 label = "Infrastructure investments and asset management"
@@ -261,6 +272,7 @@ section = "engagement"
 experience_eligible = false
 facts = [
   { id = "crisis-support-scope", text = "Acute first aid and psychosocial de-escalation" },
+  { id = "crisis-support-role", text = "First aid | psychosocial de-escalation" },
   { id = "crisis-support-1", text = "Intervened in life-threatening situations multiple times; provided first aid and ensured EMS handover" },
   { id = "crisis-support-2", text = "De-escalated acute psychosocial crises; stabilised, oriented and referred people to specialist support" },
 ]

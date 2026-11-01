@@ -187,6 +187,21 @@ Use `.agent/scaffolds/interview/stations.toml` exactly. Claims are `verified`,
 `conflicted`, or `unverified`; explicit user confirmation is valid provenance.
 Only verified facts may enter the rendered CV.
 
+Record who confirmed each fact. `user-confirmed:<date>` and
+`author-confirmed:<date>` mean the candidate's own word; anyone else, including
+an assistant relaying a third party, writes `confirmed-by:<person>:<date>`.
+`profile-status` lists entries and facts confirmed only that way as worth a
+second look; ask the candidate before relying on them. When the candidate
+corrects a claim that is not true of them, add it to `[[not_true]]` with a
+one-line `note` and any legitimate `except` phrases, so every later document
+that repeats it is pointed out.
+
+Treat `WARN` lines as linting: read each one, then fix the data or keep the
+deviation with a short written reason (`allow_drift = "<reason>"` on a fact
+or entry). Never silence a hint without a reason, and never treat a hint as
+proof that a claim is false. Show the user `bash ./ccvl profile-status
+--list` when they want to verify the whole record quickly.
+
 ## Completion gate
 
 Once allocation is ready, populate `cvl/profile.toml` with the approved public
@@ -206,7 +221,9 @@ Windows:     .\ccvl.cmd profile-status --verify-sources
 ```
 
 That command must confirm the plan is ready and that both CV sources satisfy
-the complete fixed layout. Then run the full check. Before publication, show
+the complete fixed layout. It also hints where an interview `<id>-role` or
+`<id>-<n>` fact no longer matches the English CV subheading or bullet;
+resolve or acknowledge each one. Then run the full check. Before publication, show
 the exact identifier and claim manifest to the user. The checked-in author's
 content is reference-only personal material and must never become evidence or
 wording for another person.
