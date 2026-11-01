@@ -1,0 +1,167 @@
+# Application status list for this workspace: phases, statuses and follow-up
+# reminders. Edit freely; positions reference a status by its `key` in
+# application.toml (`status = "to-apply"`) together with `applied_at` and
+# `follow_up_at`. The defaults and numeric ids match CareerVector v4 so a
+# workspace can be exchanged 1:1. Schema: .agent/schemas/kanban.schema.json.
+# Field mapping and rules: .agent/docs/contacts.md.
+
+schema_version = 1
+
+# Phases group statuses into columns, ordered by `order`.
+[[phases]]
+id = 1
+key = "discovery"
+name = "Discovery"
+order = 1
+color = "#94a3b8"
+requires_applied_date = false
+is_terminal = false
+
+[[phases]]
+id = 2
+key = "due-diligence"
+name = "Due Diligence"
+order = 2
+color = "#60a5fa"
+requires_applied_date = false
+is_terminal = false
+
+[[phases]]
+id = 3
+key = "application"
+name = "Application"
+order = 3
+color = "#fbbf24"
+requires_applied_date = true
+is_terminal = false
+
+[[phases]]
+id = 4
+key = "their-court"
+name = "Their Court"
+order = 4
+color = "#f97316"
+requires_applied_date = true
+is_terminal = false
+
+[[phases]]
+id = 5
+key = "resolution"
+name = "Resolution"
+order = 5
+color = "#22c55e"
+requires_applied_date = true
+is_terminal = true
+
+# Statuses belong to one phase (`phase_id`) and are ordered within it.
+[[statuses]]
+id = 1
+key = "spotted"
+name = "Spotted"
+phase_id = 1
+order = 1
+
+[[statuses]]
+id = 2
+key = "maybe"
+name = "Maybe"
+phase_id = 1
+order = 2
+
+[[statuses]]
+id = 3
+key = "researching"
+name = "Researching"
+phase_id = 2
+order = 1
+
+[[statuses]]
+id = 4
+key = "networking"
+name = "Networking"
+phase_id = 2
+order = 2
+
+[[statuses]]
+id = 5
+key = "to-apply"
+name = "To Apply"
+phase_id = 2
+order = 3
+
+[[statuses]]
+id = 6
+key = "drafting"
+name = "Drafting"
+phase_id = 3
+order = 1
+
+[[statuses]]
+id = 7
+key = "submitted"
+name = "Submitted"
+phase_id = 3
+order = 2
+sets_applied_date = true
+
+[[statuses]]
+id = 8
+key = "waiting"
+name = "Waiting"
+phase_id = 4
+order = 1
+
+[[statuses]]
+id = 9
+key = "following-up"
+name = "Following Up"
+phase_id = 4
+order = 2
+
+[[statuses]]
+id = 10
+key = "interview"
+name = "Interview"
+phase_id = 5
+order = 1
+
+[[statuses]]
+id = 11
+key = "offer"
+name = "Offer"
+phase_id = 5
+order = 2
+
+[[statuses]]
+id = 12
+key = "closed"
+name = "Closed"
+phase_id = 5
+order = 3
+
+# Follow-up reminders. `escalation` lists the intervals in days used after
+# each snooze; the last value repeats. Phase rules are keyed by phase id.
+[reminders]
+enabled = true
+default_interval_days = 7
+escalation = [7, 14, 28, 56]
+
+[reminders.phase_rules.1]
+enabled = true
+default_days = 14
+
+[reminders.phase_rules.2]
+enabled = true
+default_days = 7
+
+[reminders.phase_rules.3]
+enabled = true
+default_days = 3
+
+[reminders.phase_rules.4]
+enabled = true
+default_days = 7
+
+[reminders.phase_rules.5]
+enabled = false
+default_days = 0

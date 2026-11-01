@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccvl.dev/schemas/kanban.schema.json",
+  "title": "ccvl application status list (opportunities/kanban.toml), version 1",
+  "description": "Mirrors CareerVector v4 KanbanSettings and ReminderSettings with snake_case field names; see .agent/docs/contacts.md for the field mapping. Runtime additionally validates unique phase and status ids, unique keys, that every status phase_id names a phase, and that every phase_rules key names a phase.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/phase"
+      },
+      "minItems": 1
+    },
+    "statuses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/status"
+      },
+      "minItems": 1
+    },
+    "reminders": {
+      "$ref": "#/$defs/reminders"
+    }
+  },
+  "required": [
+    "schema_version",
+    "phases",
+    "statuses"
+  ],
+  "$defs": {
+    "id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "CareerVector numeric id; stable once used."
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Readable slug referenced from application.toml; lowercase ASCII words joined by single hyphens."
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "order": {
+          "$ref": "#/$defs/order"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "requires_applied_date": {
+          "type": "boolean",
+          "default": false,
+          "description": "Positions in a status of this phase must carry applied_at."
+        },
+        "is_terminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Statuses of this phase end the application process."
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "name",
+        "order",
+        "color"
+      ]
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase_id": {
+          "$ref": "#/$defs/id"
+        },
+        "order": {
+          "$ref": "#/$defs/order"
+        },
+        "sets_applied_date": {
+          "type": "boolean",
+          "default": false,
+          "description": "Moving a position into this status records applied_at when it is empty."
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "name",
+        "phase_id",
+        "order"
+      ]
+    },
+    "phase_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "default_days": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 7,
+          "description": "Days from entering the phase until follow_up_at."
+        }
+      }
+    },
+    "reminders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "default_interval_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 7,
+          "description": "Follow-up interval for phases without a rule."
+        },
+        "escalation": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1,
+          "default": [
+            7,
+            14,
+            28,
+            56
+          ],
+          "description": "Interval in days after the nth snooze; the last value repeats."
+        },
+        "phase_rules": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/phase_rule"
+          },
+          "default": {},
+          "description": "Keyed by phase id as a decimal string."
+        }
+      }
+    }
+  }
+}

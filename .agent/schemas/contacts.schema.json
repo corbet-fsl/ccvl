@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ccvl.dev/schemas/contacts.schema.json",
+  "title": "ccvl organisation contacts (opportunities/<organisation>/contacts.toml), version 1",
+  "description": "Field names follow vCard 4.0 (RFC 6350) for the organisation and its people and iCalendar (RFC 5545) for touchpoints; see .agent/docs/contacts.md for the mapping. Dates are quoted strings. Runtime additionally validates unique contact and touchpoint ids, that every touchpoint contact names a contact in this file, that end follows start, and real calendar dates.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "organisation": {
+      "$ref": "#/$defs/organisation"
+    },
+    "contacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contact"
+      }
+    },
+    "touchpoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/touchpoint"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "organisation"
+  ],
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([-_][a-z0-9]+)*$",
+      "description": "Stable local id, same rule as organisation and position keys. The global id is <organisation-key>/<id>."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+      "description": "ISO 8601 calendar date, YYYY-MM-DD."
+    },
+    "date_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
+      "description": "ISO 8601 date and time with explicit offset (RFC 3339), e.g. 2026-10-14T10:00:00+02:00."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^\\s]+$"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "pattern": "^[^@\\s]+@[^@\\s]+$"
+    },
+    "phone": {
+      "type": "string",
+      "pattern": "^\\+[1-9][0-9]{1,14}$",
+      "description": "E.164: plus sign, country code and subscriber number, digits only."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})*$",
+      "description": "Lowercase BCP 47 language tag, e.g. de-ch."
+    },
+    "country": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "description": "ISO 3166-1 alpha-2 country code, e.g. CH."
+    },
+    "one_or_more_emails": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/email"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/email"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "one_or_more_phones": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/phone"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/phone"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "one_or_more_urls": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/url"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/url"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "one_or_more_slugs": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/slug"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/slug"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where this record or contact came from. Events are sources, never entities.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "event",
+            "linkedin",
+            "email",
+            "referral",
+            "posting",
+            "website",
+            "other"
+          ]
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "organisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "vCard with KIND:org. The organisation key is the folder name.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "country": {
+          "$ref": "#/$defs/country"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "contact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "vCard with KIND:individual and ORG set to the organisation name.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/slug"
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "given": {
+          "$ref": "#/$defs/text"
+        },
+        "family": {
+          "$ref": "#/$defs/text"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "role": {
+          "$ref": "#/$defs/text"
+        },
+        "email": {
+          "$ref": "#/$defs/one_or_more_emails"
+        },
+        "phone": {
+          "$ref": "#/$defs/one_or_more_phones"
+        },
+        "url": {
+          "$ref": "#/$defs/one_or_more_urls"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/language"
+          },
+          "uniqueItems": true,
+          "description": "Preferred first."
+        },
+        "country": {
+          "$ref": "#/$defs/country"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "touchpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One interaction. Exports as VJOURNAL; start/end add a VEVENT and next/due a VTODO.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/slug"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "contact": {
+          "$ref": "#/$defs/one_or_more_slugs"
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "email",
+            "linkedin",
+            "phone",
+            "meeting",
+            "event",
+            "other"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "outgoing",
+            "incoming"
+          ]
+        },
+        "summary": {
+          "$ref": "#/$defs/text"
+        },
+        "next": {
+          "$ref": "#/$defs/text"
+        },
+        "due": {
+          "$ref": "#/$defs/date"
+        },
+        "done": {
+          "$ref": "#/$defs/date"
+        },
+        "start": {
+          "$ref": "#/$defs/date_time"
+        },
+        "end": {
+          "$ref": "#/$defs/date_time"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "required": [
+        "date",
+        "channel",
+        "direction",
+        "summary"
+      ],
+      "dependentRequired": {
+        "due": [
+          "next"
+        ],
+        "done": [
+          "next"
+        ],
+        "end": [
+          "start"
+        ]
+      }
+    }
+  }
+}

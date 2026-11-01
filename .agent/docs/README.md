@@ -15,6 +15,7 @@ referenced from any runbook).
 | Skill run order, self-check, readiness | `skills/ccvl-apply/SKILL.md` | docs |
 | Locale mechanics (spelling, greetings, closings, dates) | cletter and family | ccvl docs, skills, code |
 | German drafting exhibits | `examples-de.md` | instruction prose anywhere |
+| Status list and contacts format (kanban, vCard, iCalendar, CSV mapping) | `contacts.md` + `schemas/kanban.schema.json`, `schemas/contacts.schema.json` | skills, scaffolds |
 
 ## Load order per run
 

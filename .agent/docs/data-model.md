@@ -94,6 +94,10 @@ The record owns:
 - style-owned `[cv]` / `[cl]` content fields: Harvard uses a five-line summary
   and, when enabled, six measured letter paragraphs and five highlights.
 
+The workspace status list `opportunities/kanban.toml` and the optional
+per organisation `contacts.toml` are specified in [Contacts and application
+status](contacts.md).
+
 Posting archives and correspondence may sit beside the record but never
 duplicate its tailored fields. Interview preparation, submission records, and
 outcomes stay in the same job directory without retroactively rewriting what

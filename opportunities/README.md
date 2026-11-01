@@ -44,6 +44,20 @@ and five highlights. Its
 directory is the key; do not add generic `companies/`, `positions/`,
 `applications/`, or market-map layers.
 
+## Status list and contacts
+
+`opportunities/kanban.toml` lists the application phases and statuses with
+their follow-up reminders. It ships with the CareerVector v4 defaults and may
+be edited per workspace; a position names its status by key in
+`application.toml`.
+
+An organisation folder may also hold `contacts.toml`: the organisation, the
+people known there, and the touchpoints with them, with field names taken from
+vCard and iCalendar. An organisation folder may exist without any position.
+Contacts are personal data about other people and belong only in a private
+downstream. See [Contacts and application status](../.agent/docs/contacts.md)
+for both formats.
+
 Company, role, and fit research belongs here with its sources. General facts
 or preferences learned about the user belong in `interview/`.
 
