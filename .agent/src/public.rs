@@ -94,10 +94,8 @@ fn is_ci_python_helper(path: &Path) -> bool {
     [
         ".agent/scripts/release-evidence.py",
         ".agent/scripts/downstream-check.py",
-        ".agent/scripts/candidate-date.py",
         ".agent/tests/test_release_evidence.py",
         ".agent/tests/test_downstream_check.py",
-        ".agent/tests/test_application_dates.py",
     ]
     .iter()
     .any(|candidate| path == Path::new(candidate))
@@ -444,10 +442,8 @@ mod tests {
         for relative in [
             ".agent/scripts/release-evidence.py",
             ".agent/scripts/downstream-check.py",
-            ".agent/scripts/candidate-date.py",
             ".agent/tests/test_release_evidence.py",
             ".agent/tests/test_downstream_check.py",
-            ".agent/tests/test_application_dates.py",
         ] {
             let path = directory.path().join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();

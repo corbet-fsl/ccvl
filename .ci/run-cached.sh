@@ -31,8 +31,8 @@ mkdir -p .moon/cache/hashes .moon/cache/outputs
 # exactly; shellcheck/reuse provide lint gates via existing-tool-path;
 # poppler/qpdf/file/jq provide the `documents` gate's independent PDF checks
 # (check-linux-deep.sh requires file qpdf pdfinfo pdftotext pdffonts
-# pdfdetach pdfimages pdftoppm jq); python3 provides candidate-date and
-# release-evidence helpers. No nightly, no nodejs, no wasm — none of the
+# pdfdetach pdfimages pdftoppm jq); python3 provides the
+# release-evidence helper. No nightly, no nodejs, no wasm — none of the
 # Linux verify gates need them. No git insteadOf: Cargo.lock has zero git
 # sources.
 tool_source=github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436?narHash=sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=

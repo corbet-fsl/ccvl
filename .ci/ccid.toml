@@ -29,11 +29,6 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "styles"]]
 cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
 cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN", "CCVL_CHECK_STYLES"]
 
-[checks.candidate-date]
-kind = "commands"
-commands = [["python3", ".agent/scripts/candidate-date.py"]]
-cache_tools = [["python3", "--version"]]
-
 [checks.downstream-check]
 kind = "commands"
 commands = [["python3", ".agent/scripts/downstream-check.py"]]
