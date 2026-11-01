@@ -20,7 +20,7 @@ paragraphs = [
   ],
   [
     "At CENVION, I introduced Claude and RAG-based search into the team's investment and reporting workflows.",
-    "For seven battery-storage assets, I modelled IRR, NPV, DSCR and sensitivities to support their refinancing",
+    "For several battery-storage assets, I modelled IRR, NPV, DSCR and sensitivities to support their refinancing",
     "packages and investment decisions for institutional investors, and automated the data flow from operating data",
     "to quarterly reports, making performance gaps and opportunities for operational improvement easier to identify.",
     "That tied emerging technology to capital decisions, risk transparency and a dependable portfolio view.",
@@ -28,9 +28,9 @@ paragraphs = [
   [
     "At Airbus, I translated more than 20 years of safety-critical maintenance data covering more than 500 aircraft",
     "into decision-ready risk and cost signals, identifying over EUR 100k in potential annual savings and helping",
-    "trigger an international improvement programme worth more than EUR 1m. At Swisscom, I then modelled the",
-    "cloud economics and infrastructure choices under data-centre constraints, supporting eight-figure investments",
-    "and supplier negotiations exceeding CHF 10m. Both gave leaders and specialists a shared decision base.",
+    "trigger an international improvement programme worth eight figures. At Swisscom, I then modelled the cloud",
+    "economics and infrastructure choices under data-centre constraints, supporting eight-figure investments and",
+    "supplier negotiations exceeding CHF 10m. Both gave leaders and specialists a shared decision base.",
   ],
   [
     "My experience connects technical implementation with investment analysis and the decisions that turn ideas",
