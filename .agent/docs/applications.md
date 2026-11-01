@@ -64,11 +64,11 @@ The opportunity directory is the lifecycle unit. An archived posting,
 research, working rules, interview preparation, or outcome may sit beside the
 TOML file. Summary and cover-letter fields remain solely in `application.toml`.
 It is the one current application: only it is built, checked and submitted,
-and it supersedes every earlier variant. Earlier variants, for example drafts
-discussed with an assistant, may be kept for reference under
-`variants/<n>-<label>/` as a copy of their record and documents, numbered in
-the order they were written. They are superseded versions, not alternatives:
-they are never built or checked.
+and it supersedes every variant. Variants that are not current, for example
+drafts discussed with an assistant, may be kept for reference under
+`variants/<style>/<substyle>/<label>/`, sorted by their CV style and substyle,
+as a copy of their record and documents. Labels are free; Git keeps their
+history. Variants are never built or checked.
 
 Measure and render one opportunity from the repository root:
 

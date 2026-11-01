@@ -16,8 +16,9 @@ opportunities/<organisation-key>/<position-key>/
 ├── pdfs/
 │   ├── CV_<Last>_<org>_<pos>.pdf
 │   └── CL_<Last>_<org>_<pos>.pdf   only when the cover letter is enabled
-└── variants/                  optional earlier variants, superseded by application.toml
-    └── <n>-<label>/           e.g. 2-values; higher numbers are later
+└── variants/                  optional variants that are not current
+    └── <style>/<substyle>/    the variant's CV style, e.g. harvard/d-plus or cluster/d-plus
+        └── <label>/           free label, e.g. values
         ├── application.toml   the record as it was; never built or checked
         └── *.pdf              its rendered documents
 ```
