@@ -7,8 +7,7 @@ settings_adapter = "document-v1"
 documents = ["cv"]
 supports_locales = ["de-ch", "en-ch"]
 pages = [2, 3, 4]
-substyles = ["d-plus", "standard", "compact", "aligned", "slot-5"]
-empty_substyles = ["slot-5"]
+substyles = ["d-plus", "standard", "compact", "aligned", "timeline"]
 default_pages = 4
 defaults = "../../shared/harvard/defaults.toml"
 

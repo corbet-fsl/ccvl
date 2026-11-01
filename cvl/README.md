@@ -18,7 +18,8 @@ cvl/
 ├── shared/                              # each family's chosen sharing
 │   ├── harvard/{defaults.toml,style.typ,application.typ,style.toml}
 │   ├── cluster/defaults.toml
-│   └── modern/defaults.toml
+│   ├── modern/defaults.toml
+│   └── onepager/defaults.toml
 ├── cv/
 │   ├── harvard/
 │   │   ├── style.toml, contract.toml, scaffold.toml
@@ -27,16 +28,20 @@ cvl/
 │   │   ├── d-plus/{de,en}/ch/<leaf>     # default
 │   │   ├── standard/{de,en}/ch/<leaf>
 │   │   ├── compact/{de,en}/ch/<leaf>
-│   │   └── aligned/{de,en}/ch/<leaf>
+│   │   ├── aligned/{de,en}/ch/<leaf>
+│   │   └── timeline/{de,en}/ch/<leaf>   # copy of D+ until designed
 │   ├── cluster/
 │   │   ├── style.toml, contract.toml, scaffold.toml, layout.typ
 │   │   ├── content/{de,en}/ch/wording.toml
-│   │   └── {d-plus,standard,middle-three,middle-three-spaced}/{de,en}/ch/<leaf>
+│   │   └── {d-plus,standard,middle-three,middle-three-spaced,timeline}/{de,en}/ch/<leaf>
 │   ├── modern/
 │   │   ├── style.toml, contract.toml, scaffold.toml, layout.typ
 │   │   ├── content/{de,en}/ch/wording.toml
 │   │   └── {standard,timeline}/{de,en}/ch/<leaf>
-│   └── slot-4/style.toml                # empty style slot
+│   └── onepager/
+│       ├── style.toml, contract.toml, scaffold.toml, layout.typ
+│       ├── content/{de,en}/ch/wording.toml
+│       └── standard/{de,en}/ch/<leaf>
 └── cl/
     ├── harvard/
     │   ├── style.toml, contract.toml, scaffold.toml, src/
@@ -70,7 +75,7 @@ explicit settings; a style can use its own Typst setup instead.
 | A tailored private application | Its opportunity's `application.toml` |
 
 Every leaf names its shared source under `[wording].source`. Sharing stays
-inside the same document/style/language/country. Harvard, Cluster and Modern each own
+inside the same document/style/language/country. Harvard, Cluster, Modern and Onepager each own
 independent wording; CV and letter sources are separate.
 Nested fields merge, while arrays replace whole arrays. Private opportunity
 records remain self-contained. See [the interface](../.agent/docs/styles.md)
@@ -80,15 +85,17 @@ for the exact source and override rules.
 
 | Style | CV substyles | CL substyles | Font | Locale / paper | CV pages | CL pages |
 | --- | --- | --- | --- | --- | --- | --- |
-| Harvard | d-plus, standard, compact, aligned | frame, left-rule | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | 1 |
-| Cluster | d-plus, standard, middle-three, middle-three-spaced | — | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | — |
+| Harvard | d-plus, standard, compact, aligned, timeline | frame, left-rule | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | 1 |
+| Cluster | d-plus, standard, middle-three, middle-three-spaced, timeline | — | Archivo | de-ch / en-ch, portrait A4 | 2, 3, 4 | — |
 | Modern | standard, timeline | — | Archivo | de-ch / en-ch, portrait A4 | 1 | — |
+| Onepager | standard | — | Archivo | de-ch / en-ch, portrait A4 | 1 | — |
 
 Substyles are listed in order; the first is each style's default.
-This produces **56 registered PDFs / 152 pages**. The
+This produces **70 registered PDFs / 190 pages**. The
 [cluster CV](cv/cluster/README.md) pairs a grouped first page with the
 unchanged Harvard D+ pages 2–4. [Modern](cv/modern/README.md)
-is a scaffold whose design is not yet defined. The defaults are Harvard D+ for
+and [Onepager](cv/onepager/README.md) are scaffolds whose design is not yet
+defined. Harvard and Cluster `timeline` are copies of D+ until designed. The defaults are Harvard D+ for
 CV and Harvard frame for CL. All styles declare their page presets;
 Harvard's station and five-line-summary contracts apply only to Harvard.
 
@@ -125,7 +132,7 @@ and that style's first substyle. The shipped renderers merge
 Language and paper are separate decisions; the engine imposes no
 country-to-paper mapping.
 
-Harvard, Cluster and Modern currently support A4. `--paper` selects a supported paper
+Harvard, Cluster, Modern and Onepager currently support A4. `--paper` selects a supported paper
 without changing folders;
 nondefault papers add their name to the PDF filename, preserving the default
 showcase. Unsupported choices fail instead of shrinking text or adding pages.

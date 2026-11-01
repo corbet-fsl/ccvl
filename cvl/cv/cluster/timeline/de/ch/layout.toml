@@ -1,0 +1,8 @@
+[text]
+lang = "de"
+region = "CH"
+direction = "ltr"
+
+# Preserve the approved summary's optical inset and final text edge.
+[cv]
+entry_spacing_pt = 13.996720535433074

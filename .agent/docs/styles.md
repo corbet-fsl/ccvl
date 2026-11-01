@@ -87,7 +87,7 @@ Style slots are numbered after the designed styles, up to the declared count.
 `slot-<n>` names are reserved for slots. Slots produce no leaves, so builds,
 measurements, checks, `list-documents` and the gallery skip them. Selecting
 one fails with an explicit message such as
-`cv harvard/slot-5 is an empty slot; it has no design yet`.
+`cl harvard/slot-3 is an empty slot; it has no design yet`.
 
 The first entry of `substyles` is the style's default substyle. The name
 `default` is reserved for selections: as a style it means the manifest's
@@ -309,9 +309,11 @@ applications repositories. Private content stays downstream.
 
 Harvard supplies chronological CVs and cover letters; D+ is its default CV
 substyle and frame its default letter substyle. Cluster supplies a CV with a
-grouped first page followed by the unchanged Harvard D+ pages 2–4. Modern is a scaffold with `standard`
-and `timeline` substyles whose design is not yet defined. The remaining style
-positions are empty slots: `cvl/cv/slot-4` and `cvl/cl/slot-2` to `slot-4`.
+grouped first page followed by the unchanged Harvard D+ pages 2–4. Harvard and Cluster each have a
+`timeline` substyle that is a copy of D+ until its design is defined. Modern is
+a scaffold with `standard` and `timeline` substyles, and Onepager a one-page
+scaffold with `standard`; neither design is defined yet. The remaining style
+positions are empty slots: `cvl/cl/slot-2` to `slot-4`.
 All designed styles support German and English Swiss locales on portrait A4. See [the gallery](../../cvl/README.md) for PDFs,
 [the defaults audit](typst-defaults.md) for settings and deliberate `auto`
 choices, and [ccvl-style](../skills/ccvl-style/SKILL.md) for style creation.

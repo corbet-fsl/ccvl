@@ -1,0 +1,11 @@
+#import "/cvl/cv/onepager/layout.typ": render
+#render(
+  application-path: sys.inputs.at("application", default: "/cvl/cv/onepager/standard/en/ch/content.toml"),
+  profile-path: sys.inputs.at("profile", default: "/cvl/profile.toml"),
+  strings-path: sys.inputs.at("strings", default: "/cvl/cv/onepager/standard/en/ch/strings.toml"),
+  substyle-path: sys.inputs.at("substyle", default: "/cvl/cv/onepager/standard/substyle.toml"),
+  defaults-path: sys.inputs.at("shared-defaults", default: "/cvl/shared/onepager/defaults.toml"),
+  layout-path: sys.inputs.at("layout", default: "/cvl/cv/onepager/standard/en/ch/layout.toml"),
+  paper-input: sys.inputs.at("paper", default: ""),
+  pages: int(sys.inputs.at("pages", default: "1")),
+)

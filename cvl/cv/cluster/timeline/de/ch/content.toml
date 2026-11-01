@@ -1,0 +1,32 @@
+schema_version = 4
+revision = 0
+
+[wording]
+source = "../../../content/de/ch/wording.toml"
+
+[options]
+language = "de-ch"
+pages = 4
+cv_style = "cluster"
+cv_substyle = "timeline"
+generate_cl = false
+application_date = ""
+
+[job]
+id = "cluster-timeline-de-ch"
+title = ""
+organization = ""
+location = ""
+source = "Approved Harvard showcase entries"
+url = ""
+description = ""
+connections = ""
+company_context = ""
+notes = "Clustered opening built only from the approved Harvard summary and bullets."
+
+[job.cl_recipient]
+name = ""
+title = ""
+company = ""
+address_line_1 = ""
+address_line_2 = ""
