@@ -110,7 +110,9 @@ Render every affected style, substyle, locale and preset. Enforce its declared
 contract (including the station gate for Harvard), requested paper dimensions
 and exact page count. Use only papers declared by the style; preserve an
 explicit selection without shrinking text to make it fit. Inspect every
-rendered page and extract the PDF text layer.
+rendered page and extract the PDF text layer. To weigh alternatives, the
+platform `compare` command shows them side by side
+([comparisons](../../docs/compare.md)).
 Reject clipped content, accidental extra pages, missing glyphs, placeholders,
 or any line outside its declared bounds. Run the matching platform `measure`
 command until it passes, then run `check` before completion.

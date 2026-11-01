@@ -78,6 +78,8 @@ The shipped Harvard CV substyles are `d-plus` (the default), `standard`, `compac
 cover-letter substyles are `frame` (the default) and `left-rule`. `bash ./ccvl list-styles` shows every
 style, substyle and empty slot. Use `build-cv en-ch 4 --style harvard --substyle compact` or
 `build-cl en-ch --style harvard --substyle frame` with your platform launcher.
+`compare harvard/d-plus cluster/d-plus harvard/compact` renders any variants into one
+side by side review PDF; see [.agent/docs/compare.md](.agent/docs/compare.md).
 Other styles own their layouts and page presets; see [.agent/docs/styles.md](.agent/docs/styles.md).
 Opportunity-specific documents are written beside their job record under
 `opportunities/<organisation>/<position>/pdfs/` (rendered PDFs) and

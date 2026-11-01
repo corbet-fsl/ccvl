@@ -163,3 +163,72 @@ fn list_styles_is_a_workspace_command() {
         Command::ListStyles
     ));
 }
+
+#[test]
+fn compare_takes_two_or_more_items_and_global_options() {
+    let args = Args::try_parse_from([
+        "ccvl",
+        "compare",
+        "harvard/d-plus",
+        "cluster/d-plus@de-ch:2",
+        "old/cv-4.pdf",
+        "--doc",
+        "cl",
+        "--locale",
+        "en-ch",
+        "--pages",
+        "4",
+        "--only",
+        "1,3",
+        "--layout",
+        "sheet",
+        "--name",
+        "openings",
+        "--png",
+        "--metrics",
+        "--json",
+    ])
+    .unwrap();
+    let Command::Compare {
+        items,
+        document,
+        locale,
+        pages,
+        only,
+        layout,
+        name,
+        png,
+        metrics,
+        json,
+    } = args.command
+    else {
+        panic!("unexpected command");
+    };
+    assert_eq!(
+        items,
+        ["harvard/d-plus", "cluster/d-plus@de-ch:2", "old/cv-4.pdf"]
+    );
+    assert_eq!(
+        (document.as_str(), locale.as_deref(), pages, only.as_deref()),
+        ("cl", Some("en-ch"), Some(4), Some("1,3"))
+    );
+    assert_eq!(
+        (layout.as_str(), name.as_deref()),
+        ("sheet", Some("openings"))
+    );
+    assert!(png && metrics && json);
+    let args = Args::try_parse_from(["ccvl", "compare", "default", "harvard/compact"]).unwrap();
+    assert!(matches!(
+        args.command,
+        Command::Compare { document, layout, png: false, metrics: false, json: false, .. }
+            if document == "cv" && layout == "interleaved"
+    ));
+    for invalid in [
+        &["ccvl", "compare", "harvard/d-plus"][..],
+        &["ccvl", "compare"],
+        &["ccvl", "compare", "a", "b", "--layout", "grid"],
+        &["ccvl", "compare", "a", "b", "--doc", "resume"],
+    ] {
+        assert!(Args::try_parse_from(invalid).is_err(), "{invalid:?}");
+    }
+}

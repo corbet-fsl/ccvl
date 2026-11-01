@@ -337,17 +337,18 @@ original evidence. A locale does not automatically override the selected paper.
 [Independent review](review.md) checks the actual selected contracts and pages,
 including general documents without a vacancy.
 
-## Comparing pages
+## Comparing variants
 
-`bash .agent/scripts/compare-pages.sh <name> <pdf>[:<pages>] ...` assembles
-selected pages of built PDFs, from any styles, substyles, locales or presets,
-into one review PDF with 1600-pixel previews under
-`.agent/cache/comparisons/`. It reads only existing outputs, so build the
-variants first; comparisons are review material and are never committed.
+`bash ./ccvl compare <item> <item> [<item>...]` renders any styles,
+substyles, locales, presets, application records or existing PDFs freshly
+into `.agent/cache/comparisons/` and assembles them into one review PDF, page
+by page side by side. Comparisons are review material and are never
+committed. See [the comparison guide](compare.md) for items, layouts and
+examples.
 
 ```sh
-bash .agent/scripts/compare-pages.sh openings-en \
-  cvl/cv/cluster/d-plus/en/ch/pdf/cv-4.pdf:1 cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf:1
+bash ./ccvl compare harvard/d-plus cluster/d-plus --only 1
+bash ./ccvl compare harvard/d-plus harvard/compact harvard/standard --layout sheet --png
 ```
 
 ## Portable consumer bundles

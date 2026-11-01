@@ -30,3 +30,7 @@ watch-cv locale *args:
 
 watch-cl locale *args:
     bash ./ccvl watch-cl "$@"
+
+# Render two or more variants side by side; see .agent/docs/compare.md.
+compare +items:
+    bash ./ccvl compare "$@"

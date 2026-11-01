@@ -105,6 +105,7 @@ pub(crate) fn checkable_fixture_workspace() -> (tempfile::TempDir, Workspace) {
     }
     for guide in [
         "applications",
+        "compare",
         "editorial",
         "review",
         "cover-letter",

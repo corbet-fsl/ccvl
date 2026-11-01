@@ -106,7 +106,9 @@ separately from A4; a locale label alone proves nothing about paper size.
 Exercise each declared paper size, including a nondefault selection within the
 same locale. Keep existing default output names and use distinct names for
 alternate-size PDFs in the same output directory.
-Compare substyles with the same content so their differences are visible.
+Compare substyles with the same content so their differences are visible:
+`compare <style>/<a> <style>/<b> --layout sheet --png` renders them side by
+side with previews to inspect; see [comparisons](../../docs/compare.md).
 
 Update the style gallery, folder overview, reproducible preview instructions
 and license coverage. Link to actual PDFs and explain what varies between
