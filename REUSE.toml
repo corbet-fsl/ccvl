@@ -6,6 +6,7 @@ path = [
   ".agent/AGENT.md",
   ".agent/build.rs",
   ".agent/core/**",
+  ".agent/kanban.toml",
   ".agent/release-platforms.txt",
   ".agent/scripts/**",
   ".agent/skills/**",
@@ -50,7 +51,6 @@ path = [
   "cvl/**/README.md",
   "interview/**/README.md",
   "opportunities/README.md",
-  "opportunities/kanban.toml",
   "todo.md",
 ]
 precedence = "override"

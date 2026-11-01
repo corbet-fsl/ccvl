@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ccvl.dev/schemas/kanban.schema.json",
-  "title": "ccvl application status list (opportunities/kanban.toml), version 1",
+  "title": "ccvl application status list (.agent/kanban.toml), version 1",
   "description": "Mirrors CareerVector v4 KanbanSettings and ReminderSettings with snake_case field names; see .agent/docs/contacts.md for the field mapping. Runtime additionally validates unique phase and status ids, unique keys, that every status phase_id names a phase, and that every phase_rules key names a phase.",
   "type": "object",
   "additionalProperties": false,

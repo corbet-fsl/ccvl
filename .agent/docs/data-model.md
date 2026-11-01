@@ -94,7 +94,7 @@ The record owns:
 - style-owned `[cv]` / `[cl]` content fields: Harvard uses a five-line summary
   and, when enabled, six measured letter paragraphs and five highlights.
 
-The workspace status list `opportunities/kanban.toml` and the optional
+The status list `.agent/kanban.toml` and the optional
 per organisation `contacts.toml` are specified in [Contacts and application
 status](contacts.md).
 

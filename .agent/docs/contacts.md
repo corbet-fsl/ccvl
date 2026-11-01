@@ -1,6 +1,6 @@
 # Contacts and application status
 
-Scope: the data format of `opportunities/kanban.toml` (the application status
+Scope: the data format of `.agent/kanban.toml` (the application status
 list) and of `opportunities/<organisation-key>/contacts.toml` (people and
 touchpoints of one organisation), their field mappings to CareerVector,
 vCard, iCalendar and CSV, identifier and value rules, privacy, and the planned
@@ -10,8 +10,9 @@ does not exist yet; the schemas and this page are the contract it will
 implement.
 
 ```text
+.agent/
+└── kanban.toml                status list, CareerVector defaults
 opportunities/
-├── kanban.toml                status list for this workspace, editable
 └── <organisation-key>/
     ├── contacts.toml          optional; the organisation, its people, touchpoints
     └── <position-key>/        optional; an organisation may have no positions
@@ -20,9 +21,9 @@ opportunities/
 
 ## Application status list
 
-`opportunities/kanban.toml` defines phases, statuses and follow-up reminders
+`.agent/kanban.toml` defines phases, statuses and follow-up reminders
 for every position of the workspace. ccvl ships the CareerVector v4 defaults;
-a workspace may rename, recolour, reorder, add or remove entries. Numeric ids
+people adapt their own list in CareerVector. Numeric ids
 and field semantics are identical to CareerVector so a workspace can be
 exchanged 1:1. Each phase and status also carries a readable `key`, which is
 what positions reference.
