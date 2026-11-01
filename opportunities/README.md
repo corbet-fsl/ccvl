@@ -16,7 +16,7 @@ opportunities/<organisation-key>/<position-key>/
 ├── pdfs/
 │   ├── CV_<Last>_<org>_<pos>.pdf
 │   └── CL_<Last>_<org>_<pos>.pdf   only when the cover letter is enabled
-└── versions/                  optional superseded versions, reference only
+└── variants/                  optional earlier variants, superseded by application.toml
     └── <n>-<label>/           e.g. 2-values; higher numbers are later
         ├── application.toml   the record as it was; never built or checked
         └── *.pdf              its rendered documents
