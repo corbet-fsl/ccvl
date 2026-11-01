@@ -16,7 +16,6 @@ path = [
   ".agent/typst/**/*.toml",
   ".agent/typst/**/*.json",
   ".agent/typst/**/*.typ",
-  ".agent/typst/letter/vendor/**",
   ".crow.yaml",
   ".ci/run-cached.sh",
   ".ci/toolchain-lock.sh",
@@ -44,7 +43,6 @@ path = [
   ".agent/docs/**",
   ".agent/scaffolds/**",
   ".agent/typst/README.md",
-  ".agent/typst/letter/README.md",
   ".github/CONTRIBUTING.md",
   ".github/SECURITY.md",
   "README.md",
@@ -114,16 +112,3 @@ path = [
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
 SPDX-License-Identifier = "FSL-1.1-ALv2"
-
-[[annotations]]
-path = [
-  ".agent/typst/letter/letter.typ",
-  ".agent/typst/letter/generated/**",
-  ".agent/typst/letter/vendor/**",
-]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
-SPDX-License-Identifier = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
-# Historical Apache-2.0/MIT license copies are retained alongside inside
-# vendor/*/LICENSES for previously released distributions; the vendored
-# sources themselves follow the current cletter 0.4.0 line above.

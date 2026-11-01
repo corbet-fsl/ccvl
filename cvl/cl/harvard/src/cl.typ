@@ -6,7 +6,7 @@
 #import "/cvl/shared/harvard/application.typ": load-cover-letter-contract, validate-application
 #import "/.agent/typst/line-contract.typ": line-contract-mode, measured-content-line, measured-paragraph
 #import "/.agent/typst/profile.typ": load-profile
-#import "/.agent/typst/letter/letter.typ": closing as farewell-closing, opening, salutation, signature-image
+#import "/.agent/typst/correspondence.typ": closing as farewell-closing, opening, salutation, signature-image
 
 #let cover-letter-contract = load-cover-letter-contract()
 
@@ -191,7 +191,8 @@
   let closing-content = block(breakable: false)[
     #closing
     #v(closing-before)
-    #signature-image("/cvl/assets/signature.png", 31.5)
+    // Bytes, so the path resolves in this project rather than inside the cink package.
+    #signature-image(read("/cvl/assets/signature.png", encoding: none), 31.5)
     #v(closing-after)
     #profile.name
   ]

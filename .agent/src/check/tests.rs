@@ -25,41 +25,6 @@ fn checked_artifacts_reject_existing_directories_and_failed_checks_publish_nothi
 }
 
 #[test]
-fn correspondence_copies_reject_local_edits_and_unrecorded_sources() {
-    let temporary = TempDir::new().unwrap();
-    fs::write(temporary.path().join("ccvl.json"), "{}").unwrap();
-    let root = temporary.path().join(".agent/typst/letter");
-    fs::create_dir_all(&root).unwrap();
-    let source = b"#let greeting = \"Hello\"\n";
-    fs::write(root.join("letter.typ"), source).unwrap();
-    fs::write(
-        root.join("source.json"),
-        serde_json::to_vec(&json!({
-            "files": {"letter.typ": format!("{:x}", Sha256::digest(source))}
-        }))
-        .unwrap(),
-    )
-    .unwrap();
-    let workspace = Workspace::at(temporary.path()).unwrap();
-    validate_correspondence(&workspace).unwrap();
-    fs::write(root.join("letter.typ"), "#let greeting = \"Changed\"").unwrap();
-    assert!(
-        validate_correspondence(&workspace)
-            .unwrap_err()
-            .to_string()
-            .contains("update it upstream")
-    );
-    fs::write(root.join("letter.typ"), source).unwrap();
-    fs::write(root.join("private-rule.typ"), "#let rule = true").unwrap();
-    assert!(
-        validate_correspondence(&workspace)
-            .unwrap_err()
-            .to_string()
-            .contains("unrecorded correspondence source")
-    );
-}
-
-#[test]
 fn manifest_accepts_ci_metadata_and_rejects_legacy_roots() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
     validate_manifest(&workspace).unwrap();

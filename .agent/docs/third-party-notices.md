@@ -12,3 +12,9 @@ build that binary. Poppler, QPDF, Git, curl, and ripgrep are external tools
 and are not redistributed by this repository. The bootstrap installs the exact
 Rust toolchain only after the user requests setup, then builds ccvl from the
 frozen `Cargo.lock` dependency graph.
+
+The binary also links the correspondence libraries cletter, cnice, cdate and
+cink, licensed LGPL-3.0-only WITH LGPL-3.0-linking-exception, as locked crates.
+Those crates embed the Typst packages behind letter openings, closings, dates
+and signatures; ccvl registers them in memory and keeps no copy of their
+sources in this repository.

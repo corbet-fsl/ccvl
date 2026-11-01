@@ -160,12 +160,14 @@ fn build_engine(workspace: &Workspace, fonts: &[PathBuf]) -> Result<Engine> {
                 .with_context(|| format!("cannot read selected style font {}", path.display()))
         })
         .collect::<Result<Vec<_>>>()?;
-    Engine::builder()
-        .root(workspace.root())
-        .fonts(ctypst::fonts::documents())
-        .fonts(additional_fonts)
-        .build()
-        .context("cannot initialize embedded Typst engine")
+    ccvl_core::render::with_correspondence(
+        Engine::builder()
+            .root(workspace.root())
+            .fonts(ctypst::fonts::documents())
+            .fonts(additional_fonts),
+    )?
+    .build()
+    .context("cannot initialize embedded Typst engine")
 }
 
 fn source_date_epoch() -> Result<i64> {

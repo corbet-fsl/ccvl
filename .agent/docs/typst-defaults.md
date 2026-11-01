@@ -1,6 +1,6 @@
 # Explicit document defaults
 
-This audit targets the pinned **Typst 0.15.1**, through **ctypst 0.3.2** in
+This audit targets the pinned **Typst 0.15.1**, through **ctypst 0.3.3** in
 `Cargo.lock`. Revisit it when either dependency changes. It covers settings
 used by the shipped text documents, their components, and PDF export; it is
 not a universal schema for every possible Typst element.
@@ -156,7 +156,7 @@ pretending a TOML field configures an unsupported export feature.
 
 Implementation sources:
 [Typst PDF options at v0.15.1](https://github.com/typst/typst/blob/v0.15.1/crates/typst-pdf/src/lib.rs),
-[ctypst 0.3.2 PDF adapter](https://docs.rs/crate/ctypst/0.3.2/source/src/pdf.rs).
+[ctypst 0.3.3 PDF adapter](https://docs.rs/crate/ctypst/0.3.3/source/src/pdf.rs).
 The native check validates PDF contracts, and Linux checks independently use
 qpdf/Poppler plus rendering and repeat-build comparisons. These are useful
 technical checks; visual review and accessible reading-order review still

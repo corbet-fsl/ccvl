@@ -23,9 +23,9 @@ path = ".agent/src/main.rs"
 [dependencies]
 anyhow = "1.0"
 ccvl-core = { path = ".agent/core", version = "0.1", features = ["render"] }
-cletter = ">=0.2.2,<0.5"
+cletter = "0.4.2"
 clap = { version = "4.5", features = ["derive"] }
-ctypst = { version = "0.3", default-features = false, features = ["document-fonts", "format", "pdf", "raster"] }
+ctypst = { version = "0.3.3", default-features = false, features = ["document-fonts", "format", "pdf", "raster"] }
 lopdf = { version = "0.44", default-features = false }
 png = "0.18"
 regex = "1.12"
@@ -39,6 +39,16 @@ walkdir = "2.5"
 
 [dev-dependencies]
 pretty_assertions = "1.4"
+
+# Releases not yet on crates.io, taken from their source repositories. Cargo
+# ignores this section when ccvl-core is packaged, so the published manifest
+# keeps the plain ranges above. Remove an entry once its release is published.
+[patch.crates-io]
+cdate = { git = "https://forge.corbet.ch/corbet-foss/cdate.git", branch = "main" }
+cink = { git = "https://forge.corbet.ch/corbet-foss/cink.git", branch = "main" }
+cletter = { git = "https://forge.corbet.ch/corbet-foss/cletter.git", branch = "main" }
+cnice = { git = "https://forge.corbet.ch/corbet-foss/cnice.git", branch = "main" }
+ctypst = { git = "https://forge.corbet.ch/corbet-libs/ctypst.git", branch = "main" }
 
 [build-dependencies]
 sha2 = "0.10"

@@ -565,12 +565,15 @@ fn empty_recipient_name_warns_but_stays_valid() {
 fn typst_salutation_helper_keeps_only_the_last_token() {
     // Typst-level coverage for the shared helper: the same edge cases
     // as the Rust mirror must hold inside the renderer.
-    let engine = ctypst::Engine::builder()
-        .root(crate::test_support::repository())
-        .fonts(ctypst::fonts::documents())
-        .build()
-        .unwrap();
-    let source = "#import \"/.agent/typst/letter/letter.typ\": salutation-last-name, salutation, opening\n\
+    let engine = ccvl_core::render::with_correspondence(
+        ctypst::Engine::builder()
+            .root(crate::test_support::repository())
+            .fonts(ctypst::fonts::documents()),
+    )
+    .unwrap()
+    .build()
+    .unwrap();
+    let source = "#import \"/.agent/typst/correspondence.typ\": salutation-last-name, salutation, opening\n\
             #assert(salutation-last-name(\"Dr. Jane Doe\") == \"Doe\", message: \"title prefix\")\n\
             #assert(salutation-last-name(\"Ms Test Person\") == \"Person\", message: \"multi-token\")\n\
             #assert(salutation-last-name(\"Madonna\") == \"Madonna\", message: \"single token\")\n\

@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -42,7 +41,6 @@ pub fn run_selected(
         );
     }
     validate_manifest(workspace)?;
-    validate_correspondence(workspace)?;
     validate_styles(workspace)?;
     validate_frozen_contracts(workspace)?;
     validate_measurement_ownership(workspace)?;
@@ -54,50 +52,6 @@ pub fn run_selected(
     format::format_typst(workspace, true)?;
     validate_embedded_fonts(workspace)?;
     render_and_verify(workspace, artifacts, styles)
-}
-
-fn validate_correspondence(workspace: &Workspace) -> Result<()> {
-    let root = workspace.path(".agent/typst/letter");
-    let manifest = workspace.read_json(".agent/typst/letter/source.json")?;
-    let files = manifest
-        .get("files")
-        .and_then(Value::as_object)
-        .context("correspondence source manifest needs file hashes")?;
-    ensure!(!files.is_empty(), "correspondence source manifest is empty");
-    for (relative, hash) in files {
-        ensure!(
-            Path::new(relative)
-                .components()
-                .all(|component| matches!(component, std::path::Component::Normal(_))),
-            "invalid correspondence source path: {relative}"
-        );
-        let path = workspace.existing_inside(root.join(relative))?;
-        ensure!(
-            path.starts_with(&root),
-            "correspondence source escapes vendor tree: {relative}"
-        );
-        let actual = format!("{:x}", Sha256::digest(fs::read(&path)?));
-        ensure!(
-            hash.as_str() == Some(&actual),
-            "vendored correspondence source changed: {relative}; update it upstream and re-vendor"
-        );
-    }
-    for entry in walkdir::WalkDir::new(&root) {
-        let entry = entry?;
-        if entry.file_type().is_file() {
-            let relative = entry
-                .path()
-                .strip_prefix(&root)?
-                .to_string_lossy()
-                .replace('\\', "/");
-            ensure!(
-                ["README.md", "source.json"].contains(&relative.as_str())
-                    || files.contains_key(&relative),
-                "unrecorded correspondence source: {relative}"
-            );
-        }
-    }
-    Ok(())
 }
 
 fn validate_manifest(workspace: &Workspace) -> Result<()> {

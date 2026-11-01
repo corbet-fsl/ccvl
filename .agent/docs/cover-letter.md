@@ -215,7 +215,7 @@ without duplicate locale tables or algorithms in ccvl. The Harvard style retains
 its explicit English override:
 `en-ch` uses a title-less named form (`Dear Doe,`) and the generic
 `Dear Hiring Manager,`. Such explicit style/user choices are not replaced by
-locale inference. See [the correspondence integration](../typst/letter/README.md)
+locale inference. See [the correspondence integration](../typst/README.md#correspondence)
 for the consumed helpers; do not copy a competing national-norm table here.
 
 Use lowercase locale identifiers. Apply library orthographic transformations to
