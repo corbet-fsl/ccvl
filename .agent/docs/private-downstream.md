@@ -102,12 +102,15 @@ its complete file/content/executable-mode inventory with the staged archive.
 Unsupported links, incomplete history, changed source, or an invalid upstream
 policy fail closed. CI files remain upstream-owned under `ccvl-downstream.json`.
 
-The check uses the bootstrap runtime identity algorithm and the matching public
+The route runs `ccvl private-check` (hidden maintainer command, built from
+the verified source by `ci-check.sh downstream-check`; `CCVL_UPSTREAM_URL`
+names the public repository). It uses the runtime identity algorithm of the
+compiled source, which equals the bootstrap one, and the matching public
 `runtime-<identity>/ccvl-linux-x86_64` release and checksum. Optional
 `CCVL_CHECK_RUNTIME` points to an existing worker artifact; its bytes must still
 match the downloaded official checksum and its executable runtime identity.
 Without that input, the binary is downloaded into disposable job storage.
-No compiler, packages, worker tools, or user runtime cache are installed.
+No compiler, packages, worker tools, or user runtime cache are installed; the checking command itself uses the worker's existing Rust toolchain, and the published runtime is never built from source.
 Missing published runtime assets or an unreachable release host produce a failed
 prerequisite, not a source build or a successful validation result.
 

@@ -15,10 +15,11 @@ On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 
 | Check | Coverage |
 |---|---|
-| `rust` (default) | Stable Rust formatting, Clippy and locked unit/document tests |
+| `rust` (default) | Stable Rust formatting, Clippy and locked unit/document tests, including the release evidence, publisher and private downstream guard fixtures |
 | `lint` | Actionlint, ShellCheck, REUSE and the CI script behavior tests with preinstalled tools |
 | `documents` | Locked Linux release build and independent PDF/text/layout verification |
 | `styles` | Optimized non-LTO build, then `public-check` limited to the space-separated `<doc>/<style>` list in `CCVL_CHECK_STYLES` (every style when unset) |
+| `downstream-check` | Manual private downstream route: builds the checked source's `private-check` command and runs it against the staged archive and bundle (see [private downstream](private-downstream.md)) |
 | `skill-eval-build`, then `skill-eval` | Explicit trusted small-model evaluation; separate credential-free build and credential-bearing evaluation |
 
 The command uses existing tools. Crow supplies a memory-bounded parallel job
@@ -57,7 +58,7 @@ everything. It outputs `rust`, `documents` and `styles`.
 | other `cvl/**` | yes | all |
 | `cvl/README.md` | yes | none |
 | `interview/stations.toml` | yes | CV styles whose `contract.toml` declares `[layout_contract…]` |
-| `.agent/skills/**`, `.agent/scaffolds/**`, `.agent/schemas/**`, `.agent/tests/fixtures/**`, `.agent/tests/skill-cases.json`, `.agent/docs/editorial.md`, `interview/**`, `opportunities/**`, `REUSE.toml`, `LICENSES/**`, `.crow/downstream-sync.yaml`, `.agent/release-platforms.txt`, and the Rust job's `ci-check.sh`, `release-ci.sh`, `rust-toolchain.sh`, `release-evidence.py`, `downstream-sync.sh` | yes | none |
+| `.agent/skills/**`, `.agent/scaffolds/**`, `.agent/schemas/**`, `.agent/tests/fixtures/**`, `.agent/tests/skill-cases.json`, `.agent/docs/editorial.md`, `interview/**`, `opportunities/**`, `REUSE.toml`, `LICENSES/**`, `.crow/downstream-sync.yaml`, `.crow/release-archive.yaml`, `.agent/release-platforms.txt`, `.agent/tests/*.rs`, and the Rust job's `ci-check.sh`, `release-ci.sh`, `rust-toolchain.sh`, `release-evidence.sh`, `publish-release.sh`, `memory-admission.sh`, `downstream-sync.sh` | yes | none |
 | Other `.agent/docs/**`, root and `.github` Markdown, `.agent/AGENT.md`, the release/skill/sync workflows, shell and PowerShell tests, bootstrap/release/lint-only scripts, `.ci/**`, other `.crow/**`, dispatchers, `justfile` | no | none |
 | Anything else | yes | all |
 

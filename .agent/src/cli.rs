@@ -64,6 +64,15 @@ enum Command {
     },
     /// Print the compiled runtime source identity without opening a workspace.
     RuntimeId,
+    /// Maintainer: source-bound release evidence for native binaries.
+    #[command(hide = true)]
+    ReleaseEvidence {
+        #[command(subcommand)]
+        command: crate::release_evidence::Command,
+    },
+    /// Maintainer: check a private downstream on Crow with its published runtime.
+    #[command(hide = true)]
+    PrivateCheck,
     /// Verify the self-contained binary and workspace.
     Setup,
     /// Show what the dependency-free setup requires.
@@ -252,6 +261,13 @@ pub fn run() -> Result<ExitCode> {
         println!("{}", crate::runtime::ID);
         return Ok(ExitCode::SUCCESS);
     }
+    // Maintainer routes run before any workspace exists for the target.
+    if let Command::ReleaseEvidence { command } = &args.command {
+        return Ok(crate::release_evidence::run(args.root.as_deref(), command));
+    }
+    if matches!(args.command, Command::PrivateCheck) {
+        return Ok(crate::private_check::run(args.root.as_deref()));
+    }
     if let Command::RenderStyle {
         bundle,
         application,
@@ -294,7 +310,9 @@ pub fn run() -> Result<ExitCode> {
                 serde_json::to_string_pretty(&crate::review::run(&workspace, command)?)?
             );
         }
-        Command::RuntimeId => unreachable!("handled before workspace discovery"),
+        Command::RuntimeId | Command::ReleaseEvidence { .. } | Command::PrivateCheck => {
+            unreachable!("handled before workspace discovery")
+        }
         Command::Setup => {
             doctor(&workspace)?;
             check::run(&workspace)?;

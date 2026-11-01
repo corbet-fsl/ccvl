@@ -4,13 +4,16 @@ set +x
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
+# shellcheck source=.agent/scripts/release-evidence.sh
+source .agent/scripts/release-evidence.sh
+ccvl_prepare_release_evidence
 dist="$(cd "${1:?Missing verified release directory}" && pwd)"
-identity="$(python3 .agent/scripts/release-evidence.py check --output "$dist")"
+identity="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist")"
 read -r sha runtime_id <<<"$identity"
 repository="${CI_REPO:-${GITHUB_REPOSITORY:-}}"
 [[ "$repository" == corbet-libs/ccvl && "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
 [[ -n ${GH_TOKEN:-${GITHUB_TOKEN:-}} ]] || { echo 'A publication credential is required.' >&2; exit 2; }
-platform_policy="$(python3 .agent/scripts/release-evidence.py platforms)"
+platform_policy="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" platforms)"
 mapfile -t platforms <<<"$platform_policy"
 runtime_files=()
 bundle_files=()

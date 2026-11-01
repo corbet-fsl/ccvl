@@ -15,7 +15,7 @@ cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 [checks.lint]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "lint"]]
-cache_tools = [["python3", "--version"], ["shellcheck", "--version"], ["actionlint", "--version"], ["reuse", "--version"]]
+cache_tools = [["shellcheck", "--version"], ["actionlint", "--version"], ["reuse", "--version"]]
 
 [checks.documents]
 kind = "commands"
@@ -31,8 +31,9 @@ cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN", "CCVL_CHECK_STYLES"]
 
 [checks.downstream-check]
 kind = "commands"
-commands = [["python3", ".agent/scripts/downstream-check.py"]]
-cache_tools = [["python3", "--version"]]
+commands = [["bash", ".agent/scripts/ci-check.sh", "downstream-check"]]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
+cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 
 # Manual trusted workflow only; credentials are absent from the build step.
 [checks.skill-eval-build]
@@ -82,8 +83,8 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package
 # verify set; dispatch-only, secret-bearing, disabled, and
 # release/downstream/skill-eval gates stay defined but separate.
 # cache_tools pins the tool identities each script arm resolves
-# (rustc/cargo for the build arms; python3/shellcheck/actionlint/reuse for
-# lint; python3 for the python entry points).
+# (rustc/cargo for the build arms; shellcheck/actionlint/reuse for
+# lint).
 
 [render]
 tool_revision = "78a4e05b4e1cb25aaeba3966951564d74277bcbd"

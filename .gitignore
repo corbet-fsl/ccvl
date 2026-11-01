@@ -10,8 +10,6 @@
 
 # Local build state
 /.agent/cache/
-__pycache__/
-*.py[cod]
 /target/
 
 # Secrets

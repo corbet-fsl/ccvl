@@ -151,7 +151,7 @@ jobs:
     name: Workflow, shell, and license checks
     if: github.repository == 'corbet-libs/ccvl'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -187,13 +187,30 @@ jobs:
           bash .agent/tests/test_ci_toolchain.sh
           bash .agent/tests/test_downstream_sync.sh
           bash .agent/tests/test_skill_eval_ci.sh
-          python3 .agent/tests/test_release_evidence.py
 
       - name: Check REUSE licensing
         uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
 
+      - name: Install current stable Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup run "$RUST_TOOLCHAIN" rustc --version
+
+      - name: Reuse compiled test dependencies
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
+        with:
+          shared-key: tests-linux-x86_64
+          cache-bin: false
+          cache-on-failure: true
+          save-if: false
+
       - name: Record exact lint gate evidence
-        run: python3 .agent/scripts/release-evidence.py gate lint --output "$RUNNER_TEMP/release-gates"
+        env:
+          CARGO_BUILD_JOBS: "4"
+        run: |
+          source .agent/scripts/release-evidence.sh
+          ccvl_prepare_release_evidence
+          "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" gate lint --output "$RUNNER_TEMP/release-gates"
 
       - name: Retain exact lint gate evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
@@ -228,9 +245,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes file poppler-utils qpdf jq
 
+      - name: Install current stable Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup run "$RUST_TOOLCHAIN" rustc --version
+
+      - name: Reuse compiled test dependencies
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
+        with:
+          shared-key: tests-linux-x86_64
+          cache-bin: false
+          cache-on-failure: true
+          save-if: false
+
       - name: Run Linux-specific independent PDF checks
         env:
           CCVL_RELEASE_DIR: ${{ runner.temp }}/binary
+          CARGO_BUILD_JOBS: "4"
         run: bash .agent/scripts/release-ci.sh linux-deep
 
       - name: Retain Linux verification evidence
@@ -291,7 +322,7 @@ jobs:
     if: >-
       ${{ (github.repository == 'corbet-libs/ccvl' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request') && (github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
@@ -307,7 +338,21 @@ jobs:
           path: ${{ runner.temp }}/release
           merge-multiple: true
 
+      - name: Install current stable Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup run "$RUST_TOOLCHAIN" rustc --version
+
+      - name: Reuse compiled test dependencies
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
+        with:
+          shared-key: tests-linux-x86_64
+          cache-bin: false
+          cache-on-failure: true
+          save-if: false
+
       - name: Publish the complete matching runtime
         env:
           GH_TOKEN: ${{ github.token }}
+          CARGO_BUILD_JOBS: "4"
         run: bash .agent/scripts/publish-release.sh "$RUNNER_TEMP/release"

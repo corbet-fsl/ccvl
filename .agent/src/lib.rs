@@ -1,6 +1,7 @@
 //! Deterministic core for ccvl workspaces.
 
 pub mod application;
+pub mod archive;
 pub mod bundle;
 pub use ccvl_core as core;
 pub mod check;
@@ -14,7 +15,9 @@ pub mod opportunity;
 pub mod ownership;
 pub mod paper;
 pub mod pdf;
+pub mod private_check;
 pub mod public;
+pub mod release_evidence;
 pub mod render;
 pub mod review;
 pub mod runtime;

@@ -8,7 +8,7 @@ fixture="$(mktemp -d)"
 trap 'rm -rf -- "$fixture"' EXIT
 mkdir -p "$fixture/bin" "$fixture/source/.agent/scripts"
 cp "$repo_root/.agent/scripts/downstream-sync.sh" "$repo_root/.agent/scripts/rust-toolchain.sh" \
-  "$fixture/source/.agent/scripts/"
+  "$repo_root/.agent/scripts/memory-admission.sh" "$fixture/source/.agent/scripts/"
 cp "$repo_root/Cargo.toml" "$fixture/source/Cargo.toml"
 export TEST_SOURCE_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export TEST_MERGED_COMMIT=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -24,6 +24,11 @@ export CI_JOBS=1 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
 export DOWNSTREAM_PUSH_KEY=fixture-only DOWNSTREAM_SSH_URL=fixture-only
 export CCVL_UPSTREAM_URL=https://forge.example.invalid/corbet-libs/ccvl.git
 export PATH="$fixture/bin:$PATH"
+# Memory admission reads fixture kernel interfaces, never the host's.
+mkdir -p "$fixture/proc/self" "$fixture/cgroup"
+printf 'MemTotal: 33554432 kB\nMemAvailable: 16777216 kB\n' > "$fixture/proc/meminfo"
+printf '0::/\n' > "$fixture/proc/self/cgroup"
+export CCVL_PROC_ROOT="$fixture/proc" CCVL_CGROUP_ROOT="$fixture/cgroup"
 unset RUST_TOOLCHAIN RUSTUP_TOOLCHAIN
 
 cat > "$fixture/bin/git" <<'SH'
@@ -76,13 +81,43 @@ GATE
   *) exit 99 ;;
 esac
 SH
-# These fixtures exercise publication ordering without depending on host memory.
-cat > "$fixture/bin/python3" <<'SH'
-#!/usr/bin/env bash
-cat >/dev/null
-printf '2\n'
-SH
-chmod +x "$fixture/bin/git" "$fixture/bin/rustup" "$fixture/bin/python3"
+chmod +x "$fixture/bin/git" "$fixture/bin/rustup"
+
+expect_jobs() {
+  local expected="$1" actual status=0
+  shift
+  actual="$(env "$@" bash -c 'source "$1"; ccvl_memory_admission' _ "$repo_root/.agent/scripts/memory-admission.sh" 2>"$fixture/admission-error")" || status=$?
+  if [[ "$expected" == refused ]]; then
+    ((status != 0)) || { echo 'Expected memory admission refusal.' >&2; exit 1; }
+  else
+    [[ "$status" == 0 && "$actual" == "$expected" ]] || {
+      cat "$fixture/admission-error"
+      echo "Expected $expected build job(s), got ${actual:-none}." >&2
+      exit 1
+    }
+  fi
+}
+cpus="$(nproc)"
+jobs_for() { if (($1 <= cpus)); then echo "$1"; else echo "$cpus"; fi; }
+expect_jobs "$(jobs_for 2)" CARGO_BUILD_JOBS=2 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
+expect_jobs "$(jobs_for 4)" CARGO_BUILD_JOBS=64 CI_MIN_AVAILABLE_MB=16380 CI_MEMORY_PER_JOB_MB=1
+expect_jobs refused CARGO_BUILD_JOBS=0
+expect_jobs refused CARGO_BUILD_JOBS=two
+expect_jobs refused CARGO_BUILD_JOBS=2 CI_MIN_AVAILABLE_MB=16384 CI_MEMORY_PER_JOB_MB=1
+# A cgroup limit lowers what the host reports as available.
+printf '1073741824\n' > "$fixture/cgroup/memory.max"
+printf '1073741824\n' > "$fixture/cgroup/memory.current"
+expect_jobs refused CARGO_BUILD_JOBS=2 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
+printf '2147483648\n' > "$fixture/cgroup/memory.max"
+expect_jobs "$(jobs_for 1)" CARGO_BUILD_JOBS=1 CI_MIN_AVAILABLE_MB=100 CI_MEMORY_PER_JOB_MB=100
+printf 'max\n' > "$fixture/cgroup/memory.max"
+# Sustained full memory pressure refuses admission.
+mkdir -p "$fixture/proc/pressure"
+printf 'some avg10=1.00 avg60=0.00\nfull avg10=7.50 avg60=0.00\n' > "$fixture/proc/pressure/memory"
+expect_jobs refused CARGO_BUILD_JOBS=2 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
+printf 'some avg10=1.00 avg60=0.00\nfull avg10=4.99 avg60=0.00\n' > "$fixture/proc/pressure/memory"
+expect_jobs "$(jobs_for 2)" CARGO_BUILD_JOBS=2 CI_MIN_AVAILABLE_MB=1 CI_MEMORY_PER_JOB_MB=1
+rm -rf "$fixture/proc/pressure" "$fixture/cgroup/memory.max" "$fixture/cgroup/memory.current"
 
 run_case() {
   export TEST_MAIN_STATE="$1" TEST_DOCUMENT_GATE="$2"
