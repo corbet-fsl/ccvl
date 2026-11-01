@@ -224,8 +224,8 @@ fn documents_must_not_read_the_opposite_document_tree() {
     fs::write(
         &renderer,
         text.replace(
-            "  let contract = toml(\"/cvl/cv/ledger/contract.toml\")\n",
-            "  let contract = toml(\"/cvl/cv/ledger/contract.toml\")\n  let letter = letter-contract()\n",
+            "  let contract = toml(\"../../cv/ledger/contract.toml\")\n",
+            "  let contract = toml(\"../../cv/ledger/contract.toml\")\n  let letter = letter-contract()\n",
         ),
     )
     .unwrap();

@@ -23,7 +23,7 @@
 // Assign the letter contract's fill bounds to measured lines. Only the
 // paragraph's closing line may use the lower body minimum; importing these
 // helpers reads no record and emits no content.
-#let letter-contract() = toml("/cvl/cl/ledger/contract.toml")
+#let letter-contract() = toml("../../cl/ledger/contract.toml")
 #let with-body-fill(lines) = {
   let body = letter-contract().line_fill.body
   range(lines.len()).map(index => (
@@ -41,7 +41,7 @@
 
 #let settings(document, locale, record, defaults-path, substyle-path, layout-path, paper-input) = {
   let preset = resolve-paper(
-    toml("/cvl/" + document + "/ledger/style.toml"),
+    toml("../../" + document + "/ledger/style.toml"),
     locale,
     requested: paper-input,
     recorded: record.options.at(document + "_paper", default: none),
@@ -63,7 +63,7 @@
 ) = {
   let record = load-application(application-path)
   let strings = toml(strings-path)
-  let contract = toml("/cvl/cv/ledger/contract.toml")
+  let contract = toml("../../cv/ledger/contract.toml")
   assert(pages in contract.presets, message: "unsupported ledger CV page count")
   assert(record.options.language == strings.locale, message: "ledger locale mismatch")
   let (profile, localized-profile) = load-profile(profile-path)

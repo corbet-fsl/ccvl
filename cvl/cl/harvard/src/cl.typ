@@ -2,13 +2,13 @@
 #import "/.agent/typst/application.typ": load-application
 #import "/.agent/typst/application-date.typ": format-application-date
 // Shared Harvard cover letter; inputs belong to the calling leaf.
-#import "/cvl/shared/harvard/style.typ": document-style
-#import "/cvl/shared/harvard/application.typ": load-cover-letter-contract, validate-application
+#import "../../../shared/harvard/style.typ": document-style
+#import "../../../shared/harvard/application.typ": validate-application
 #import "/.agent/typst/line-contract.typ": line-contract-mode, measured-content-line, measured-paragraph
 #import "/.agent/typst/profile.typ": load-profile
 #import "/.agent/typst/correspondence.typ": closing as farewell-closing, opening, salutation, signature-image
 
-#let cover-letter-contract = load-cover-letter-contract()
+#let cover-letter-contract = toml("../contract.toml")
 
 
 #let highlight-text(value) = {
@@ -63,7 +63,12 @@
     default: none,
   ))
   let cl-style = paper-settings((toml(shared-defaults-path), toml(substyle-path), toml(layout-path)), paper)
-  validate-application(application, expected-language: doc-locale, require-cl: true)
+  validate-application(
+    application,
+    expected-language: doc-locale,
+    require-cl: true,
+    contract: cover-letter-contract,
+  )
   let cover = cl-style.cover
   let header-after = cl-style.header.after_pt * 1pt
   let subject-after = cover.subject_after_pt * 1pt

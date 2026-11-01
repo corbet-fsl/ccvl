@@ -3,13 +3,10 @@
 // render; here only what the renderers index is asserted, so a hand-edited
 // record fails with a location instead of a cryptic field access.
 //
-// Contracts live with the style, not the manifest: cvl/cv/harvard/contract.toml and
-// cvl/cl/harvard/contract.toml. Substyle membership (which cv/cl look a record
-// selects) is enforced in Rust before the compile; here the selection keys
-// only need to be strings when present.
-// Loading a contract is explicit and local to the requested document.
-#let load-cover-letter-contract() = toml("/cvl/cl/harvard/contract.toml")
-#let load-cv-contract() = toml("/cvl/cv/harvard/contract.toml")
+// Contracts live with the style, not the manifest: each renderer loads its own
+// `contract.toml` relative to itself and passes it in. Substyle membership
+// (which cv/cl look a record selects) is enforced in Rust before the compile;
+// here the selection keys only need to be strings when present.
 
 #let require-fields(value, fields, scope) = {
   for field in fields {
@@ -22,6 +19,7 @@
   expected-language: none,
   require-cv: false,
   require-cl: false,
+  contract: none,
 ) = {
   require-fields(
     application,
@@ -105,7 +103,8 @@
     message: "application.options.generate_cl must be a boolean",
   )
   if require-cl {
-    let cover-letter-contract = load-cover-letter-contract()
+    assert(contract != none, message: "the cover-letter renderer must pass its contract")
+    let cover-letter-contract = contract
     assert(options.generate_cl, message: "the cover-letter renderer requires options.generate_cl to be true")
     require-fields(application, ("cl",), "application")
     let letter = application.cl

@@ -1,13 +1,13 @@
 #import "/.agent/typst/paper.typ": paper-settings, resolve-paper
 #import "/.agent/typst/application.typ": load-application
 // Shared Harvard CV renderer. Each leaf supplies its inputs explicitly.
-#import "/cvl/shared/harvard/style.typ": document-style
-#import "/cvl/shared/harvard/application.typ": load-cv-contract, validate-application
+#import "../../../shared/harvard/style.typ": document-style
+#import "../../../shared/harvard/application.typ": validate-application
 #import "/.agent/typst/line-contract.typ": measured-content-line, measured-paragraph, wrap-exact
 #import "/.agent/typst/justified-bullet.typ": measured-bullet
 #import "/.agent/typst/profile.typ": load-profile
 
-#let cv-contract = load-cv-contract()
+#let cv-contract = toml("../contract.toml")
 // The CV closing line has its own allowance; CL paragraphs use their own bounds.
 #let last-line-maximum = cv-contract.at("last_line_maximum", default: 102)
 
