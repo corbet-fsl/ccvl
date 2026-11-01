@@ -1,5 +1,8 @@
 schema_version = 1
-updated = "2026-09-03"
+updated = "2026-11-01"
+
+# The author's showcase record. Every fact mirrors the approved Harvard CV
+# (cvl/cv/harvard/src/entries-en.typ): one fact per role line and bullet.
 
 [[stations]]
 id = "cenvion"
@@ -12,8 +15,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "cenvion-scope", text = "Investment, reporting, AI search, and financial modelling work" },
+  { id = "cenvion-role", text = "Associate Intern | Infrastructure Investments · Jan 2026 – Mar 2026 (plus freelance work) · Wollerau (CH)" },
+  { id = "cenvion-1", text = "Introduced Claude for investment reporting; embedded GenAI in the team's analysis and reporting workflows" },
+  { id = "cenvion-2", text = "Developed RAG-based AI search across project and portfolio data; made internal knowledge searchable" },
+  { id = "cenvion-3", text = "Built Excel project-finance models; analysed cash flows, returns and financing scenarios" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "swisscom"
@@ -26,8 +33,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "swisscom-scope", text = "Infrastructure investment, supplier negotiation, and cloud economics work" },
+  { id = "swisscom-role", text = "Executive Assistant & Consultant | B2B & Infrastructure · Jun 2024 – Mar 2025 · Bern + Zurich" },
+  { id = "swisscom-1", text = "Presented eight-figure infrastructure investments in SteerCo; discussed options with senior stakeholders" },
+  { id = "swisscom-2", text = "Supported CHF 10m+ supplier negotiations; identified CHF 100k+ immediate savings potential" },
+  { id = "swisscom-3", text = "Modelled cloud economics and 2× compute density under DC constraints; selected for the TOM workstream" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "airbus"
@@ -40,8 +51,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "airbus-scope", text = "Machine-learning analysis and cross-functional pilot delivery" },
+  { id = "airbus-role", text = "Risk & Compliance Analyst | AI/ML Master's Thesis · Jul 2023 – Mar 2024 · Ingolstadt" },
+  { id = "airbus-1", text = "Analysed 20+ years of safety-critical data with ML; produced signals for risk and cost analyses" },
+  { id = "airbus-2", text = "Single case: quantified six-figure annual savings potential; triggered eight-figure multi-site investment" },
+  { id = "airbus-3", text = "Tailored 0-to-1 AI pilot to three departments’ objectives; secured stakeholder buy-in with business case" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "covendit"
@@ -54,8 +69,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "covendit-scope", text = "Transaction execution, financial modelling, and target screening" },
+  { id = "covendit-role", text = "Investment Banking Analyst | Working Student · Apr 2022 – Jun 2022 · Frankfurt" },
+  { id = "covendit-1", text = "Supported live buy- and sell-side M&A mandates; built DCF/multiples Excel models, teasers and IMs" },
+  { id = "covendit-2", text = "Built AI-assisted longlisting before ChatGPT; automated target screening and cut research time by 80%" },
+  { id = "covendit-3", text = "Advised PE clients on targets; won a retainer and received an Associate-level return offer" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "nexgen"
@@ -68,8 +87,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "nexgen-scope", text = "Banking technology, regulation, data, and client-development work" },
+  { id = "nexgen-role", text = "Junior Consultant (Working Student) | Banking Technology & Regulation · Apr 2022 – Jun 2022 · Frankfurt" },
+  { id = "nexgen-1", text = "BAIT | MaRisk: Translated rules for T+1 settlement into Tier-1 banking IT cloud migration guidance" },
+  { id = "nexgen-2", text = "Diagnosed an ETL bottleneck for a client pitch; cut processing time by 99%, from 24 hours to 15 minutes" },
+  { id = "nexgen-3", text = "Prepared regulatory/IT analysis for thought leadership and pitches; supported business development" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "consulting-venture"
@@ -82,8 +105,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "consulting-scope", text = "Business development, consulting delivery, and project economics" },
+  { id = "consulting-venture-role", text = "Head of Business Development | Management Consultant · Jan 2018 – Jun 2023 · CH, DE, IS, UK" },
+  { id = "consulting-venture-1", text = "Scaled trusted-advisor consulting sales to mid-six-figure revenue across four European markets" },
+  { id = "consulting-venture-2", text = "Delivered management | IT engagements across leadership | process | cloud | DLT from analysis to delivery" },
+  { id = "consulting-venture-3", text = "Managed project P&L end to end: acquisition, proposals, pricing, contracts, budgets, margins and cash flow" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "student-consulting"
@@ -96,8 +123,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "student-consulting-scope", text = "Systems, social venture, and international placement delivery" },
+  { id = "student-consulting-role", text = "GREEN Finance Consulting (BDSU) | Enactus | AIESEC · 2016 – 2023 · 2 semesters each · Frankfurt" },
+  { id = "student-consulting-1", text = "GREEN: Scaled scholarship operations to 10× capacity; developed database system for Roland Berger" },
+  { id = "student-consulting-2", text = "ENACTUS X: Co-built social venture for homeless people; created jobs and generated media coverage" },
+  { id = "student-consulting-3", text = "AIESEC: Coordinated international placements with DAX firms; digitised talent-team workflows via CRM" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "teaching-research-venture"
@@ -110,8 +141,12 @@ section = "experience"
 experience_eligible = true
 facts = [
   { id = "teaching-research-scope", text = "Teaching, interview research, repairs, service, and ecommerce" },
+  { id = "teaching-research-venture-role", text = "Goethe University Frankfurt | multiple employers | self-employed · Frankfurt" },
+  { id = "teaching-research-venture-1", text = "Elected tutor for three consecutive years & private tutor: applied statistics (SPSS, Python, R) and maths" },
+  { id = "teaching-research-venture-2", text = "Market research: interviewed 50+ CEOs and analysed 1'000+ calls; produced analyses and dashboards" },
+  { id = "teaching-research-venture-3", text = "Built and ran my own side venture for 16 years, spanning technical services, repairs and eCommerce" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "executive-education"
@@ -124,8 +159,11 @@ section = "education"
 experience_eligible = false
 facts = [
   { id = "executive-education-scope", text = "General management, consulting, and finance curriculum" },
+  { id = "executive-education-role", text = "Collège des Ingénieurs (CDI) · Paris – Munich – Turin · 2024 – 2025 · Average grade: A (GPA 4.0)" },
+  { id = "executive-education-1", text = "Summer School: Advised Schwarz Digits as Junior Consultant on the EU AI Act; assessed its implications" },
+  { id = "executive-education-2", text = "Case studies: Project finance (NPV/ROI), scenario analysis and capital allocation under uncertainty" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "physics-degrees"
@@ -138,8 +176,11 @@ section = "education"
 experience_eligible = false
 facts = [
   { id = "physics-scope", text = "Physics, AI and machine learning, electronics, and experimental research" },
+  { id = "physics-degrees-role", text = "Goethe University Frankfurt · Graduated 2024 · Grade: 6.0 (CH) | 1.0 (DE) | GPA 4.0" },
+  { id = "physics-degrees-1", text = "Focus: AI/ML (1.0) | high-tech IP (1.15) | electronics (1.3) | biophysics (1.3) | chemistry (1.0)" },
+  { id = "physics-degrees-2", text = "Research: Near-infrared spectroscopy | terahertz imaging | accelerator physics (LINAC)" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "psychology-degree"
@@ -152,8 +193,11 @@ section = "education"
 experience_eligible = false
 facts = [
   { id = "psychology-scope", text = "Psychology, neuroscience, machine learning, and research" },
+  { id = "psychology-degree-role", text = "Goethe University Frankfurt · Graduated 2017 · Grade: 5.6 (CH) | 1.6 (DE) | GPA 3.7" },
+  { id = "psychology-degree-1", text = "Focus: AI/ML & neuroscience | AR/VR training | clinical/organisational psychology (1.0)" },
+  { id = "psychology-degree-2", text = "Research at FIAS (9 mos.): Modelled stereovision and neural tuning with ML; quantified empathy" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "certificates"
@@ -166,8 +210,11 @@ section = "professional-development"
 experience_eligible = false
 facts = [
   { id = "certificates-scope", text = "Finance, data analysis, AI, leadership, and communication training" },
+  { id = "certificates-role", text = "Finance | Data Analytics | GenAI | Leadership" },
+  { id = "certificates-1", text = "CFI certification programmes (ongoing): BIDA | CBCA | CMSA | FMVA; training: Excel (VBA) | BI (Tableau)" },
+  { id = "certificates-2", text = "Additional training: GenAI | automation | public speaking | negotiation | leadership | communication" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "consulting-finance-networks"
@@ -180,8 +227,11 @@ section = "professional-development"
 experience_eligible = false
 facts = [
   { id = "networks-scope", text = "Selected programmes, competitions, alumni, and industry networks" },
+  { id = "consulting-finance-networks-role", text = "Market proximity through regular exchange with practitioners and experienced sparring partners" },
+  { id = "consulting-finance-networks-1", text = "At university: Bain Spark | BCG Emeralds | WFI Consulting Cup; BDSU & Studienstiftung alumnus" },
+  { id = "consulting-finance-networks-2", text = "SECA Young Member; connected with practitioners across Swiss PE, VC and Corporate Development" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "technology-communities"
@@ -194,8 +244,11 @@ section = "professional-development"
 experience_eligible = false
 facts = [
   { id = "technology-community-scope", text = "Conference operations and participation in technology communities" },
+  { id = "technology-communities-role", text = "Close to emerging technologies, tools and practical applications" },
+  { id = "technology-communities-1", text = "Co-organised Swiss Python Summit & Web Zurich (2025); AV operations and speaker coordination" },
+  { id = "technology-communities-2", text = "Digitale Gesellschaft | LUG | digitalswitzerland | Impact Hub; focus: GenAI & digital sovereignty" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "crisis-support"
@@ -208,8 +261,10 @@ section = "engagement"
 experience_eligible = false
 facts = [
   { id = "crisis-support-scope", text = "Acute first aid and psychosocial de-escalation" },
+  { id = "crisis-support-1", text = "Intervened in life-threatening situations multiple times; provided first aid and ensured EMS handover" },
+  { id = "crisis-support-2", text = "De-escalated acute psychosocial crises; stabilised, oriented and referred people to specialist support" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "mentoring"
@@ -222,8 +277,11 @@ section = "engagement"
 experience_eligible = false
 facts = [
   { id = "mentoring-scope", text = "Youth advisory work, mentoring, and faculty engagement" },
+  { id = "mentoring-role", text = "Online youth counselling | cross-disciplinary knowledge transfer" },
+  { id = "mentoring-1", text = "One of few male Kids Hotline counsellors; supported youth on identity, body image & self-doubt" },
+  { id = "mentoring-2", text = "Co-developed psychology mentoring across cohorts; supported Physics Student Council & Night of Science" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "family-responsibility"
@@ -236,8 +294,11 @@ section = "personal"
 experience_eligible = false
 facts = [
   { id = "family-responsibility-scope", text = "Long-term family support and care responsibility" },
+  { id = "family-responsibility-role", text = "First-generation academic | education | entrepreneurship | care coordination" },
+  { id = "family-responsibility-1", text = "Supported siblings personally & financially: top-grade Abitur (1.0) | medical studies | company launch" },
+  { id = "family-responsibility-2", text = "Took family care leave in 2025; coordinated care, financing & long-term support for my mother" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "open-source-community"
@@ -250,5 +311,198 @@ section = "personal"
 experience_eligible = true
 facts = [
   { id = "open-source-community-scope", text = "Intercultural living and international open-source collaboration" },
+  { id = "open-source-community-role", text = "Shared living | international FOSS collaboration" },
+  { id = "open-source-community-1", text = "Lived with 20+ people from 10+ countries; actively fostered intercultural exchange through shared living" },
+  { id = "open-source-community-2", text = "Published 50+ open-source projects; contributed to other projects, most recently oo7 (cybersecurity)" },
 ]
-source_refs = ["author-confirmed:2026-09-03"]
+source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "product-innovation"
+label = "Product Innovation & Engineering"
+anchor = "Product releases 2026: local-first AI | remote development | systems UX"
+facts = [
+  { id = "product-innovation-1", text = "cfetch: local-first AI memory (RAG) | up to 93.4% less wasted context | >15% token-saving potential" },
+  { id = "product-innovation-2", text = "cterm: remote-first coding terminal | dotkeeper: P2P code sync | cbar: cross-machine 2D app launcher" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "declarative-systems-platform"
+label = "Declarative Systems Platform"
+anchor = "Product releases 2026: 50+ reusable components for NixOS, Arch & GCP"
+facts = [
+  { id = "declarative-systems-platform-1", text = "Unified hosts, storage, networks, desktops & apps across NixOS and Arch in one reproducible platform" },
+  { id = "declarative-systems-platform-2", text = "Deployed NixOS, k3s, Argo CD & OpenTofu on GCP & bare metal | signed updates | health checks | rollback" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "content-innovation"
+label = "Content Innovation & AI-Enabled Media"
+anchor = "New formats: 4K multi-camera video, GenAI & resilient audio · since 2025"
+facts = [
+  { id = "content-innovation-1", text = "Produced 4K multi-camera video for Swiss Python Summit, Winter Congress & CoSin (Chaos Singularity)" },
+  { id = "content-innovation-2", text = "Ran GPU-hosted ComfyUI for GenAI media | caudio: audio routing across 3 hosts with failover & recovery" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "careervector-jobcache"
+label = "CareerVector & JobCache"
+anchor = "AI-native career platform & job-data pipeline · live since 2025"
+facts = [
+  { id = "careervector-jobcache-1", text = "CareerVector: AI-native career platform across collaborative web, desktop & terminal workflows with Typst" },
+  { id = "careervector-jobcache-2", text = "JobCache: built 91 Rust adapters for continuous, distributed ingestion & deduplication of CH/EU job ads" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "private-ai-cloud"
+label = "Private AI & Cloud Platform"
+anchor = "Digitally sovereign production platform for 10+ users · since 2024"
+facts = [
+  { id = "private-ai-cloud-1", text = "Operated 30+ private services and 100+ TB with SSO, monitoring, automated backups & disaster recovery" },
+  { id = "private-ai-cloud-2", text = "Ran local LLMs & AI agents in production on shared GPU infrastructure | >90% lower cost than public cloud" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "management-buy-in"
+label = "Management Buy-In: Deal Origination & Due Diligence"
+anchor = "Indian IT outsourcer · independent MBI through the purchase decision · 2022"
+facts = [
+  { id = "management-buy-in-1", text = "Identified an Indian IT outsourcing target for an MBI and independently conducted end-to-end due diligence" },
+  { id = "management-buy-in-2", text = "Built the acquisition thesis; assessed strategic fit, opportunities & risks through the final go/no-go decision" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "solar-recovery"
+label = "Solar SME: Incident Recovery & Cloud Migration"
+anchor = "Business-critical systems for sales & field service · 2022"
+facts = [
+  { id = "solar-recovery-1", text = "Restored the core system on day one and kept sales & field service operational until full replacement" },
+  { id = "solar-recovery-2", text = "Tested cloud migration options against operating needs; prevented six-to-seven-figure misinvestment" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "leadership-digital-pivot"
+label = "Leadership Advisory: Digital Pivot"
+anchor = "Frankfurt-based leadership brand · hybrid delivery & new sales channels · 2022"
+facts = [
+  { id = "leadership-digital-pivot-1", text = "Redesigned Performance Leadership offering for scalable hybrid delivery and built on-demand infrastructure" },
+  { id = "leadership-digital-pivot-2", text = "Aligned funnel to customer pain points; diversified revenue and placed courses with Haufe Akademie" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "crypto-infrastructure"
+label = "Crypto Infrastructure: Business Case & Operations"
+anchor = "Mining pilots from business case to stable operations · multiple clients · 2021"
+facts = [
+  { id = "crypto-infrastructure-1", text = "Sized and costed pilot and operating model; sourced hardware and actively managed operating risks" },
+  { id = "crypto-infrastructure-2", text = "Delivered monitored, stable mining operation on schedule; optimised hash rate via custom firmware" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[projects]]
+id = "it-services-ecommerce"
+label = "IT Services & Automated eCommerce"
+anchor = "Independent business · exited at 80% of book value · 2009 – 2025"
+facts = [
+  { id = "it-services-ecommerce-1", text = "Built and ran a hardware business for SME & B2C clients: sales | custom builds | diagnostics | repairs" },
+  { id = "it-services-ecommerce-2", text = "Automated listings, inventory, tracking and logistics for five-figure eBay operation through own mini-ERP" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "ai-products-tooling"
+label = "AI Products, Tooling & Model Ecosystems"
+facts = [
+  { id = "ai-products-tooling-1", text = "US AI Tooling: Anthropic Claude Code | Claude Desktop | OpenAI Codex | Codex App | ChatGPT Desktop" },
+  { id = "ai-products-tooling-2", text = "Open Source AI Tooling: OpenCode | Ollama | vLLM | llama.cpp | Open WebUI | Hugging Face | Langfuse" },
+  { id = "ai-products-tooling-3", text = "Models: GPT | Claude | Gemini | GLM | DeepSeek | Qwen | Kimi | MiniMax | MiMo | Llama | Mistral | Gemma" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "applied-ai-data"
+label = "AI Engineering, Agents & Data Science"
+facts = [
+  { id = "applied-ai-data-1", text = "LLM Engineering: Large Language Models (LLMs) | RAG | Embeddings | Vector Search | Evaluations" },
+  { id = "applied-ai-data-2", text = "Agentic Systems: AI Agents | Multi-Agent Systems | Model Context Protocol (MCP) | Agent SDKs | Tool Use" },
+  { id = "applied-ai-data-3", text = "Data Science & ML: Statistics | Machine Learning | Time Series | Predictive Modelling | Experiments | R" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "software-infrastructure"
+label = "Software Engineering, Web & Platforms"
+facts = [
+  { id = "software-infrastructure-1", text = "Engineering: Python | Rust | Go | Java | TypeScript | JavaScript | Bash | SQL | Git | CI/CD | Testing" },
+  { id = "software-infrastructure-2", text = "Web & Publishing: Svelte | Astro | HTML | CSS | REST | GraphQL | WebSockets | Markdown | Typst" },
+  { id = "software-infrastructure-3", text = "Cloud & Data Platforms: PostgreSQL | Data Pipelines | Linux | Nix/NixOS | Kubernetes | GitOps | OpenTofu" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "innovation-management"
+label = "Innovation Management & Emerging Technologies"
+facts = [
+  { id = "innovation-management-1", text = "Innovation Management: Innovation Pipeline | Stage-Gate | Incremental Innovation | Disruptive Innovation" },
+  { id = "innovation-management-2", text = "Technology Scouting: Emerging Technologies | Trend Analysis | Horizon Scanning | Technology Assessment" },
+  { id = "innovation-management-3", text = "Product Innovation: Product Discovery | Prototyping | Proof of Concept (PoC) | MVP | Market Validation" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "strategy"
+label = "Corporate, Growth & Technology Strategy"
+facts = [
+  { id = "strategy-1", text = "Corporate Strategy: Strategic Planning | Scenario Planning | Competitive Analysis | Decision Support" },
+  { id = "strategy-2", text = "Growth Strategy: Business Development | Market Entry | Go-to-Market | Partnerships | Pricing | B2B" },
+  { id = "strategy-3", text = "Technology Strategy: AI Strategy | Roadmaps | Business Cases | Enterprise Architecture | TCO | FinOps" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "transformation-governance"
+label = "Transformation, Operating Models & Governance"
+facts = [
+  { id = "transformation-governance-1", text = "Operating Models: Target Operating Model (TOM) | Organisational Design | Decision Rights | Role Design" },
+  { id = "transformation-governance-2", text = "Change & Value Creation: AI Adoption | Change Management | Benefits Realisation | Cost Transformation" },
+  { id = "transformation-governance-3", text = "AI Governance: EU AI Act | Responsible AI | Model Risk | DORA | Operational Resilience | GDPR" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "finance-ma"
+label = "Finance Transformation, Corporate Finance & M&A"
+facts = [
+  { id = "finance-ma-1", text = "CFO Agenda: Finance Platform | Finance Data Architecture | Planning & Forecasting | AI-enabled Finance" },
+  { id = "finance-ma-2", text = "Corporate Finance: Financial Modelling | Valuation | DCF | Multiples | Project Finance | NPV | IRR | DSCR" },
+  { id = "finance-ma-3", text = "M&A: Target Screening | Financial Due Diligence | Synergy Assessment | Post-Merger Integration (PMI)" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "private-markets"
+label = "Private Markets & Investment Management"
+facts = [
+  { id = "private-markets-1", text = "Private Markets: Private Equity | Private Credit | Infrastructure Investments | Real Estate | Secondaries" },
+  { id = "private-markets-2", text = "Investment Strategies: Buyouts | Growth Equity | Direct Lending | Distressed Debt | Special Situations" },
+  { id = "private-markets-3", text = "CIO Office: Investment Strategy | Multi-Asset | Portfolio Construction | Strategic Asset Allocation (SAA)" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+
+[[competencies]]
+id = "trading-risk"
+label = "Trading, Quantitative Finance & Risk"
+facts = [
+  { id = "trading-risk-1", text = "Energy & Commodity Markets: Power Trading | Day-Ahead | Intraday | Gas/LNG | Metals | Carbon | Freight" },
+  { id = "trading-risk-2", text = "Systematic Trading: Alpha Signals | Backtesting | Trade Execution | Futures | Swaps | Options | Hedging" },
+  { id = "trading-risk-3", text = "Quantitative Risk: PnL | Value at Risk (VaR) | Stress Testing | Monte Carlo | Option Pricing | Volatility" },
+]
+source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
