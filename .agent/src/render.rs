@@ -579,6 +579,9 @@ pub fn opportunity_specs(
     for advisory in opportunity_hyphen_advisories(&document, &relative) {
         println!("WARN {advisory}");
     }
+    for hint in crate::lint::record_hints(workspace, &application)? {
+        println!("WARN {hint}");
+    }
     let cv_selection = styles::record_selection(workspace, "cv", &document, &relative)?;
     let parent = application
         .parent()

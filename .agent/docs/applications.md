@@ -39,7 +39,11 @@ contains:
 - Harvard `cv.summary`: one flowing paragraph that must typeset to exactly five
   lines;
 - for an enabled Harvard letter, exactly six paragraphs following
-  `.agent/docs/cover-letter.md` and exactly five one-line highlights.
+  `.agent/docs/cover-letter.md` and exactly five one-line highlights;
+- optional `lint`: `allow = [{ term = "…", reason = "…" }]` or
+  `{ figure = "…", reason = "…" }` entries that acknowledge an advisory hint
+  for this record with a short written reason (see
+  [hints and acknowledgements](profile-interview.md#hints-and-acknowledgements)).
 
 Other styles define their own `[cv]` / `[cl]` fields and layout contracts.
 Store `options.application_date` as a quoted calendar value: `"2026-10-07"`

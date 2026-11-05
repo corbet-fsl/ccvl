@@ -8,6 +8,10 @@ ccvl uses one native runtime and a small verification toolchain:
 | Stable Rust + Cargo (minimum in `Cargo.toml`) | explicit developer builds with `setup --from-source` |
 | Poppler + QPDF | secondary Linux CI validation |
 
+No other language runtime is part of ccvl: release evidence and the private
+downstream route are hidden maintainer commands of the same binary, scripts are
+Bash and PowerShell, and `public-check` rejects any Python source or metadata.
+
 Run `bash ./ccvl bootstrap` on Linux x86_64 for a read-only setup plan. The
 matching `setup` command installs only the precompiled runtime whose embedded
 source identity matches the workspace, then runs the complete check. The Linux

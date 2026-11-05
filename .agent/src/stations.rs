@@ -397,6 +397,68 @@ fn validate_semantics(document: &Value, location: &str) -> Result<()> {
             }
         }
     }
+    crate::lint::validate_plan(document, location)?;
+    for table in ["projects", "competencies"] {
+        for (index, entry) in document
+            .get(table)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            let id = string(entry, "id")?;
+            for (fact_index, fact) in entry
+                .get("facts")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                let fact_id = string(fact, "id")?;
+                if let Some(owner) = fact_owners.insert(fact_id, id) {
+                    bail!(
+                        "{location}.{table}[{}].facts[{}].id: fact {fact_id:?} already belongs to {owner:?}; MECE assignment requires one owner",
+                        index + 1,
+                        fact_index + 1
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `ccvl profile-status`: the station gate, then advisory hints. `list`
+/// prints the whole interview as Markdown instead of the gate.
+pub fn profile_status(
+    workspace: &Workspace,
+    plan: &Path,
+    verify_sources: bool,
+    list: bool,
+) -> Result<()> {
+    let path = workspace.existing_inside(plan)?;
+    let location = workspace.relative(&path)?.display().to_string();
+    let document = load_plan(workspace, &path)?;
+    let assessment = assess(workspace, &document, &location)?;
+    if list {
+        println!("{}", crate::lint::interview_markdown(&document));
+        return Ok(());
+    }
+    let source = fs::read_to_string(&path)?;
+    if verify_sources && assessment.ready() {
+        validate_interview(workspace, true)?;
+    }
+    println!("{}", format_report(workspace, &assessment)?);
+    let mut hints = crate::lint::second_look_hints(&document, &source, &location);
+    if verify_sources && assessment.ready() {
+        hints.extend(crate::lint::drift_hints(
+            workspace, &document, &source, &location,
+        )?);
+    }
+    for hint in hints {
+        println!("WARN {hint}");
+    }
+    ensure!(assessment.ready(), "station plan is not ready");
     Ok(())
 }
 

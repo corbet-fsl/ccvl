@@ -120,9 +120,12 @@ classify_path() {
       .agent/tests/fixtures/* | .agent/tests/skill-cases.json | \
       .agent/docs/editorial.md | interview/* | opportunities/* | \
       REUSE.toml | LICENSES/* | .crow/downstream-sync.yaml | \
+      .crow/release-archive.yaml | \
       .agent/release-platforms.txt | .agent/scripts/ci-check.sh | \
       .agent/scripts/release-ci.sh | .agent/scripts/rust-toolchain.sh | \
-      .agent/scripts/release-evidence.py | .agent/scripts/downstream-sync.sh)
+      .agent/scripts/release-evidence.sh | .agent/scripts/publish-release.sh | \
+      .agent/scripts/memory-admission.sh | .agent/tests/*.rs | \
+      .agent/scripts/downstream-sync.sh)
       rust=true ;;
     # Prose that no Rust test or document reads. Links are checked by ccvl check.
     .agent/docs/* | .agent/AGENT.md | AGENTS.md | README.md | LICENSE.md | \
@@ -136,9 +139,8 @@ classify_path() {
       .agent/scripts/existing-tool-path.sh | .agent/scripts/runtime-id.sh | \
       .agent/scripts/runtime-id.ps1 | .agent/scripts/render-previews.sh | \
       .agent/scripts/package-release.sh | .agent/scripts/native-release.sh | \
-      .agent/scripts/publish-release.sh | .agent/scripts/check-linux-deep.sh | \
+      .agent/scripts/check-linux-deep.sh | \
       .agent/scripts/check-release-archive.sh | .agent/scripts/skill-eval-ci.sh | \
-      .agent/scripts/downstream-check.py | \
       .agent/scripts/compare-pages.sh | .agent/scripts/tool-versions.sh | \
       .agent/scripts/tool-assets.csv | .agent/scripts/web-session-setup.sh | .ci/* | .crow/* | justfile | ccvl | \
       ccvl.cmd | ccvl.ps1) ;;

@@ -92,7 +92,7 @@ fn document_checks_accept_repeatable_style_filters() {
         ])
         .unwrap();
         let styles = match args.command {
-            Command::Check { styles }
+            Command::Check { styles, .. }
             | Command::PublicCheck { styles, .. }
             | Command::Measure { styles, .. } => styles,
             other => panic!("unexpected command {other:?}"),
@@ -101,7 +101,7 @@ fn document_checks_accept_repeatable_style_filters() {
         let args = Args::try_parse_from(["ccvl", command]).unwrap();
         assert!(matches!(
             args.command,
-            Command::Check { styles } | Command::PublicCheck { styles, .. } | Command::Measure { styles, .. }
+            Command::Check { styles, .. } | Command::PublicCheck { styles, .. } | Command::Measure { styles, .. }
                 if styles.is_empty()
         ));
     }

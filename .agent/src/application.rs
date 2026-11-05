@@ -282,9 +282,18 @@ fn validate_record_scope(
     let object = object_at(application, "")?;
     ensure_no_unknown(
         object,
-        &["schema_version", "revision", "options", "job", "cv", "cl"],
+        &[
+            "schema_version",
+            "revision",
+            "options",
+            "job",
+            "cv",
+            "cl",
+            "lint",
+        ],
         location,
     )?;
+    crate::lint::validate_record_lint(application, location)?;
     ensure!(
         u64_at(application, "/schema_version")? == RECORD_VERSION,
         "{location}: unsupported application schema version"

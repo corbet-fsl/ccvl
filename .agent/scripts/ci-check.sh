@@ -44,8 +44,6 @@ for check in "$@"; do
       bash .agent/tests/test_ci_toolchain.sh
       bash .agent/tests/test_downstream_sync.sh
       bash .agent/tests/test_skill_eval_ci.sh
-      python3 -B .agent/tests/test_release_evidence.py
-      python3 -B .agent/tests/test_downstream_check.py
       ;;
     documents)
       [[ $(uname -s) == Linux ]] || { echo 'documents requires Linux' >&2; exit 2; }
@@ -74,6 +72,12 @@ for check in "$@"; do
       for style in ${selected[@]+"${selected[@]}"}; do filters+=(--style "$style"); done
       "${CARGO_TARGET_DIR:-target}/ci-documents/ccvl" public-check ${filters[@]+"${filters[@]}"}
       ;;
+    downstream-check)
+      # Private downstream route: the ccvl runtime built from the verified
+      # source checks the staged private tree against its published runtime.
+      ccvl_select_rust_toolchain >&2
+      "${CCVL_CARGO_COMMAND[@]}" run --locked --quiet --bin ccvl -- private-check
+      ;;
     skill-eval-build)
       bash .agent/scripts/skill-eval-ci.sh build
       ;;
@@ -83,6 +87,6 @@ for check in "$@"; do
     release-*)
       bash .agent/scripts/release-ci.sh "${check#release-}"
       ;;
-    *) echo "Unknown check: $check (rust lint documents styles skill-eval-build skill-eval)" >&2; exit 2 ;;
+    *) echo "Unknown check: $check (rust lint documents styles downstream-check skill-eval-build skill-eval)" >&2; exit 2 ;;
   esac
 done

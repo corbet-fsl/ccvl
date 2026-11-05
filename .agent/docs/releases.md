@@ -19,7 +19,7 @@ already provisioned compatible compiler and never installs one implicitly.
 
 The explicit released platform set is **Linux x86_64**, declared in
 `.agent/release-platforms.txt` and listed by
-`python3 .agent/scripts/release-evidence.py platforms`. Missing artifacts never
+`ccvl release-evidence platforms`. Missing artifacts never
 shrink that set. Linux ARM64, both macOS architectures and both Windows
 architectures have no verified prebuilt release. Their native developer paths
 and hosted CI runner mappings remain available. Any future advertised target
@@ -51,6 +51,32 @@ Incomplete published releases, different bytes, missing native results and
 superseded main revisions fail closed. Workspace release assets include full
 native/gate receipts; the runtime release has a stable runtime manifest so a
 matching immutable runtime can be reused by later workspace-only revisions.
+
+## Release evidence command
+
+Source identity, native packaging, gate receipts, verification and the
+platform policy are one hidden maintainer command of the ccvl binary, not a
+separate helper language:
+
+```text
+ccvl release-evidence source [--output FILE]
+ccvl release-evidence native --platform P --binary FILE --host TRIPLE \
+  --rustc VERSION --cargo VERSION --output DIR
+ccvl release-evidence gate rust|lint|linux-deep|archive --output DIR
+ccvl release-evidence check --output DIR
+ccvl release-evidence platforms
+```
+
+It runs from the repository root (or `--root DIR`) and reads the CI source
+identity from the environment (`CI_REPO`, `CI_COMMIT_SHA`, `SOURCE_ARCHIVE`,
+`SOURCE_SHA256` and the run number). Failures print the message alone and
+exit 1. The release scripts reach it through
+`.agent/scripts/release-evidence.sh`: `native-release.sh` first builds the
+host binary and uses that exact tested binary, so no binary has to exist
+beforehand; every other stage runs the command from the checked out source
+with `cargo run --locked` on the already provisioned toolchain. Set
+`CCVL_RELEASE_EVIDENCE_BIN` to a built binary to reuse it instead. Nothing is
+installed implicitly.
 
 ## Crow release routes
 

@@ -33,45 +33,9 @@ exec 9>"$CARGO_TARGET_DIR/.ccid/lock"
 flock --wait 60 9
 
 export CARGO_BUILD_JOBS="${CI_JOBS:-${CARGO_BUILD_JOBS:-2}}"
-CARGO_BUILD_JOBS="$(python3 - <<'PY'
-import os
-from pathlib import Path
-import sys
-
-def positive(name, default):
-    value = os.environ.get(name) or default
-    if not value.isdecimal() or int(value) <= 0:
-        sys.exit(f'{name} must be a positive integer')
-    return int(value)
-
-jobs = positive('CARGO_BUILD_JOBS', '2')
-reserve = positive('CI_MIN_AVAILABLE_MB', '8192')
-per_job = positive('CI_MEMORY_PER_JOB_MB', '2048')
-meminfo = Path('/proc/meminfo').read_text().splitlines()
-available = next(int(line.split()[1]) // 1024 for line in meminfo if line.startswith('MemAvailable:'))
-mount = Path('/sys/fs/cgroup')
-group_path = next((line[3:] for line in Path('/proc/self/cgroup').read_text().splitlines() if line.startswith('0::')), '')
-group = mount / group_path.lstrip('/')
-if not (group / 'memory.max').exists():
-    group = mount
-if (group / 'memory.max').exists():
-    limit = (group / 'memory.max').read_text().strip()
-    if limit != 'max':
-        current = int((group / 'memory.current').read_text().strip())
-        available = min(available, max(0, int(limit) - current) // (1024 * 1024))
-pressure = Path('/proc/pressure/memory')
-if pressure.exists():
-    full = next((line for line in pressure.read_text().splitlines() if line.startswith('full ')), '')
-    avg10 = next((float(field[6:]) for field in full.split() if field.startswith('avg10=')), 0)
-    if avg10 >= 5:
-        sys.exit('Memory admission refused: sustained full memory pressure')
-jobs = min(jobs, os.cpu_count() or 1, max(0, available - reserve) // per_job)
-if not jobs:
-    sys.exit(f'Memory admission refused: {available} MiB available with {reserve} MiB reserved')
-print(f'Memory admission: {available} MiB available, {reserve} MiB reserve, {jobs} build jobs', file=sys.stderr)
-print(jobs)
-PY
-)"
+# shellcheck source=.agent/scripts/memory-admission.sh
+source .agent/scripts/memory-admission.sh
+CARGO_BUILD_JOBS="$(ccvl_memory_admission)"
 export CARGO_BUILD_JOBS
 
 umask 077

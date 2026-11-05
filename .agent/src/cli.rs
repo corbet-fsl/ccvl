@@ -64,6 +64,15 @@ enum Command {
     },
     /// Print the compiled runtime source identity without opening a workspace.
     RuntimeId,
+    /// Maintainer: source-bound release evidence for native binaries.
+    #[command(hide = true)]
+    ReleaseEvidence {
+        #[command(subcommand)]
+        command: crate::release_evidence::Command,
+    },
+    /// Maintainer: check a private downstream on Crow with its published runtime.
+    #[command(hide = true)]
+    PrivateCheck,
     /// Verify the self-contained binary and workspace.
     Setup,
     /// Show what the dependency-free setup requires.
@@ -76,6 +85,10 @@ enum Command {
         /// repeat for several. Workspace-wide checks always run.
         #[arg(long = "style", value_name = "DOC/STYLE")]
         styles: Vec<String>,
+        /// Also hint at figures in application wording that no interview
+        /// fact contains (opt-in; rephrased figures can differ).
+        #[arg(long)]
+        figures: bool,
     },
     /// Check station coverage and MECE ownership.
     ProfileStatus {
@@ -83,6 +96,9 @@ enum Command {
         plan: PathBuf,
         #[arg(long)]
         verify_sources: bool,
+        /// Print the whole interview as Markdown for a quick review.
+        #[arg(long)]
+        list: bool,
     },
     /// Measure the CVL templates.
     Measure {
@@ -252,6 +268,13 @@ pub fn run() -> Result<ExitCode> {
         println!("{}", crate::runtime::ID);
         return Ok(ExitCode::SUCCESS);
     }
+    // Maintainer routes run before any workspace exists for the target.
+    if let Command::ReleaseEvidence { command } = &args.command {
+        return Ok(crate::release_evidence::run(args.root.as_deref(), command));
+    }
+    if matches!(args.command, Command::PrivateCheck) {
+        return Ok(crate::private_check::run(args.root.as_deref()));
+    }
     if let Command::RenderStyle {
         bundle,
         application,
@@ -294,7 +317,9 @@ pub fn run() -> Result<ExitCode> {
                 serde_json::to_string_pretty(&crate::review::run(&workspace, command)?)?
             );
         }
-        Command::RuntimeId => unreachable!("handled before workspace discovery"),
+        Command::RuntimeId | Command::ReleaseEvidence { .. } | Command::PrivateCheck => {
+            unreachable!("handled before workspace discovery")
+        }
         Command::Setup => {
             doctor(&workspace)?;
             check::run(&workspace)?;
@@ -311,8 +336,13 @@ pub fn run() -> Result<ExitCode> {
             println!("embedded: Typst 0.15.1 | Typstyle 0.15.1 | 16 font files");
         }
         Command::Doctor => doctor(&workspace)?,
-        Command::Check { styles } => {
+        Command::Check { styles, figures } => {
             let styles = crate::styles::StyleFilter::parse(&workspace, &styles)?;
+            if figures {
+                crate::lint::figure_hints(&workspace)?
+                    .iter()
+                    .for_each(|hint| println!("WARN {hint}"));
+            }
             check::run_selected(&workspace, None, &styles)?;
             println!(
                 "All data, station, source, skill, font, reproducibility, CV, and cover-letter checks passed{}.",
@@ -322,20 +352,8 @@ pub fn run() -> Result<ExitCode> {
         Command::ProfileStatus {
             plan,
             verify_sources,
-        } => {
-            let path = workspace.existing_inside(plan)?;
-            let document = stations::load_plan(&workspace, &path)?;
-            let assessment = stations::assess(
-                &workspace,
-                &document,
-                &workspace.relative(&path)?.display().to_string(),
-            )?;
-            if verify_sources && assessment.ready() {
-                stations::validate_interview(&workspace, true)?;
-            }
-            println!("{}", stations::format_report(&workspace, &assessment)?);
-            ensure!(assessment.ready(), "station plan is not ready");
-        }
+            list,
+        } => stations::profile_status(&workspace, &plan, verify_sources, list)?,
         Command::Measure { all, styles } => {
             let styles = crate::styles::StyleFilter::parse(&workspace, &styles)?;
             let failures = measure::measure(

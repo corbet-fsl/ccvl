@@ -81,6 +81,10 @@ order instead of blending their data ownership:
 
 Run the platform `check` command before considering document work complete and
 the platform `public-check` command before publishing from the public upstream.
+Read its `WARN` hints like linter output: they point at interview drift,
+claims the candidate marked as not true, and similar risks. Fix the data or
+keep a deliberate deviation with a short written reason; see
+[hints and acknowledgements](docs/profile-interview.md#hints-and-acknowledgements).
 
 Runtime and delivery changes are complete only when the exact main revision has
 passed CI and published the compiled bundles for the explicit released

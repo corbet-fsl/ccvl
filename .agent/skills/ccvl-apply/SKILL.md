@@ -58,6 +58,14 @@ spends bounded review allowance later; fix it now.
   compound kept, tics rephrased)? The build lists each one as a warning.
 - Facts: every claim traces to candidate evidence or explicit user
   confirmation? Gaps sit in preparation notes, never papered over?
+- Not true: no wording repeats a term from the interview's `[[not_true]]`
+  list? `check`, `measure-opportunity` and `build-opportunity` print each
+  occurrence as a warning. Rephrase it, or, when the term names the
+  employer's context rather than the candidate's experience, acknowledge it
+  in the record with `[lint] allow = [{ term = "…", reason = "…" }]`.
+- Figures: `ccvl check --figures` lists quantified claims that occur in no
+  interview fact. Back each with a fact, or acknowledge a figure taken from
+  the posting with `{ figure = "…", reason = "…" }` in the same list.
 
 ## Purpose and ownership
 

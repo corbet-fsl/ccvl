@@ -83,7 +83,9 @@ for path in .agent/skills/ccvl-cv/SKILL.md .agent/scaffolds/opportunity/applicat
   .agent/tests/skill-cases.json .agent/docs/editorial.md interview/README.md \
   opportunities/README.md REUSE.toml LICENSES/CC-BY-4.0.txt .crow/downstream-sync.yaml \
   .agent/release-platforms.txt .agent/scripts/ci-check.sh .agent/scripts/release-ci.sh \
-  .agent/scripts/rust-toolchain.sh .agent/scripts/release-evidence.py \
+  .agent/scripts/rust-toolchain.sh .agent/scripts/release-evidence.sh \
+  .agent/scripts/publish-release.sh .agent/scripts/memory-admission.sh \
+  .agent/tests/release_evidence.rs .agent/tests/private_check.rs .crow/release-archive.yaml \
   .agent/scripts/downstream-sync.sh; do
   expect true false '' "$path"
 done

@@ -20,11 +20,21 @@ path = ".agent/src/lib.rs"
 name = "ccvl"
 path = ".agent/src/main.rs"
 
+# Maintainer release and private downstream routes are tested through the real CLI.
+[[test]]
+name = "release_evidence"
+path = ".agent/tests/release_evidence.rs"
+
+[[test]]
+name = "private_check"
+path = ".agent/tests/private_check.rs"
+
 [dependencies]
 anyhow = "1.0"
 ccvl-core = { path = ".agent/core", version = "0.1", features = ["render"] }
 cletter = "0.4.2"
 clap = { version = "4.5", features = ["derive"] }
+flate2 = "1.1"
 ctypst = { version = "0.3.3", default-features = false, features = ["document-fonts", "format", "pdf", "raster"] }
 lopdf = { version = "0.44", default-features = false }
 png = "0.18"

@@ -3,6 +3,8 @@
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
+# shellcheck source=.agent/scripts/release-evidence.sh
+source .agent/scripts/release-evidence.sh
 action="${1:?Usage: release-ci.sh rust|lint|native|linux-deep|archive|check|publish}"
 if [[ -n ${CI_REPO:-} ]]; then
   [[ "$CI_REPO" == corbet-libs/ccvl && ${CI_COMMIT_BRANCH:-} == main ]] || {
@@ -25,24 +27,28 @@ fi
 mkdir -p "$CCVL_RELEASE_DIR"
 CCVL_RELEASE_DIR="$(cd "$CCVL_RELEASE_DIR" && pwd)"
 export CCVL_RELEASE_DIR
+release_evidence() {
+  ccvl_prepare_release_evidence
+  "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" "$@"
+}
 printf 'Release evidence directory: %s\n' "$CCVL_RELEASE_DIR"
 case "$action" in
   rust|lint)
     bash .agent/scripts/ci-check.sh "$action"
-    python3 .agent/scripts/release-evidence.py gate "$action" --output "$CCVL_RELEASE_DIR"
+    release_evidence gate "$action" --output "$CCVL_RELEASE_DIR"
     ;;
   native)
     bash .agent/scripts/native-release.sh "${CCVL_RELEASE_PLATFORM:?Select an actual native platform}" "$CCVL_RELEASE_DIR"
     ;;
   linux-deep)
     [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo 'Linux x86_64 verification worker required.' >&2; exit 2; }
-    python3 .agent/scripts/release-evidence.py source >/dev/null
+    release_evidence source >/dev/null
     (cd "$CCVL_RELEASE_DIR" && sha256sum --check --strict ccvl-linux-x86_64.sha256)
     mkdir -p .agent/cache/ccvl/bin
     cp "$CCVL_RELEASE_DIR/ccvl-linux-x86_64" .agent/cache/ccvl/bin/ccvl
     chmod 0755 .agent/cache/ccvl/bin/ccvl
     bash .agent/scripts/check-linux-deep.sh
-    python3 .agent/scripts/release-evidence.py gate linux-deep --output "$CCVL_RELEASE_DIR"
+    release_evidence gate linux-deep --output "$CCVL_RELEASE_DIR"
     ;;
   archive)
     # This stage must run inside an already provided minimal executor. Do not
@@ -50,7 +56,7 @@ case "$action" in
     bash .agent/scripts/check-release-archive.sh "$CCVL_RELEASE_DIR"
     ;;
   check)
-    python3 .agent/scripts/release-evidence.py check --output "$CCVL_RELEASE_DIR"
+    release_evidence check --output "$CCVL_RELEASE_DIR"
     ;;
   publish)
     bash .agent/scripts/publish-release.sh "$CCVL_RELEASE_DIR"

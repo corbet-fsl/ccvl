@@ -31,12 +31,11 @@ mkdir -p .moon/cache/hashes .moon/cache/outputs
 # exactly; shellcheck/reuse provide lint gates via existing-tool-path;
 # poppler/qpdf/file/jq provide the `documents` gate's independent PDF checks
 # (check-linux-deep.sh requires file qpdf pdfinfo pdftotext pdffonts
-# pdfdetach pdfimages pdftoppm jq); python3 provides the
-# release-evidence helper. No nightly, no nodejs, no wasm — none of the
+# pdfdetach pdfimages pdftoppm jq). No nightly, no nodejs, no wasm; none of the
 # Linux verify gates need them. No git insteadOf: Cargo.lock has zero git
 # sources.
 tool_source=github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436?narHash=sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=
-tool_paths=$(nix build --no-link --print-out-paths "$tool_source#moon" "$tool_source#proto" "$tool_source#python3" "$tool_source#actionlint" "$tool_source#shellcheck" "$tool_source#reuse" "$tool_source#poppler" "$tool_source#qpdf" "$tool_source#file" "$tool_source#jq")
+tool_paths=$(nix build --no-link --print-out-paths "$tool_source#moon" "$tool_source#proto" "$tool_source#actionlint" "$tool_source#shellcheck" "$tool_source#reuse" "$tool_source#poppler" "$tool_source#qpdf" "$tool_source#file" "$tool_source#jq")
 for path in $tool_paths; do PATH="$path/bin:$PATH"; done
 export PROTO_HOME="$toolchains/proto" RUSTUP_HOME="$toolchains/rustup"
 shared_cargo_home=${CARGO_HOME:-}
@@ -69,7 +68,6 @@ proto --version
 moon --version
 rustc -vV
 cargo --version
-python3 --version
 actionlint --version
 shellcheck --version
 reuse --version

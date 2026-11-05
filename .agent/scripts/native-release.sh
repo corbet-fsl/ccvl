@@ -11,7 +11,6 @@ if [[ -n ${CI_REPO:-} ]]; then
     echo 'Crow native builds require the verified ccid target lock.' >&2; exit 2;
   }
 fi
-python3 .agent/scripts/release-evidence.py source >/dev/null
 # shellcheck source=.agent/scripts/rust-toolchain.sh
 source .agent/scripts/rust-toolchain.sh
 ccvl_select_rust_toolchain
@@ -44,6 +43,12 @@ exe=ccvl
 # Explicitly build for the verified compiler's native host, ignoring configured cross targets.
 "${CCVL_CARGO_COMMAND[@]}" build --locked --release --target "$host"
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$host/release/$exe"
+# The tested binary verifies the exact source before any evidence is written.
+export CCVL_RELEASE_EVIDENCE_BIN="$binary"
+# shellcheck source=.agent/scripts/release-evidence.sh
+source .agent/scripts/release-evidence.sh
+ccvl_prepare_release_evidence
+"${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" source >/dev/null
 "$binary" public-check
 if [[ "$native_os" == Windows ]]; then
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agent/tests/test_bootstrap.ps1
