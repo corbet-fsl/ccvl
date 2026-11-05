@@ -96,3 +96,19 @@ checks = ["rust", "documents", "lint", "styles"]
 workflow = "ci"
 command = ["bash", ".ci/run-cached.sh"]
 events = ["manual"]
+
+[jobs.downstream-check]
+scheduler = "forgejo"
+runs_on = "heavy"
+checks = ["downstream-check"]
+command = ["ccid:run-declared-checks"]
+workflow = "downstream-check"
+events = ["manual"]
+
+[jobs.skill-eval]
+scheduler = "forgejo"
+runs_on = "heavy"
+checks = ["skill-eval-build", "skill-eval"]
+command = ["ccid:run-declared-checks"]
+workflow = "skill-eval"
+events = ["manual"]

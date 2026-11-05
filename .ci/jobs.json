@@ -2,8 +2,39 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "bd9aff07073185fb0a3503bab331aedefb6d8fd2",
-  "manifest_sha256": "3bc52045c010cc90673bf8b29ba8b7c4173db8bb7d488cbd7b5548331387b195",
+  "manifest_sha256": "b047fda81ccfc532d2a776fd8826e1fe3c9a32039e65d9709927111f400c0402",
   "jobs": {
+    "downstream-check": {
+      "job": "downstream-check",
+      "scheduler": "forgejo",
+      "checks": [
+        "downstream-check"
+      ],
+      "workflow": "downstream-check",
+      "command": [
+        "ccid:run-declared-checks"
+      ],
+      "runs_on": "heavy",
+      "events": [
+        "manual"
+      ]
+    },
+    "skill-eval": {
+      "job": "skill-eval",
+      "scheduler": "forgejo",
+      "checks": [
+        "skill-eval-build",
+        "skill-eval"
+      ],
+      "workflow": "skill-eval",
+      "command": [
+        "ccid:run-declared-checks"
+      ],
+      "runs_on": "heavy",
+      "events": [
+        "manual"
+      ]
+    },
     "verify": {
       "job": "verify",
       "scheduler": "forgejo",
