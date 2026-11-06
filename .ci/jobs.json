@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "generator": "ccid render v1",
-  "tool_revision": "bd9aff07073185fb0a3503bab331aedefb6d8fd2",
-  "manifest_sha256": "b047fda81ccfc532d2a776fd8826e1fe3c9a32039e65d9709927111f400c0402",
+  "tool_revision": "2db9dddd5e43d48b6cdbb2728818957db65acf5e",
+  "manifest_sha256": "9ddb06aa2d187f22613d1402103b8b7f5a50f277a7f0d72d6c6ee1444f1e214c",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -17,7 +17,8 @@
       "runs_on": "heavy",
       "events": [
         "manual"
-      ]
+      ],
+      "archive_inputs": true
     },
     "skill-eval": {
       "job": "skill-eval",
@@ -33,7 +34,8 @@
       "runs_on": "heavy",
       "events": [
         "manual"
-      ]
+      ],
+      "archive_inputs": true
     },
     "verify": {
       "job": "verify",
@@ -52,7 +54,8 @@
       "runs_on": "heavy",
       "events": [
         "manual"
-      ]
+      ],
+      "archive_inputs": true
     }
   }
 }
