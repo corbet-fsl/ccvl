@@ -1,15 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
-  # Daily main run: refreshes the main-scoped Rust caches that pull requests
-  # restore, so a new stable toolchain costs one cold build here, not per PR.
-  schedule:
-    - cron: "23 4 * * *"
-
 permissions:
   contents: read
 
