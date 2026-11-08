@@ -14,4 +14,4 @@ portability boundaries.
 Every external pull request must contain the exact affirmation required by the
 [Corbet Labs contribution policy](https://github.com/corbet-labs/.github/blob/main/CONTRIBUTING.md),
 referencing the immutable
-[Individual Contributor License Agreement v1.0](https://github.com/corbet-labs/.github/blob/cla-v1.0/CLA.md).
+[Individual Contributor License Agreement v1.0](https://git.corbet.ch/corbet-legal/cla/src/tag/cla-v1.0/CLA.md).
