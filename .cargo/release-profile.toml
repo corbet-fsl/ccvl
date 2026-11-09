@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Julian Y. Richard Corbet
+# SPDX-License-Identifier: FSL-1.1-ALv2
+#
+# Release flags for the ccvl binary. They are not a [profile] table in
+# Cargo.toml (build-efficiency rule 2: one profile key space for lanes, agents
+# and CI), so every step that wants the release needs to pass this file:
+#
+#   cargo build --locked --release --config .cargo/release-profile.toml
+#
+# The CI script passes it for the documents and styles checks, and the native
+# release job passes it for the published binary. A plain `cargo build
+# --release` gets Cargo's defaults.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

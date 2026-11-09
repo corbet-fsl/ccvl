@@ -10,6 +10,16 @@ export RUST_TEST_THREADS="${RUST_TEST_THREADS:-2}"
 export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-0}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-0}"
 
+# One optimized build serves the documents and styles checks: same profile,
+# same target directory, so a job that runs both compiles and links the graph
+# once. The release flags are a cargo config file passed with --config; the
+# manifest carries no [profile] table (build-efficiency rule 2).
+ccvl_build_optimized() {
+  "${CCVL_CARGO_COMMAND[@]}" build --locked --bin ccvl --release \
+    --config .cargo/release-profile.toml
+}
+ccvl_optimized_binary="${CARGO_TARGET_DIR:-target}/release/ccvl"
+
 if (($# == 0)); then
   set -- rust
 fi
@@ -17,8 +27,11 @@ for check in "$@"; do
   case "$check" in
     rust)
       ccvl_select_rust_toolchain
-      if [[ -n "${CI_COMMIT_SHA:-}" ]]; then
-        export CCVL_STYLE_EVIDENCE="${CARGO_TARGET_DIR:-target}/style-parity/$CI_COMMIT_SHA"
+      # Key the style-parity evidence on the checkout's own revision, never on a
+      # per-run value, so the same tree reuses the same directory (rule 8).
+      revision="$(git rev-parse --verify HEAD 2>/dev/null)" || revision=
+      if [[ -n "$revision" ]]; then
+        export CCVL_STYLE_EVIDENCE="${CARGO_TARGET_DIR:-target}/style-parity/$revision"
       fi
       "${CCVL_CARGO_COMMAND[@]}" fmt --all -- --check
       # Clippy's metadata-only check is the quicker gate on a cold cache, so
@@ -51,26 +64,21 @@ for check in "$@"; do
       for command in file qpdf pdfinfo pdftotext pdffonts pdfdetach pdfimages pdftoppm jq; do
         command -v "$command" >/dev/null || { echo "Missing existing tool: $command" >&2; exit 2; }
       done
-      "${CCVL_CARGO_COMMAND[@]}" build --locked --release
-      binary="${CARGO_TARGET_DIR:-target}/release/ccvl"
-      bash .agent/scripts/check-linux-deep.sh "$binary"
+      ccvl_build_optimized
+      bash .agent/scripts/check-linux-deep.sh "$ccvl_optimized_binary"
       ;;
     styles)
       # Scoped document checks: every workspace-wide check, plus rendering and
       # PDF verification for the space-separated <doc>/<style> selections in
-      # CCVL_CHECK_STYLES (every style when unset). Dependencies keep the
-      # release optimization level; thin LTO and one codegen unit are dropped
-      # because they cost minutes of linking and gain seconds of checking.
+      # CCVL_CHECK_STYLES (every style when unset). It renders with the same
+      # optimized release binary the documents check builds, so a job that runs
+      # both links once instead of twice.
       ccvl_select_rust_toolchain
-      "${CCVL_CARGO_COMMAND[@]}" build --locked --bin ccvl \
-        --config 'profile.ci-documents.inherits="release"' \
-        --config 'profile.ci-documents.lto=false' \
-        --config 'profile.ci-documents.codegen-units=16' \
-        --profile ci-documents
+      ccvl_build_optimized
       read -r -a selected <<<"${CCVL_CHECK_STYLES:-}"
       filters=()
       for style in ${selected[@]+"${selected[@]}"}; do filters+=(--style "$style"); done
-      "${CARGO_TARGET_DIR:-target}/ci-documents/ccvl" public-check ${filters[@]+"${filters[@]}"}
+      "$ccvl_optimized_binary" public-check ${filters[@]+"${filters[@]}"}
       ;;
     downstream-check)
       # Private downstream route: the ccvl runtime built from the verified

@@ -18,7 +18,7 @@ On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 | `rust` (default) | Stable Rust formatting, Clippy and locked unit/document tests, including the release evidence, publisher and private downstream guard fixtures |
 | `lint` | Actionlint, ShellCheck, REUSE and the CI script behavior tests with preinstalled tools |
 | `documents` | Locked Linux release build and independent PDF/text/layout verification |
-| `styles` | Optimized non-LTO build, then `public-check` limited to the space-separated `<doc>/<style>` list in `CCVL_CHECK_STYLES` (every style when unset) |
+| `styles` | The same optimized release build as `documents` (thin LTO and one codegen unit, so the two checks share one graph build and target directory), then `public-check` limited to the space-separated `<doc>/<style>` list in `CCVL_CHECK_STYLES` (every style when unset) |
 | `downstream-check` | Manual private downstream route: builds the checked source's `private-check` command and runs it against the staged archive and bundle (see [private downstream](private-downstream.md)) |
 | `skill-eval-build`, then `skill-eval` | Explicit trusted small-model evaluation; separate credential-free build and credential-bearing evaluation |
 
@@ -103,10 +103,13 @@ selects the Rust job, so its `gate-rust` and `gate-lint` receipts and the
 release gates are unchanged.
 
 `Scoped document checks` runs `ci-check.sh styles` with the selected styles.
-It builds an optimized binary without thin LTO and with 16 codegen units in a
-separate `ci-documents` Cargo profile: dependencies keep release optimization
-and its own cache, while the link avoids the slow release settings. A debug
-build compiles faster but checks every document about 15 times slower. Then it
+It renders with the same optimized release binary the `documents` check builds
+(thin LTO and one codegen unit from `.cargo/release-profile.toml`, passed with
+`--config`; `Cargo.toml` carries no `[profile]` table), so a job that runs both
+checks compiles and links the graph once and the second build is a cache hit.
+Only the build steps that need the release flags pass them; a plain
+`cargo build --release` uses Cargo's defaults. A debug build compiles faster
+but checks every document about 15 times slower. Then it
 runs `public-check --style ...`, which keeps every workspace-wide check. A pull
 request that touches only prose runs lint alone; one that touches only a style
 runs that style's document checks and lint, each under a minute with warm

@@ -53,20 +53,22 @@ pretty_assertions = "1.4"
 # Releases not yet on crates.io, taken from their source repositories. Cargo
 # ignores this section when ccvl-core is packaged, so the published manifest
 # keeps the plain ranges above. Remove an entry once its release is published.
+# Canonical forge URL, exact revision: a CI-only commit in one of these
+# libraries must not move a pin (build-efficiency rules 6 and 7). Moving a pin
+# is an explicit, reviewed edit here plus the lock refresh it causes.
 [patch.crates-io]
-cdate = { git = "https://forge.corbet.ch/corbet-foss/cdate.git", branch = "main" }
-cink = { git = "https://forge.corbet.ch/corbet-foss/cink.git", branch = "main" }
-cletter = { git = "https://forge.corbet.ch/corbet-foss/cletter.git", branch = "main" }
-cnice = { git = "https://forge.corbet.ch/corbet-foss/cnice.git", branch = "main" }
-ctypst = { git = "https://forge.corbet.ch/corbet-libs/ctypst.git", branch = "main" }
+cdate = { git = "https://git.corbet.ch/corbet-libre/cdate.git", rev = "2dff4ec4ac5a915ec8bcf2bcb0e3c31ad50248de" }
+cink = { git = "https://git.corbet.ch/corbet-libre/cink.git", rev = "c9497016f27150aface01c0a4b32aa18d15f87ab" }
+cletter = { git = "https://git.corbet.ch/corbet-libre/cletter.git", rev = "940d6f13b385ed48d49f0c53ccb7d3a79bc6e855" }
+cnice = { git = "https://git.corbet.ch/corbet-libre/cnice.git", rev = "decad9624261756fba749235ab418ba4c543740a" }
+ctypst = { git = "https://git.corbet.ch/corbet-fsl/ctypst.git", rev = "e0f166f2e8f25159be08d11fc3cefd429e6528cd" }
 
 [build-dependencies]
 sha2 = "0.10"
 
-[profile.release]
-lto = "thin"
-codegen-units = 1
-strip = true
+# No [profile] table: the fleet profile is the only profile in this manifest.
+# The release jobs pass .cargo/release-profile.toml with --config instead
+# (build-efficiency rule 2).
 
 [lints.rust]
 unsafe_code = "forbid"

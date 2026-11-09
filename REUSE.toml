@@ -20,6 +20,7 @@ path = [
   ".ci/run-cached.sh",
   ".ci/toolchain-lock.sh",
   ".ci/jobs.json",
+  ".cargo/release-profile.toml",
   ".crow/repository-jobs.yaml",
   ".prototools",
   ".github/workflows/**",

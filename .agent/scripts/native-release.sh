@@ -41,7 +41,10 @@ fi
 exe=ccvl
 [[ "$native_os" != Windows ]] || exe=ccvl.exe
 # Explicitly build for the verified compiler's native host, ignoring configured cross targets.
-"${CCVL_CARGO_COMMAND[@]}" build --locked --release --target "$host"
+# Thin LTO and one codegen unit are release flags in a cargo config file, not a
+# manifest [profile] table (build-efficiency rule 2).
+"${CCVL_CARGO_COMMAND[@]}" build --locked --release \
+  --config .cargo/release-profile.toml --target "$host"
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$host/release/$exe"
 # The tested binary verifies the exact source before any evidence is written.
 export CCVL_RELEASE_EVIDENCE_BIN="$binary"
