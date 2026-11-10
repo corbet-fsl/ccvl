@@ -15,6 +15,24 @@ use crate::skills;
 use crate::stations;
 use crate::workspace::Workspace;
 
+const COMPARE_HELP: &str = "\
+Items:
+  harvard/d-plus            style/substyle, rendered fresh (default locale en-ch)
+  harvard/compact@de-ch:2   with a per-item locale and page preset
+  default, cluster/default  the workspace default style, or a style's first substyle
+  opportunities/acme/lead   an application record or variant directory, in its own language
+  old/cv-4.pdf              an existing PDF, used as is
+
+Examples:
+  ccvl compare harvard/d-plus cluster/d-plus
+  ccvl compare harvard/d-plus harvard/compact harvard/standard --pages 4 --layout sheet
+  ccvl compare harvard/d-plus@de-ch harvard/d-plus@en-ch --only 1
+  ccvl compare --doc cl harvard/frame harvard/left-rule --png --json
+
+Output: .agent/cache/comparisons/<name>.pdf (rendered variants and previews in
+.agent/cache/comparisons/<name>/). Interleaved pages run 1A 1B ... 1N, 2A ...;
+see .agent/docs/compare.md.";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "ccvl",
@@ -201,6 +219,44 @@ enum Command {
         /// Paper preset declared by the selected style.
         #[arg(long)]
         paper: Option<String>,
+    },
+    /// Render n variants into one side-by-side comparison PDF.
+    #[command(after_help = COMPARE_HELP)]
+    Compare {
+        /// Two or more variants: `<style>/<substyle>[@<locale>][:<preset>]`,
+        /// `default`, an application.toml, a variant directory or a PDF.
+        #[arg(required = true, num_args = 2.., value_name = "ITEM")]
+        items: Vec<String>,
+        /// Document to render for style and record items.
+        #[arg(long = "doc", value_parser = ["cv", "cl"], default_value = "cv")]
+        document: String,
+        /// Locale for style items without `@<locale>`; defaults to en-ch when
+        /// the style declares it, otherwise to its first locale.
+        #[arg(long)]
+        locale: Option<String>,
+        /// Page preset for rendered items without `:<preset>`.
+        #[arg(long)]
+        pages: Option<usize>,
+        /// Show only these page rows, such as `1-2` or `1,3`.
+        #[arg(long, value_name = "PAGES")]
+        only: Option<String>,
+        /// `interleaved` pages for an n-column viewer, or one wide `sheet`
+        /// page per row that works in every viewer.
+        #[arg(long, value_parser = ["interleaved", "sheet"], default_value = "interleaved")]
+        layout: String,
+        /// Output name under .agent/cache/comparisons/; derived from the
+        /// items when omitted.
+        #[arg(long)]
+        name: Option<String>,
+        /// Also write one PNG sheet per row for inspection.
+        #[arg(long)]
+        png: bool,
+        /// Show line measurements of each rendered variant side by side.
+        #[arg(long)]
+        metrics: bool,
+        /// Print the summary as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Build one keyed opportunity package.
     BuildOpportunity {
@@ -449,38 +505,18 @@ pub fn run() -> Result<ExitCode> {
             profile,
             output,
             paper,
-        } => {
-            let selection = cli_selection(
-                &workspace,
-                style.as_deref(),
-                substyle.as_deref(),
-                application.as_deref(),
-                "cv",
-            )?;
-            let leaf = render::cv_leaf(&workspace, &locale, &selection)?;
-            let application =
-                workspace.existing_inside(application.unwrap_or_else(|| leaf.content()))?;
-            let record = crate::content::read_record(&workspace, &application)?;
-            let pages = pages
-                .or(record
-                    .pointer("/options/pages")
-                    .and_then(serde_json::Value::as_u64)
-                    .map(usize::try_from)
-                    .transpose()?)
-                .unwrap_or(leaf.default_pages);
-            let profile = workspace
-                .existing_inside(profile.unwrap_or_else(|| PathBuf::from("cvl/profile.toml")))?;
-            let spec = render::document_spec(
-                &workspace,
-                &leaf,
-                pages,
-                &application,
-                &profile,
-                output.as_deref(),
-                paper.as_deref(),
-            )?;
-            print_outputs(vec![Compiler::new(&workspace)?.render(&workspace, &spec)?]);
-        }
+        } => print_outputs(vec![build_document(
+            &workspace,
+            "cv",
+            &locale,
+            pages,
+            style.as_deref(),
+            substyle.as_deref(),
+            application.as_deref(),
+            profile.as_deref(),
+            output.as_deref(),
+            paper.as_deref(),
+        )?]),
         Command::BuildCl {
             locale,
             pages,
@@ -490,37 +526,49 @@ pub fn run() -> Result<ExitCode> {
             profile,
             output,
             paper,
+        } => print_outputs(vec![build_document(
+            &workspace,
+            "cl",
+            &locale,
+            pages,
+            style.as_deref(),
+            substyle.as_deref(),
+            application.as_deref(),
+            profile.as_deref(),
+            output.as_deref(),
+            paper.as_deref(),
+        )?]),
+        Command::Compare {
+            items,
+            document,
+            locale,
+            pages,
+            only,
+            layout,
+            name,
+            png,
+            metrics,
+            json,
         } => {
-            let selection = cli_selection(
+            let outcome = crate::compare::run(
                 &workspace,
-                style.as_deref(),
-                substyle.as_deref(),
-                application.as_deref(),
-                "cl",
+                &crate::compare::Request {
+                    document: if document == "cv" { "cv" } else { "cl" },
+                    items,
+                    locale,
+                    pages,
+                    only,
+                    layout: crate::compare::Layout::parse(&layout)?,
+                    name,
+                    png,
+                    metrics,
+                },
             )?;
-            let leaf = render::cl_leaf(&workspace, &locale, &selection)?;
-            let application =
-                workspace.existing_inside(application.unwrap_or_else(|| leaf.content()))?;
-            let record = crate::content::read_record(&workspace, &application)?;
-            let pages = pages
-                .or(record
-                    .pointer("/options/cl_pages")
-                    .and_then(serde_json::Value::as_u64)
-                    .map(usize::try_from)
-                    .transpose()?)
-                .unwrap_or(leaf.default_pages);
-            let profile = workspace
-                .existing_inside(profile.unwrap_or_else(|| PathBuf::from("cvl/profile.toml")))?;
-            let spec = render::document_spec(
-                &workspace,
-                &leaf,
-                pages,
-                &application,
-                &profile,
-                output.as_deref(),
-                paper.as_deref(),
-            )?;
-            print_outputs(vec![Compiler::new(&workspace)?.render(&workspace, &spec)?]);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&outcome)?);
+            } else {
+                println!("{outcome}");
+            }
         }
         Command::BuildOpportunity {
             organisation_key,
@@ -634,6 +682,26 @@ fn doctor(workspace: &Workspace) -> Result<()> {
     println!("fonts: 16 embedded files; system fonts disabled");
     println!("external runtime dependencies: none");
     Ok(())
+}
+
+/// Render one `build-cv` or `build-cl` request through the shared build path.
+#[allow(clippy::too_many_arguments)]
+fn build_document(
+    workspace: &Workspace,
+    document: &'static str,
+    locale: &str,
+    pages: Option<usize>,
+    style: Option<&str>,
+    substyle: Option<&str>,
+    application: Option<&Path>,
+    profile: Option<&Path>,
+    output: Option<&Path>,
+    paper: Option<&str>,
+) -> Result<PathBuf> {
+    let selection = cli_selection(workspace, style, substyle, application, document)?;
+    let leaf = crate::styles::leaf(workspace, document, locale, &selection)?;
+    let spec = render::build_spec(workspace, &leaf, application, pages, profile, output, paper)?;
+    Compiler::new(workspace)?.render(workspace, &spec)
 }
 
 /// Explicit `--style`/`--substyle` win; otherwise the record at `application`

@@ -6,6 +6,7 @@ pub mod bundle;
 pub use ccvl_core as core;
 pub mod check;
 pub mod cli;
+pub mod compare;
 pub mod content;
 pub mod downstream;
 mod engine_package;

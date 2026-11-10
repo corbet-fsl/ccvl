@@ -313,7 +313,12 @@ fn get_dict<'a>(
     }
 }
 
-fn inherited<'a>(document: &'a Document, mut id: ObjectId, key: &[u8]) -> Option<&'a Object> {
+/// A page attribute, looked up through the page tree's inheritance chain.
+pub(crate) fn inherited<'a>(
+    document: &'a Document,
+    mut id: ObjectId,
+    key: &[u8],
+) -> Option<&'a Object> {
     loop {
         let dictionary = document.get_dictionary(id).ok()?;
         if let Ok(value) = dictionary.get(key) {

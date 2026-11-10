@@ -170,7 +170,7 @@ fn build_engine(workspace: &Workspace, fonts: &[PathBuf]) -> Result<Engine> {
     .context("cannot initialize embedded Typst engine")
 }
 
-fn source_date_epoch() -> Result<i64> {
+pub(crate) fn source_date_epoch() -> Result<i64> {
     let raw = std::env::var("SOURCE_DATE_EPOCH").unwrap_or_else(|_| "0".to_owned());
     let epoch = raw
         .parse::<i64>()
@@ -275,6 +275,48 @@ pub fn cl_spec(
         profile,
         Some(output),
         None,
+    )
+}
+
+/// The spec `build-cv` and `build-cl` render for one leaf. The application
+/// defaults to the leaf's own content and the profile to `cvl/profile.toml`.
+/// Explicit `pages` win, then the record's `options.pages` (CV) or
+/// `options.cl_pages` (letter), then the leaf's default preset.
+pub fn build_spec(
+    workspace: &Workspace,
+    leaf: &StyleLeaf,
+    application: Option<&Path>,
+    pages: Option<usize>,
+    profile: Option<&Path>,
+    output: Option<&Path>,
+    paper: Option<&str>,
+) -> Result<DocumentSpec> {
+    let application =
+        workspace.existing_inside(application.map_or_else(|| leaf.content(), Path::to_path_buf))?;
+    let record = crate::content::read_record(workspace, &application)?;
+    let key = if leaf.document == "cv" {
+        "/options/pages"
+    } else {
+        "/options/cl_pages"
+    };
+    let pages = pages
+        .or(record
+            .pointer(key)
+            .and_then(Value::as_u64)
+            .map(usize::try_from)
+            .transpose()?)
+        .unwrap_or(leaf.default_pages);
+    let profile = workspace.existing_inside(
+        profile.map_or_else(|| PathBuf::from("cvl/profile.toml"), Path::to_path_buf),
+    )?;
+    document_spec(
+        workspace,
+        leaf,
+        pages,
+        &application,
+        &profile,
+        output,
+        paper,
     )
 }
 

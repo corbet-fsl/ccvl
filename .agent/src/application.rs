@@ -398,9 +398,14 @@ fn validate_record_scope(
         );
     }
     if opportunity {
+        // The posting belongs to `opportunities/<organisation>/<position>/`,
+        // which also owns records kept below it, such as its variants.
         let posting = Path::new(&normalized)
             .parent()
-            .with_context(|| format!("{location}: opportunity path has no parent"))?;
+            .with_context(|| format!("{location}: opportunity path has no parent"))?
+            .components()
+            .take(3)
+            .collect::<std::path::PathBuf>();
         ensure!(
             workspace.path(posting.join("posting.md")).is_file(),
             "{location}: posting.md is missing; every opportunity keeps its human-readable position reference beside the record"
