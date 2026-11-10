@@ -272,7 +272,7 @@ impl Downstream {
         assert_eq!(output.status.success(), success, "{combined}");
         assert!(!combined.contains("PRIVATE_SENTINEL"), "{combined}");
         assert_eq!(self.rev_parse(), self.commit);
-        assert!(self.git(&["status", "--porcelain"]).is_empty());
+        assert_eq!(self.git(&["status", "--porcelain"]), [] as [u8; 0]);
         let trace = fs::read_to_string(&self.trace)
             .unwrap()
             .lines()
@@ -343,7 +343,7 @@ fn publication_credentials_are_refused_without_disclosure() {
 fn archive_checksum_and_extracted_source_changes_are_refused() {
     let fixture = Downstream::new();
     let (output, trace) = fixture.invoke(false, &[("SOURCE_SHA256", &"0".repeat(64))]);
-    assert!(trace.is_empty());
+    assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Source archive checksum mismatch."));
     fs::write(
         fixture.extracted.join("interview/profile.md"),
@@ -351,7 +351,7 @@ fn archive_checksum_and_extracted_source_changes_are_refused() {
     )
     .unwrap();
     let (output, trace) = fixture.invoke(false, &[]);
-    assert!(trace.is_empty());
+    assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Extracted source differs from its archive."));
 }
 
@@ -372,7 +372,7 @@ fn archive_and_bundle_tree_disagreement_is_refused() {
     )
     .unwrap();
     let (output, trace) = fixture.invoke(false, &[("SOURCE_SHA256", &sha256_hex(&bytes))]);
-    assert!(trace.is_empty());
+    assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Source archive differs from the committed Git bundle tree."));
 }
 
@@ -380,10 +380,10 @@ fn archive_and_bundle_tree_disagreement_is_refused() {
 fn wrong_bundle_and_nonancestor_upstream_are_refused() {
     let fixture = Downstream::new();
     let (output, trace) = fixture.invoke(false, &[("DOWNSTREAM_SOURCE_SHA256", &"0".repeat(64))]);
-    assert!(trace.is_empty());
+    assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Git bundle checksum mismatch."));
     let (output, trace) = fixture.invoke(false, &[("UPSTREAM_COMMIT", &"0".repeat(40))]);
-    assert!(trace.is_empty());
+    assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Upstream ancestry failed"));
 }
 
