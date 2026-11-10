@@ -144,6 +144,7 @@ bash ./ccvl build-cl en-ch --style harvard --substyle frame
 bash ./ccvl build-cv de-ch 4 --style harvard --substyle standard --paper a4
 bash ./ccvl list-documents
 bash ./ccvl list-styles
+bash ./ccvl compare harvard/d-plus cluster/d-plus
 ```
 
 Use [the style-creation skill](../.agent/skills/ccvl-style/SKILL.md),
@@ -167,6 +168,6 @@ into their adjacent `preview/` directory. Unchanged PDFs reuse previews when
 the rasterizer and rendering settings match and every image is intact; local
 cache records live in `.agent/cache/previews/`. It consumes the actual PDFs; it does not
 invent mockups. Inspect every changed page at full resolution as well as in
-this comparison; `bash .agent/scripts/compare-pages.sh` assembles any pages
-side by side for review. A shorter PDF's surplus page previews are removed after a
+this comparison; `bash ./ccvl compare` renders any variants side by side into
+one review PDF ([guide](../.agent/docs/compare.md)). A shorter PDF's surplus page previews are removed after a
 successful refresh. Remove obsolete previews if entire page presets are removed.

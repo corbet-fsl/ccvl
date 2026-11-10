@@ -72,7 +72,11 @@ and it supersedes every variant. Variants that are not current, for example
 drafts discussed with an assistant, may be kept for reference under
 `variants/<style>/<substyle>/<label>/`, sorted by their CV style and substyle,
 as a copy of their record and documents. Labels are free; Git keeps their
-history. Variants are never built or checked.
+history. Variants are never built or checked. To review the application
+against its variants, `bash ./ccvl compare opportunities/<organisation-key>/<position-key>
+opportunities/<organisation-key>/<position-key>/variants/<style>/<substyle>/<label>`
+renders each record into `.agent/cache/` and shows them side by side; see
+[comparisons](compare.md).
 
 Measure and render one opportunity from the repository root:
 
