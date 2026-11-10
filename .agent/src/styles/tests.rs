@@ -356,6 +356,7 @@ fn full_workspace_check_accepts_independent_styles() {
     // to platform guides without importing the shipped Harvard presentation.
     for guide in [
         "applications",
+        "compare",
         "editorial",
         "review",
         "cover-letter",
