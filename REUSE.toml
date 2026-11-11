@@ -52,7 +52,6 @@ path = [
   "inputs/interviews/**/README.md",
   "outputs/README.md",
   "opportunities/README.md",
-  "todo.md",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
