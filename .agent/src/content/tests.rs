@@ -14,7 +14,7 @@ fn fixture() -> (tempfile::TempDir, Workspace) {
     write(
         root,
         "ccvl.json",
-        &json!({"documents": {"cv": {"root": "outputs/cvl/cv"}, "cover_letter": {"root": "outputs/cvl/cl"}}})
+        &json!({"documents": {"cv": {"root": "outputs/cvl/cv"}, "cl": {"root": "outputs/cvl/cl"}}})
             .to_string(),
     );
     for (document, style) in [("cv", "first"), ("cv", "second"), ("cl", "first")] {

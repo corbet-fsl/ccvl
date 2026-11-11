@@ -145,10 +145,12 @@ impl StyleLeaf {
         self.output_for_paper(pages, None)
     }
 
+    /// CVs number every preset (`cv-4.pdf`); every other document names its
+    /// default preset after itself (`cl.pdf`) and numbers the others.
     #[must_use]
     pub fn output_for_paper(&self, pages: usize, paper: Option<&str>) -> PathBuf {
-        let name = if self.document == "cl" && pages == self.default_pages {
-            "cl.pdf".to_owned()
+        let name = if self.document != "cv" && pages == self.default_pages {
+            format!("{}.pdf", self.document)
         } else {
             format!("{}-{pages}.pdf", self.document)
         };
@@ -183,19 +185,76 @@ pub(crate) fn atom(value: &str, label: &str) -> Result<()> {
 
 pub use ccvl_core::normalize_locale;
 
-fn manifest_key(document: &str) -> Result<&'static str> {
-    match document {
-        "cv" => Ok("cv"),
-        "cl" => Ok("cover_letter"),
-        _ => anyhow::bail!("unknown document: {document}"),
-    }
+/// The application documents. A CV and a cover letter share one record per
+/// opportunity and keep their page presets, measured contracts and opportunity
+/// builds. Every other declared document is a generic output: its styles use
+/// the same slot grid, selection, paper and check mechanics, nothing more.
+pub const APPLICATION_DOCUMENTS: [&str; 2] = ["cv", "cl"];
+
+/// Every document of the manifest's `documents` table: the CV and the cover
+/// letter first, then the other outputs alphabetically. A document's key also
+/// names its root in `workspace_groups.outputs`, so each id is returned as
+/// that compiled layout key.
+pub fn documents(workspace: &Workspace) -> Result<Vec<&'static str>> {
+    let manifest = workspace.read_json("ccvl.json")?;
+    let declared = manifest
+        .get("documents")
+        .and_then(Value::as_object)
+        .context("ccvl.json has no documents table")?;
+    let mut documents = declared
+        .keys()
+        .map(|name| {
+            crate::layout::OUTPUTS_GROUP
+                .iter()
+                .find(|(key, _)| key == name && *key != "root")
+                .map(|(key, _)| *key)
+                .with_context(|| {
+                    format!(
+                        "ccvl.json: document {name:?} has no workspace_groups.outputs.{name} folder"
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    documents.sort_by_key(|document| {
+        (
+            APPLICATION_DOCUMENTS
+                .iter()
+                .position(|application| application == document)
+                .unwrap_or(APPLICATION_DOCUMENTS.len()),
+            *document,
+        )
+    });
+    Ok(documents)
+}
+
+/// Resolve a document name the manifest declares.
+pub fn document(workspace: &Workspace, name: &str) -> Result<&'static str> {
+    let documents = documents(workspace)?;
+    documents
+        .iter()
+        .find(|document| **document == name)
+        .copied()
+        .with_context(|| {
+            format!(
+                "unknown document {name:?}; expected one of {}",
+                documents.join(", ")
+            )
+        })
+}
+
+/// The `workspace_groups.outputs` folder that a document's root must name.
+#[must_use]
+pub fn layout_root(document: &str) -> Option<&'static str> {
+    crate::layout::OUTPUTS_GROUP
+        .iter()
+        .find(|(key, _)| *key == document)
+        .map(|(_, path)| *path)
 }
 
 pub fn root(workspace: &Workspace, document: &str) -> Result<PathBuf> {
     let manifest = workspace.read_json("ccvl.json")?;
-    let key = manifest_key(document)?;
     let path = manifest
-        .pointer(&format!("/documents/{key}/root"))
+        .pointer(&format!("/documents/{document}/root"))
         .and_then(Value::as_str)
         .context("document discovery root is missing")?;
     workspace.existing_inside(path)
@@ -203,9 +262,8 @@ pub fn root(workspace: &Workspace, document: &str) -> Result<PathBuf> {
 
 pub fn default_style(workspace: &Workspace, document: &str) -> Result<String> {
     let manifest = workspace.read_json("ccvl.json")?;
-    let key = manifest_key(document)?;
     let name = manifest
-        .pointer(&format!("/documents/{key}/default_style"))
+        .pointer(&format!("/documents/{document}/default_style"))
         .and_then(Value::as_str)
         .context("document default_style is missing")?;
     ensure!(
@@ -416,13 +474,12 @@ pub fn definitions(workspace: &Workspace, document: &str) -> Result<Vec<Definiti
 /// empty style slots follow the designed styles by number.
 pub fn validate_slots(workspace: &Workspace, document: &str) -> Result<()> {
     let manifest = workspace.read_json("ccvl.json")?;
-    let key = manifest_key(document)?;
     let slots = manifest
-        .pointer(&format!("/documents/{key}/slots"))
+        .pointer(&format!("/documents/{document}/slots"))
         .and_then(Value::as_object)
         .filter(|slots| slots.len() == 2)
         .with_context(|| {
-            format!("ccvl.json: documents.{key}.slots must declare only styles and substyles")
+            format!("ccvl.json: documents.{document}.slots must declare only styles and substyles")
         })?;
     let count = |name: &str| {
         slots
@@ -431,7 +488,7 @@ pub fn validate_slots(workspace: &Workspace, document: &str) -> Result<()> {
             .filter(|count| *count > 0)
             .and_then(|count| usize::try_from(count).ok())
             .with_context(|| {
-                format!("ccvl.json: documents.{key}.slots.{name} must be a positive integer")
+                format!("ccvl.json: documents.{document}.slots.{name} must be a positive integer")
             })
     };
     let (styles, substyles) = (count("styles")?, count("substyles")?);
@@ -465,8 +522,8 @@ pub fn validate_slots(workspace: &Workspace, document: &str) -> Result<()> {
 /// other designed styles alphabetically, then empty style slots by number.
 pub fn list_styles(workspace: &Workspace) -> Result<Value> {
     let status = |empty: bool| if empty { "empty" } else { "designed" };
-    let mut documents = serde_json::Map::new();
-    for document in ["cv", "cl"] {
+    let mut listed = serde_json::Map::new();
+    for document in documents(workspace)? {
         let default = selection(workspace, document, None, None)?;
         let mut definitions = definitions(workspace, document)?;
         definitions.sort_by_key(|style| {
@@ -502,7 +559,7 @@ pub fn list_styles(workspace: &Workspace) -> Result<Value> {
                 })
             })
             .collect::<Vec<_>>();
-        documents.insert(
+        listed.insert(
             document.to_owned(),
             serde_json::json!({
                 "default": {"style": default.style, "substyle": default.substyle},
@@ -510,7 +567,7 @@ pub fn list_styles(workspace: &Workspace) -> Result<Value> {
             }),
         );
     }
-    Ok(Value::Object(documents))
+    Ok(Value::Object(listed))
 }
 
 pub fn contract(workspace: &Workspace, document: &str, style: &str) -> Result<Value> {
@@ -669,15 +726,11 @@ impl StyleFilter {
         for value in values {
             let value = value.as_ref();
             let Some((document, style)) = value.split_once('/') else {
-                bail!("--style {value:?}: expected <cv|cl>/<style>, for example cv/harvard");
+                bail!("--style {value:?}: expected <document>/<style>, for example cv/harvard");
             };
-            let document = match document {
-                "cv" => "cv",
-                "cl" => "cl",
-                _ => bail!(
-                    "--style {value:?}: unknown document {document:?}; expected cv or cl before the slash"
-                ),
-            };
+            let document = self::document(workspace, document).with_context(|| {
+                format!("--style {value:?}: expected a document before the slash")
+            })?;
             let definition = definition(workspace, document, style)
                 .with_context(|| format!("--style {value:?} does not name an existing style"))?;
             if definition.empty {
@@ -710,10 +763,12 @@ impl StyleFilter {
             .collect())
     }
 
-    /// The selected CV leaves followed by the selected cover-letter leaves.
+    /// The selected leaves of every document, in [`documents`] order.
     pub fn document_leaves(&self, workspace: &Workspace) -> Result<Vec<StyleLeaf>> {
-        let mut leaves = self.leaves(workspace, "cv")?;
-        leaves.extend(self.leaves(workspace, "cl")?);
+        let mut leaves = Vec::new();
+        for document in documents(workspace)? {
+            leaves.extend(self.leaves(workspace, document)?);
+        }
         Ok(leaves)
     }
 }

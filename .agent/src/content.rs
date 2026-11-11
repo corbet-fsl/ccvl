@@ -63,15 +63,15 @@ pub fn read_record(workspace: &Workspace, path: impl AsRef<Path>) -> Result<Valu
         .context("shared wording must be a table")?;
     ensure!(
         shared.len() == 1,
-        "shared wording must contain only [cv] or [cl]; nested sources and cross-document content are forbidden"
+        "shared wording must contain only one document table such as [cv] or [cl]; nested sources and cross-document content are forbidden"
     );
-    let document = match shared.keys().next().map(String::as_str) {
-        Some("cv") => "cv",
-        Some("cl") => "cl",
-        _ => anyhow::bail!(
-            "shared wording must contain only [cv] or [cl]; nested sources are forbidden"
-        ),
-    };
+    let document = shared
+        .keys()
+        .next()
+        .and_then(|name| styles::document(workspace, name).ok())
+        .context(
+            "shared wording must contain only one document table such as [cv] or [cl]; nested sources are forbidden",
+        )?;
     // The shared table identifies its document; only that root is resolved or observed.
     // The registered leaf path then proves this is the table's actual owner.
     validate_owner(workspace, &path, document)?;

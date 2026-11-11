@@ -220,11 +220,16 @@ fn documents_must_not_read_the_opposite_document_tree() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
     let compiler = Compiler::new(&workspace).unwrap();
     let leaf = fixture_leaf(&workspace, "cv", "ledger");
+    let roots = styles::documents(&workspace)
+        .unwrap()
+        .into_iter()
+        .map(|document| (document, styles::root(&workspace, document).unwrap()))
+        .collect::<Vec<_>>();
     let build = || {
         let observed = workspace.tracked();
         let spec = crate::render::cvl_spec(&observed, &leaf, 2).unwrap();
         compiler.compile(&observed, &spec).unwrap();
-        require_document_isolation(&workspace, &observed, &leaf)
+        require_document_isolation(&workspace, &observed, &leaf, &roots)
     };
     build().unwrap();
     let renderer = temporary

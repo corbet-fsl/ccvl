@@ -82,7 +82,7 @@ fn independent_workspace() -> (tempfile::TempDir, Workspace) {
         "format": "ccvl-workspace", "schema_version": 9,
         "documents": {
             "cv": {"root": "outputs/cvl/cv", "default_style": "orbit", "slots": {"styles": 1, "substyles": 1}},
-            "cover_letter": {"root": "outputs/cvl/cl", "default_style": "postcard", "slots": {"styles": 1, "substyles": 1}}
+            "cl": {"root": "outputs/cvl/cl", "default_style": "postcard", "slots": {"styles": 1, "substyles": 1}}
         }
     });
     write(root, "ccvl.json", &format!("{manifest}\n"));
@@ -815,7 +815,7 @@ fn style_filter_rejects_malformed_and_unknown_selections() {
     assert_eq!(filter.to_string(), "cl/postcard, cv/orbit");
     assert_eq!(filter.document_leaves(&workspace).unwrap().len(), 2);
     for (value, expected) in [
-        ("orbit", "expected <cv|cl>/<style>"),
+        ("orbit", "expected <document>/<style>"),
         ("resume/orbit", "unknown document \"resume\""),
         ("CV/orbit", "unknown document \"CV\""),
         ("cv/postcard", "unknown cv style \"postcard\""),

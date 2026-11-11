@@ -99,7 +99,7 @@ enum Command {
     Doctor,
     /// Run every deterministic workspace and document check.
     Check {
-        /// Limit document rendering and verification to one `<cv|cl>/<style>`;
+        /// Limit document rendering and verification to one `<document>/<style>`;
         /// repeat for several. Workspace-wide checks always run.
         #[arg(long = "style", value_name = "DOC/STYLE")]
         styles: Vec<String>,
@@ -122,7 +122,7 @@ enum Command {
     Measure {
         #[arg(long)]
         all: bool,
-        /// Limit measurement to one `<cv|cl>/<style>`; repeat for several.
+        /// Limit measurement to one `<document>/<style>`; repeat for several.
         #[arg(long = "style", value_name = "DOC/STYLE")]
         styles: Vec<String>,
     },
@@ -138,7 +138,7 @@ enum Command {
         /// Retain freshly verified PDFs in a new directory.
         #[arg(long)]
         artifacts: Option<PathBuf>,
-        /// Limit document rendering and verification to one `<cv|cl>/<style>`;
+        /// Limit document rendering and verification to one `<document>/<style>`;
         /// repeat for several. Workspace-wide checks always run.
         #[arg(long = "style", value_name = "DOC/STYLE")]
         styles: Vec<String>,
@@ -150,7 +150,7 @@ enum Command {
         #[arg(long)]
         upstream_ref: Option<String>,
     },
-    /// Build every CVL template and page preset.
+    /// Build every document template and page preset.
     Build,
     /// List every registered document variant and its output as JSON.
     ListDocuments,
@@ -158,7 +158,7 @@ enum Command {
     ListStyles,
     /// Explain merged adapter settings and the source of each value as JSON.
     ExplainStyle {
-        #[arg(value_parser = ["cv", "cl"])]
+        /// Any document declared in ccvl.json, such as cv, cl or flyers.
         document: String,
         locale: String,
         #[arg(long)]
@@ -220,6 +220,29 @@ enum Command {
         #[arg(long)]
         paper: Option<String>,
     },
+    /// Build one document of any type declared in ccvl.json, such as cv, cl,
+    /// flyers or presentations.
+    BuildOutput {
+        document: String,
+        locale: String,
+        #[arg(long)]
+        pages: Option<usize>,
+        /// Style, or `default`. Defaults to the record's selection, then to
+        /// the workspace default; `--substyle default` selects its first substyle.
+        #[arg(long)]
+        style: Option<String>,
+        #[arg(long)]
+        substyle: Option<String>,
+        #[arg(long)]
+        application: Option<PathBuf>,
+        #[arg(long)]
+        profile: Option<PathBuf>,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Paper preset declared by the selected style.
+        #[arg(long)]
+        paper: Option<String>,
+    },
     /// Render n variants into one side-by-side comparison PDF.
     #[command(after_help = COMPARE_HELP)]
     Compare {
@@ -227,8 +250,9 @@ enum Command {
         /// `default`, an application.toml, a variant directory or a PDF.
         #[arg(required = true, num_args = 2.., value_name = "ITEM")]
         items: Vec<String>,
-        /// Document to render for style and record items.
-        #[arg(long = "doc", value_parser = ["cv", "cl"], default_value = "cv")]
+        /// Document to render for style and record items: any document
+        /// declared in ccvl.json.
+        #[arg(long = "doc", default_value = "cv")]
         document: String,
         /// Locale for style items without `@<locale>`; defaults to en-ch when
         /// the style declares it, otherwise to its first locale.
@@ -401,7 +425,7 @@ pub fn run() -> Result<ExitCode> {
             }
             check::run_selected(&workspace, None, &styles)?;
             println!(
-                "All data, station, source, skill, font, reproducibility, CV, and cover-letter checks passed{}.",
+                "All data, station, source, skill, font, reproducibility, CV, cover-letter, and output document checks passed{}.",
                 document_scope(&styles)
             );
         }
@@ -466,7 +490,7 @@ pub fn run() -> Result<ExitCode> {
             substyle,
             paper,
         } => {
-            let document = if document == "cv" { "cv" } else { "cl" };
+            let document = crate::styles::document(&workspace, &document)?;
             let selected = crate::styles::selection(
                 &workspace,
                 document,
@@ -538,6 +562,28 @@ pub fn run() -> Result<ExitCode> {
             output.as_deref(),
             paper.as_deref(),
         )?]),
+        Command::BuildOutput {
+            document,
+            locale,
+            pages,
+            style,
+            substyle,
+            application,
+            profile,
+            output,
+            paper,
+        } => print_outputs(vec![build_document(
+            &workspace,
+            crate::styles::document(&workspace, &document)?,
+            &locale,
+            pages,
+            style.as_deref(),
+            substyle.as_deref(),
+            application.as_deref(),
+            profile.as_deref(),
+            output.as_deref(),
+            paper.as_deref(),
+        )?]),
         Command::Compare {
             items,
             document,
@@ -553,7 +599,7 @@ pub fn run() -> Result<ExitCode> {
             let outcome = crate::compare::run(
                 &workspace,
                 &crate::compare::Request {
-                    document: if document == "cv" { "cv" } else { "cl" },
+                    document: crate::styles::document(&workspace, &document)?,
                     items,
                     locale,
                     pages,
@@ -684,7 +730,8 @@ fn doctor(workspace: &Workspace) -> Result<()> {
     Ok(())
 }
 
-/// Render one `build-cv` or `build-cl` request through the shared build path.
+/// Render one `build-output`, `build-cv` or `build-cl` request through the
+/// shared build path.
 #[allow(clippy::too_many_arguments)]
 fn build_document(
     workspace: &Workspace,

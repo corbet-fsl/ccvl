@@ -36,7 +36,7 @@
         "substyles": 3
       }
     },
-    "cover_letter": {
+    "cl": {
       "root": "outputs/cvl/cl",
       "default_style": "ledger",
       "slots": {

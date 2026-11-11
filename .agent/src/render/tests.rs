@@ -148,7 +148,7 @@ fn named_opportunity_workspace() -> (tempfile::TempDir, Workspace) {
             "format": "ccvl-workspace", "schema_version": 9,
             "documents": {
                 "cv": {"root": "outputs/cvl/cv", "default_style": "plain"},
-                "cover_letter": {"root": "outputs/cvl/cl", "default_style": "plain"}
+                "cl": {"root": "outputs/cvl/cl", "default_style": "plain"}
             }
         })
         .to_string(),

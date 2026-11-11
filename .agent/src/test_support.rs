@@ -147,7 +147,7 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
             "format": "ccvl-workspace", "schema_version": 9,
             "documents": {
                 "cv": {"root": "outputs/cvl/cv", "default_style": "probe"},
-                "cover_letter": {"root": "outputs/cvl/cl", "default_style": "probe"}
+                "cl": {"root": "outputs/cvl/cl", "default_style": "probe"}
             }
         })
         .to_string(),

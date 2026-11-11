@@ -616,11 +616,7 @@ fn viewer_hint(layout: Layout, columns: usize) -> String {
 }
 
 pub fn run(workspace: &Workspace, request: &Request) -> Result<Outcome> {
-    ensure!(
-        matches!(request.document, "cv" | "cl"),
-        "unknown document: {}",
-        request.document
-    );
+    crate::styles::document(workspace, request.document)?;
     ensure!(
         request.items.len() >= 2,
         "a comparison needs at least two items; {ITEM_FORMS}"
@@ -827,10 +823,10 @@ fn describe_rows(rows: &[u32]) -> String {
 
 impl std::fmt::Display for Outcome {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let document = if self.document == "cv" {
-            "CV"
-        } else {
-            "cover-letter"
+        let document = match self.document {
+            "cv" => "CV",
+            "cl" => "cover-letter",
+            other => other,
         };
         writeln!(
             formatter,

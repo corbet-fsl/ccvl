@@ -428,7 +428,7 @@ fn summary_counsel_notes_allowed_thin_and_tolerated_spill() {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(
         directory.path().join("ccvl.json"),
-        "{\"documents\":{\"cv\":{\"root\":\"outputs/cvl/cv\"},\"cover_letter\":{\"root\":\"outputs/cvl/cl\"}}}",
+        "{\"documents\":{\"cv\":{\"root\":\"outputs/cvl/cv\"},\"cl\":{\"root\":\"outputs/cvl/cl\"}}}",
     )
     .unwrap();
     std::fs::create_dir_all(directory.path().join("outputs/cvl/cv/ledger")).unwrap();
@@ -604,7 +604,7 @@ fn summary_counsel_uses_shared_wording_and_leaf_exceptions_like_typst() {
     std::fs::write(
         root.join("ccvl.json"),
         json!({"documents": {
-            "cv": {"root": "outputs/cvl/cv"}, "cover_letter": {"root": "outputs/cvl/cl"}
+            "cv": {"root": "outputs/cvl/cv"}, "cl": {"root": "outputs/cvl/cl"}
         }})
         .to_string(),
     )

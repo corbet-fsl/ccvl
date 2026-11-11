@@ -37,14 +37,13 @@
     message: "wording.source must be " + repr(expected) + "; sharing is scoped to the same document, style and locale",
   )
   let shared = toml(read(style-root + "/content/" + language + "/" + country + "/wording.toml"))
+  let manifest = json(read("/ccvl.json"))
   assert(
-    shared.keys() == ("cv",) or shared.keys() == ("cl",),
-    message: "shared wording must contain only [cv] or [cl]; nested sources and cross-document content are forbidden",
+    shared.len() == 1 and shared.keys().first() in manifest.documents,
+    message: "shared wording must contain only one document table such as [cv] or [cl]; nested sources and cross-document content are forbidden",
   )
   let document = shared.keys().first()
-  let manifest = json(read("/ccvl.json"))
-  let key = if document == "cv" { "cv" } else { "cover_letter" }
-  let root = "/" + manifest.documents.at(key).root.trim("/") + "/"
+  let root = "/" + manifest.documents.at(document).root.trim("/") + "/"
   assert(path.starts-with(root), message: "shared wording table must match its owning document root")
   let relative = path.slice(root.len()).split("/")
   assert(relative.len() == 5, message: "wording references require a registered document/style/substyle/locale leaf")

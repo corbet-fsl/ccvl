@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use crate::application;
-use crate::application::{cl_leaves, cv_leaves};
 use crate::format;
 use crate::measure;
 use crate::pdf;
@@ -69,22 +68,19 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         manifest.get("workspace_groups") == Some(&expected_groups),
         "ccvl.json: workspace groups differ from the paths this runtime was built with"
     );
-    let documents = manifest
-        .get("documents")
-        .and_then(Value::as_object)
-        .context("ccvl.json has no documents")?;
-    ensure!(
-        documents.len() == 2,
-        "ccvl.json must declare CV and cover-letter discovery"
-    );
-    for (key, document, root) in [
-        ("cv", "cv", crate::layout::OUTPUTS_CV),
-        ("cover_letter", "cl", crate::layout::OUTPUTS_CL),
-    ] {
+    let documents = styles::documents(workspace)?;
+    for required in styles::APPLICATION_DOCUMENTS {
         ensure!(
-            documents.get(key).and_then(|value| value.get("root"))
+            documents.contains(&required),
+            "ccvl.json must declare the {required} document"
+        );
+    }
+    for document in &documents {
+        let root = styles::layout_root(document).context("document without a layout root")?;
+        ensure!(
+            manifest.pointer(&format!("/documents/{document}/root"))
                 == Some(&Value::String(root.to_owned())),
-            "ccvl.json: {key} must use its document root"
+            "ccvl.json: documents.{document}.root must be its workspace_groups.outputs.{document} folder {root}"
         );
         styles::default_style(workspace, document)?;
     }
@@ -96,10 +92,7 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         crate::layout::readme(crate::layout::OPPORTUNITIES_ROOT),
         ".agent/schemas/review-result.schema.json".to_owned(),
     ];
-    for leaf in cv_leaves(workspace)?
-        .into_iter()
-        .chain(cl_leaves(workspace)?)
-    {
+    for leaf in styles::StyleFilter::all().document_leaves(workspace)? {
         required.push(workspace.relative(&leaf.content())?.display().to_string());
         required.push(workspace.relative(&leaf.strings())?.display().to_string());
         required.push(workspace.relative(&leaf.adapter())?.display().to_string());
@@ -212,11 +205,11 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
     Ok(())
 }
 
-/// Validate the style registries below the cv/cl discovery roots: family
+/// Validate the style registries below every document root: family
 /// identity, supported locales, page presets, one knob delta per designed
 /// substyle, and the manifest's style and substyle slot counts.
 fn validate_styles(workspace: &Workspace) -> Result<()> {
-    for document in ["cv", "cl"] {
+    for document in styles::documents(workspace)? {
         styles::leaves(workspace, document)?;
         styles::validate_slots(workspace, document)?;
         for definition in styles::definitions(workspace, document)? {
@@ -446,7 +439,7 @@ fn validate_frozen_letter_contract(cl: &Value) -> Result<()> {
 /// Document styles never vendor the measurement program or reintroduce local
 /// measurement builders; `ctypst` owns those semantics.
 fn validate_measurement_ownership(workspace: &Workspace) -> Result<()> {
-    let violations = crate::ownership::violations(&workspace.path(crate::layout::OUTPUTS_CVL))?;
+    let violations = crate::ownership::violations(&workspace.path(crate::layout::OUTPUTS_ROOT))?;
     ensure!(
         violations.is_empty(),
         "reintroduced measurement code: {}",
@@ -503,6 +496,10 @@ fn render_and_verify(
     let profile = workspace.read_toml_value(crate::layout::INPUTS_PROFILE)?;
     let temporary = TempDir::new()?;
     let compiler = Compiler::new(workspace)?;
+    let roots = styles::documents(workspace)?
+        .into_iter()
+        .map(|document| Ok((document, styles::root(workspace, document)?)))
+        .collect::<Result<Vec<_>>>()?;
     let mut checked_pdfs = Vec::new();
     for leaf in styles.document_leaves(workspace)? {
         let showcase = crate::render::cvl_spec(workspace, &leaf, leaf.default_pages)?;
@@ -559,7 +556,7 @@ fn render_and_verify(
                     &format!("{} is not byte-reproducible", spec.name),
                     true,
                 )?;
-                require_document_isolation(workspace, &observed, &leaf)?;
+                require_document_isolation(workspace, &observed, &leaf, &roots)?;
                 if is_default {
                     require_semantic_pdf_match(
                         &first,
@@ -612,35 +609,40 @@ fn render_and_verify(
 }
 
 /// A document renders from its own tree: a CV build never reads the letter
-/// styles and a letter build never reads the CV styles, so a broken, missing
-/// or private opposite document cannot change it.
+/// styles, a letter build never reads the CV styles and no output reads
+/// another document's styles, so a broken, missing or private other document
+/// cannot change it.
 fn require_document_isolation(
     workspace: &Workspace,
     observed: &Workspace,
     leaf: &styles::StyleLeaf,
+    roots: &[(&str, PathBuf)],
 ) -> Result<()> {
-    let opposite = if leaf.document == "cv" { "cl" } else { "cv" };
-    let root = styles::root(workspace, opposite)?;
-    let reads = observed
-        .observed_inputs()
-        .into_iter()
-        .filter(|path| path.starts_with(&root))
-        .map(|path| {
-            workspace.relative(&path).map_or_else(
-                |_| path.display().to_string(),
-                |path| path.display().to_string(),
-            )
-        })
-        .collect::<Vec<_>>();
-    ensure!(
-        reads.is_empty(),
-        "{} {}/{}/{} reads the {opposite} document tree: {}",
-        leaf.document,
-        leaf.style,
-        leaf.substyle,
-        leaf.locale,
-        reads.join(", ")
-    );
+    let inputs = observed.observed_inputs();
+    for (other, root) in roots {
+        if *other == leaf.document {
+            continue;
+        }
+        let reads = inputs
+            .iter()
+            .filter(|path| path.starts_with(root))
+            .map(|path| {
+                workspace.relative(path).map_or_else(
+                    |_| path.display().to_string(),
+                    |path| path.display().to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        ensure!(
+            reads.is_empty(),
+            "{} {}/{}/{} reads the {other} document tree: {}",
+            leaf.document,
+            leaf.style,
+            leaf.substyle,
+            leaf.locale,
+            reads.join(", ")
+        );
+    }
     Ok(())
 }
 

@@ -140,10 +140,7 @@ pub fn validate_all(workspace: &Workspace) -> Result<()> {
         ".agent/scaffolds/opportunity/application.toml",
         false,
     )?;
-    for leaf in cv_leaves(workspace)?
-        .into_iter()
-        .chain(cl_leaves(workspace)?)
-    {
+    for leaf in crate::styles::StyleFilter::all().document_leaves(workspace)? {
         let record = crate::content::read_record(workspace, leaf.content())?;
         let relative = workspace.relative(&leaf.content())?.display().to_string();
         validate_document_record(workspace, &record, &relative, true, leaf.document)?;
@@ -252,6 +249,8 @@ pub fn validate_record(
 
 /// Validate shared record metadata and only the requested document's rules.
 /// Full records and workspace checks still validate every enabled document.
+/// A generic output document has its own small record; see
+/// [`validate_output_record`].
 pub fn validate_document_record(
     workspace: &Workspace,
     application: &Value,
@@ -259,16 +258,80 @@ pub fn validate_document_record(
     require_text: bool,
     document: &str,
 ) -> Result<()> {
-    ensure!(
-        matches!(document, "cv" | "cl"),
-        "unknown document: {document}"
-    );
+    if !crate::styles::APPLICATION_DOCUMENTS.contains(&document) {
+        crate::styles::document(workspace, document)?;
+        return validate_output_record(workspace, application, location, document);
+    }
     validate_record_scope(
         workspace,
         application,
         location,
         require_text,
         Some(document),
+    )
+}
+
+/// The record of a generic output document such as a flyer: the shared
+/// version fields, `options.language`, the optional `options.pages` and the
+/// document's own `<document>_style`, `_substyle` and `_paper` selections, and
+/// its `[<document>]` content table. It has no job, recipient or application
+/// envelope; those belong to the CV and cover letter of an opportunity.
+fn validate_output_record(
+    workspace: &Workspace,
+    record: &Value,
+    location: &str,
+    document: &str,
+) -> Result<()> {
+    let object = object_at(record, "")?;
+    ensure_no_unknown(
+        object,
+        &["schema_version", "revision", "options", "lint", document],
+        location,
+    )?;
+    crate::lint::validate_record_lint(record, location)?;
+    ensure!(
+        u64_at(record, "/schema_version")? == RECORD_VERSION,
+        "{location}: unsupported record schema version"
+    );
+    u64_at(record, "/revision")?;
+    let options = object_at(record, "/options")?;
+    let selections = ["style", "substyle", "paper"].map(|suffix| format!("{document}_{suffix}"));
+    let mut allowed = vec!["language", "pages"];
+    allowed.extend(selections.iter().map(String::as_str));
+    ensure_no_unknown(options, &allowed, location)?;
+    let language = options
+        .get("language")
+        .and_then(Value::as_str)
+        .with_context(|| format!("{location}.options.language is missing"))?;
+    ensure!(
+        crate::styles::normalize_locale(language)? == language,
+        "{location}.options.language: expected canonical language-country"
+    );
+    let selection = crate::styles::record_selection(workspace, document, record, location)?;
+    let style = crate::styles::definition(workspace, document, &selection.style)?;
+    crate::paper::select(
+        style.paper.as_ref(),
+        language,
+        crate::paper::record_choice(record, document)?,
+    )?;
+    if let Some(pages) = options.get("pages") {
+        let pages = usize::try_from(
+            pages
+                .as_u64()
+                .with_context(|| format!("{location}.options.pages must be a page count"))?,
+        )?;
+        ensure!(
+            style.pages.contains(&pages),
+            "{location}.options.pages: unsupported by {document} style {}",
+            selection.style
+        );
+    }
+    let content = object_at(record, &format!("/{document}"))
+        .with_context(|| format!("{location}: missing [{document}] table"))?;
+    validate_content_fields(
+        content,
+        &crate::styles::contract(workspace, document, &selection.style)?,
+        location,
     )
 }
 

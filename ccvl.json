@@ -47,7 +47,7 @@
         "substyles": 5
       }
     },
-    "cover_letter": {
+    "cl": {
       "root": "outputs/cvl/cl",
       "default_style": "harvard",
       "slots": {

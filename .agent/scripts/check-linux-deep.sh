@@ -152,15 +152,9 @@ render_suite() {
   local document style substyle locale pages record tracked require_image filename
   while IFS=$'\t' read -r document style substyle locale pages record tracked require_image; do
     filename="$document-$style-$substyle-$locale-$pages.pdf"
-    if [[ "$document" == cv ]]; then
-      "$binary" build-cv "$locale" "$pages" --style "$style" --substyle "$substyle" \
-        --application "$record" --profile inputs/profile.toml \
-        --output "$destination/$filename" >/dev/null
-    else
-      "$binary" build-cl "$locale" --pages "$pages" --style "$style" --substyle "$substyle" \
-        --application "$record" --profile inputs/profile.toml \
-        --output "$destination/$filename" >/dev/null
-    fi
+    "$binary" build-output "$document" "$locale" --pages "$pages" --style "$style" \
+      --substyle "$substyle" --application "$record" --profile inputs/profile.toml \
+      --output "$destination/$filename" >/dev/null
   done < "$validation_dir/documents.tsv"
 }
 
@@ -204,4 +198,4 @@ while IFS=$'\t' read -r document style substyle locale pages page; do
   fi
 done < "$validation_dir/shared.tsv"
 
-printf 'Rust, data, font, PDF, reproducibility, CV, and cover-letter checks passed.\n'
+printf 'Rust, data, font, PDF, reproducibility, CV, cover-letter, and output document checks passed.\n'

@@ -31,6 +31,22 @@ fn style_substyle_and_page_arguments_remain_independent() {
     assert!(
         matches!(cl.command, Command::BuildCl { pages: Some(2), style: Some(style), substyle: Some(substyle), .. } if style == "postcard" && substyle == "standard")
     );
+    let output = Args::try_parse_from([
+        "ccvl",
+        "build-output",
+        "flyers",
+        "de-ch",
+        "--pages",
+        "1",
+        "--style",
+        "scaffold",
+        "--paper",
+        "a4",
+    ])
+    .unwrap();
+    assert!(
+        matches!(output.command, Command::BuildOutput { document, locale, pages: Some(1), style: Some(style), substyle: None, paper: Some(paper), .. } if document == "flyers" && locale == "de-ch" && style == "scaffold" && paper == "a4")
+    );
 }
 
 #[test]
@@ -49,7 +65,8 @@ fn explain_style_accepts_document_locale_and_scoped_selection() {
     assert!(
         matches!(args.command, Command::ExplainStyle { document, locale, style: Some(style), substyle: Some(substyle), .. } if document == "cl" && locale == "en-ch" && style == "harvard" && substyle == "frame")
     );
-    assert!(Args::try_parse_from(["ccvl", "explain-style", "resume", "en-ch"]).is_err());
+    // Any document name parses; the workspace manifest decides which exist.
+    assert!(Args::try_parse_from(["ccvl", "explain-style", "flyers", "en-ch"]).is_ok());
 }
 
 #[test]
@@ -227,7 +244,6 @@ fn compare_takes_two_or_more_items_and_global_options() {
         &["ccvl", "compare", "harvard/d-plus"][..],
         &["ccvl", "compare"],
         &["ccvl", "compare", "a", "b", "--layout", "grid"],
-        &["ccvl", "compare", "a", "b", "--doc", "resume"],
     ] {
         assert!(Args::try_parse_from(invalid).is_err(), "{invalid:?}");
     }

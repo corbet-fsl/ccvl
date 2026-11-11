@@ -153,7 +153,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
         );
     }
     for root in crate::layout::outermost(&[
-        crate::layout::OUTPUTS_CVL,
+        crate::layout::OUTPUTS_ROOT,
         crate::layout::INPUTS_ASSETS,
         ".agent/typst",
     ]) {

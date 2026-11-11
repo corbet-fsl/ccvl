@@ -56,7 +56,8 @@ fn embed_engine_package(root: &Path) {
 }
 
 /// Generate `layout.rs`: every path of the `workspace_groups` table in
-/// `ccvl.json` as a constant named `<GROUP>_<KEY>`, plus the table itself, so
+/// `ccvl.json` as a constant named `<GROUP>_<KEY>`, each group's entries as
+/// `<GROUP>_GROUP`, plus the table itself, so
 /// the manifest is the single source of truth for workspace paths and the
 /// binary never has to read it to find them.
 fn embed_layout(root: &Path) {
@@ -71,13 +72,22 @@ fn embed_layout(root: &Path) {
         let entries = entries
             .as_object()
             .unwrap_or_else(|| panic!("workspace_groups.{group} must be a table"));
+        let mut table = String::new();
         for (key, value) in entries {
             let value = value
                 .as_str()
                 .unwrap_or_else(|| panic!("workspace_groups.{group}.{key} must be a string"));
             let name = format!("{group}_{key}").to_uppercase().replace('-', "_");
             writeln!(source, "pub const {name}: &str = {value:?};").unwrap();
+            write!(table, "({key:?}, {name}), ").unwrap();
         }
+        let name = format!("{group}_group").to_uppercase().replace('-', "_");
+        writeln!(
+            source,
+            "/// Every `(key, path)` entry of `workspace_groups.{group}`.\n\
+             pub const {name}: &[(&str, &str)] = &[{table}];"
+        )
+        .unwrap();
     }
     let table = serde_json::to_string(groups).unwrap();
     writeln!(

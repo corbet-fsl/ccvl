@@ -20,6 +20,28 @@ use crate::workspace::Workspace;
 pub enum DocumentKind {
     Cv,
     CoverLetter,
+    /// A generic output document such as a flyer: no application mechanics.
+    Output,
+}
+
+impl DocumentKind {
+    #[must_use]
+    pub fn of(document: &str) -> Self {
+        match document {
+            "cv" => Self::Cv,
+            "cl" => Self::CoverLetter,
+            _ => Self::Output,
+        }
+    }
+
+    /// The opportunity file name prefix; only application documents have one.
+    fn prefix(self) -> &'static str {
+        match self {
+            Self::Cv => "CV",
+            Self::CoverLetter => "CL",
+            Self::Output => unreachable!("opportunities build only CVs and cover letters"),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -278,10 +300,11 @@ pub fn cl_spec(
     )
 }
 
-/// The spec `build-cv` and `build-cl` render for one leaf. The application
-/// defaults to the leaf's own content and the profile to `inputs/profile.toml`.
-/// Explicit `pages` win, then the record's `options.pages` (CV) or
-/// `options.cl_pages` (letter), then the leaf's default preset.
+/// The spec `build-output` (and `build-cv`/`build-cl`) render for one leaf.
+/// The application defaults to the leaf's own content and the profile to
+/// `inputs/profile.toml`. Explicit `pages` win, then the record's
+/// `options.cl_pages` (letter) or `options.pages` (every other document),
+/// then the leaf's default preset.
 pub fn build_spec(
     workspace: &Workspace,
     leaf: &StyleLeaf,
@@ -294,10 +317,10 @@ pub fn build_spec(
     let application =
         workspace.existing_inside(application.map_or_else(|| leaf.content(), Path::to_path_buf))?;
     let record = crate::content::read_record(workspace, &application)?;
-    let key = if leaf.document == "cv" {
-        "/options/pages"
-    } else {
+    let key = if leaf.document == "cl" {
         "/options/cl_pages"
+    } else {
+        "/options/pages"
     };
     let pages = pages
         .or(record
@@ -385,11 +408,7 @@ pub fn document_spec(
             "{} {}/{}/{} {pages}p",
             leaf.document, leaf.style, leaf.substyle, leaf.locale
         ),
-        kind: if leaf.document == "cv" {
-            DocumentKind::Cv
-        } else {
-            DocumentKind::CoverLetter
-        },
+        kind: DocumentKind::of(leaf.document),
         source: leaf.adapter(),
         output: output.map_or_else(
             || leaf.output_for_paper(pages, selected_paper.map(|(id, _)| id)),
@@ -440,12 +459,10 @@ pub(crate) fn style_inputs(
     Ok(inputs)
 }
 
+/// Every page preset of every document leaf.
 pub fn cvl_specs(workspace: &Workspace) -> Result<Vec<DocumentSpec>> {
     let mut specs = Vec::new();
-    for leaf in styles::leaves(workspace, "cv")?
-        .into_iter()
-        .chain(styles::leaves(workspace, "cl")?)
-    {
+    for leaf in styles::StyleFilter::all().document_leaves(workspace)? {
         for pages in &leaf.pages {
             specs.push(cvl_spec(workspace, &leaf, *pages)?);
         }
@@ -463,10 +480,7 @@ pub fn render_cvl(workspace: &Workspace) -> Result<Vec<PathBuf>> {
 
 pub fn list_documents(workspace: &Workspace) -> Result<Value> {
     let mut entries = Vec::new();
-    for leaf in styles::leaves(workspace, "cv")?
-        .into_iter()
-        .chain(styles::leaves(workspace, "cl")?)
-    {
+    for leaf in styles::StyleFilter::all().document_leaves(workspace)? {
         for pages in &leaf.pages {
             let spec = cvl_spec(workspace, &leaf, *pages)?;
             entries.push(serde_json::json!({
@@ -565,11 +579,7 @@ fn opportunity_filename(
     kind: DocumentKind,
 ) -> Result<String> {
     let stem = opportunity_file_stem(workspace, organisation, position)?;
-    let prefix = match kind {
-        DocumentKind::Cv => "CV",
-        DocumentKind::CoverLetter => "CL",
-    };
-    Ok(format!("{prefix}_{stem}"))
+    Ok(format!("{}_{stem}", kind.prefix()))
 }
 
 /// Previous interim scheme: kind-first names with hyphens inside segments
@@ -592,11 +602,7 @@ fn previous_kind_first_filename(
         joined_key(organisation, '-'),
         joined_key(position, '-')
     );
-    let prefix = match kind {
-        DocumentKind::Cv => "CV",
-        DocumentKind::CoverLetter => "CL",
-    };
-    Ok(format!("{prefix}_{stem}"))
+    Ok(format!("{}_{stem}", kind.prefix()))
 }
 
 pub fn opportunity_specs(
@@ -704,15 +710,15 @@ pub fn render_opportunity(
         .context("record has no parent")?
         .to_path_buf();
     let stem = opportunity_file_stem(workspace, organisation, position)?;
-    let previous = ["cv", "cl"]
+    let previous = styles::APPLICATION_DOCUMENTS
         .iter()
         .map(|document| {
-            let kind = if *document == "cv" {
-                DocumentKind::Cv
-            } else {
-                DocumentKind::CoverLetter
-            };
-            previous_kind_first_filename(workspace, organisation, position, kind)
+            previous_kind_first_filename(
+                workspace,
+                organisation,
+                position,
+                DocumentKind::of(document),
+            )
         })
         .collect::<Result<Vec<_>>>()?;
     guard_opportunity_output_paths(workspace, &parent, &stem, &previous)?;
