@@ -39,6 +39,20 @@ precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
 SPDX-License-Identifier = "FSL-1.1-ALv2"
 
+# Workspace data roots: whatever a workspace adds below them is personal
+# content by default, so a private downstream needs no annotation of its own.
+# The README annotation below still applies to the READMEs inside.
+[[annotations]]
+path = [
+  "inputs/assets/**",
+  "inputs/interviews/**",
+  "inputs/library/**",
+  "opportunities/*/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
+SPDX-License-Identifier = "LicenseRef-CCVL-Personal-Content"
+
 [[annotations]]
 path = [
   ".agent/docs/**",
