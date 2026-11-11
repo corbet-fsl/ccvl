@@ -13,6 +13,7 @@ implement.
 .agent/
 └── kanban.toml                status list, CareerVector defaults
 opportunities/
+├── kanban.toml                optional; this workspace's own status list
 └── <organisation-key>/
     ├── contacts.toml          optional; the organisation, its people, touchpoints
     └── <position-key>/        optional; an organisation may have no positions
@@ -22,8 +23,11 @@ opportunities/
 ## Application status list
 
 `.agent/kanban.toml` defines phases, statuses and follow-up reminders
-for every position of the workspace. ccvl ships the CareerVector v4 defaults;
-people adapt their own list in CareerVector. Numeric ids
+for every position of the workspace. ccvl ships the CareerVector v4 defaults.
+A workspace that needs its own list puts a complete file with the same schema
+at `opportunities/kanban.toml`; when present it replaces the defaults as a
+whole (no merging by id), so the list a workspace uses is always one file.
+People can also adapt their list in CareerVector and export it there. Numeric ids
 and field semantics are identical to CareerVector so a workspace can be
 exchanged 1:1. Each phase and status also carries a readable `key`, which is
 what positions reference.

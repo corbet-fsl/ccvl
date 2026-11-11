@@ -48,8 +48,7 @@ path = [
   ".github/SECURITY.md",
   "README.md",
   "outputs/cvl/**/README.md",
-  "inputs/README.md",
-  "inputs/interviews/**/README.md",
+  "inputs/**/README.md",
   "outputs/README.md",
   "opportunities/README.md",
 ]

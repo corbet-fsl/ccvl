@@ -23,7 +23,8 @@
       "path": "opportunities/<organisation-key>/<position-key>",
       "record": "application.toml",
       "pdfs": "pdfs",
-      "typst": "typst"
+      "typst": "typst",
+      "kanban": "opportunities/kanban.toml"
     }
   },
   "documents": {
