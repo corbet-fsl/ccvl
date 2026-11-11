@@ -34,11 +34,11 @@ fn manifest_accepts_ci_metadata_and_rejects_legacy_roots() {
         fs::write(path, "CI metadata fixture").unwrap();
     }
     validate_manifest(&workspace).unwrap();
-    let legacy = temporary.path().join(".claude");
+    let legacy = temporary.path().join(".agents");
     fs::create_dir(&legacy).unwrap();
     fs::write(legacy.join("settings.json"), "{}").unwrap();
     let error = validate_manifest(&workspace).unwrap_err().to_string();
-    assert!(error.contains("legacy workspace path must be removed: .claude"));
+    assert!(error.contains("legacy workspace path must be removed: .agents"));
 }
 
 /// Replace one TOML value at a JSON-pointer-like path, returning the original text.

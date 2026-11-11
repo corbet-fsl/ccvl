@@ -37,9 +37,9 @@ it installs missing CI packages (`file`, Poppler, QPDF, `jq`, ShellCheck), CI's
 pinned actionlint, and the precompiled runtime matching the checkout through
 `bash ./ccvl setup`. When the engine source has no matching release yet, it
 says so and leaves the explicit developer build, `bash ./ccvl setup
---from-source`, to the session. In Claude Code on the web, call it from the
+--from-source`, to the session. In a cloud session, call it from the
 environment's setup script, e.g. `bash <repository>/.agent/scripts/web-session-setup.sh`.
-Agent configuration stays in `.agent/`; `check` rejects a `.claude/` directory.
+Agent configuration stays in `.agent/`.
 
 ## Line measurement
 

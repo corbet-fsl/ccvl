@@ -119,7 +119,6 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
     }
     for legacy in [
         ".agents",
-        ".claude",
         ".vscode",
         ".zed",
         ".agent/scaffolds/opportunity/application.json",

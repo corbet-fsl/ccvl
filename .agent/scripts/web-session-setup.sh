@@ -2,9 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Julian Y. Richard Corbet
 # SPDX-License-Identifier: FSL-1.1-ALv2
 
-# Cloud session setup (e.g. the Claude Code on the web environment setup
-# script): install the matching ccvl runtime and the tools the checks and CI
-# use. Idempotent; a ready container finishes in about a second.
+# Cloud session setup: install the matching ccvl runtime and the tools the
+# checks and CI use. Idempotent; a ready container finishes in about a second.
 set -euo pipefail
 
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
