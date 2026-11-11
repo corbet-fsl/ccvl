@@ -17,6 +17,7 @@ fn main() {
     let identity = runtime_source::fingerprint(&root).expect("runtime inputs must be readable");
     println!("cargo:rustc-env=CCVL_RUNTIME_ID={identity}");
     embed_engine_package(&root);
+    embed_layout(&root);
 }
 
 /// Generate `engine_package.rs`: the package spec from its `typst.toml` and
@@ -52,4 +53,39 @@ fn embed_engine_package(root: &Path) {
     source.push_str("];\n");
     let output = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     std::fs::write(output.join("engine_package.rs"), source).unwrap();
+}
+
+/// Generate `layout.rs`: every path of the `workspace_groups` table in
+/// `ccvl.json` as a constant named `<GROUP>_<KEY>`, plus the table itself, so
+/// the manifest is the single source of truth for workspace paths and the
+/// binary never has to read it to find them.
+fn embed_layout(root: &Path) {
+    let text = std::fs::read_to_string(root.join("ccvl.json")).expect("ccvl.json must exist");
+    let manifest: serde_json::Value = serde_json::from_str(&text).expect("ccvl.json must be JSON");
+    let groups = manifest
+        .get("workspace_groups")
+        .and_then(serde_json::Value::as_object)
+        .expect("ccvl.json needs a workspace_groups table");
+    let mut source = String::new();
+    for (group, entries) in groups {
+        let entries = entries
+            .as_object()
+            .unwrap_or_else(|| panic!("workspace_groups.{group} must be a table"));
+        for (key, value) in entries {
+            let value = value
+                .as_str()
+                .unwrap_or_else(|| panic!("workspace_groups.{group}.{key} must be a string"));
+            let name = format!("{group}_{key}").to_uppercase().replace('-', "_");
+            writeln!(source, "pub const {name}: &str = {value:?};").unwrap();
+        }
+    }
+    let table = serde_json::to_string(groups).unwrap();
+    writeln!(
+        source,
+        "/// The `workspace_groups` table this binary was built from."
+    )
+    .unwrap();
+    writeln!(source, "pub const GROUPS_JSON: &str = {table:?};").unwrap();
+    let output = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    std::fs::write(output.join("layout.rs"), source).unwrap();
 }

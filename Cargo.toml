@@ -64,6 +64,7 @@ cnice = { git = "https://git.corbet.ch/corbet-libre/cnice.git", rev = "decad9624
 ctypst = { git = "https://git.corbet.ch/corbet-fsl/ctypst.git", rev = "e0f166f2e8f25159be08d11fc3cefd429e6528cd" }
 
 [build-dependencies]
+serde_json = "1.0"
 sha2 = "0.10"
 
 # No [profile] table: the fleet profile is the only profile in this manifest.

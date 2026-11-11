@@ -151,11 +151,12 @@ identity must be resolved explicitly before publication.
 
 ## Source identity and setup
 
-The build embeds a SHA-256 identity over `Cargo.toml`, `Cargo.lock`,
-`rust-toolchain.toml`, `.agent/build.rs`, the sorted Rust source files in
-`.agent/src/` and `.agent/core/src/`, and the engine Typst package files
-(`*.typ`, `*.toml` and `*.json` directly in `.agent/typst/`), which the binary
-embeds. Each input contributes its relative path and SHA-256 digest; the
+The build embeds a SHA-256 identity over `Cargo.toml`,
+`.agent/core/Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
+`.agent/build.rs`, `ccvl.json` (whose workspace paths the binary embeds), the
+sorted Rust source files in `.agent/src/` and `.agent/core/src/`, and the
+engine Typst package files (`*.typ`, `*.toml` and `*.json` directly in
+`.agent/typst/`), which the binary embeds. Each input contributes its relative path and SHA-256 digest; the
 sources sort by byte order of their relative paths.
 The Rust, Bash, and PowerShell implementations must produce the same value;
 native CI tests enforce this agreement.

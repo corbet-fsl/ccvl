@@ -143,9 +143,9 @@ pub fn validate_style(
     style: &str,
     require_ready: bool,
 ) -> Result<Assessment> {
-    let document = load_plan(workspace, &workspace.path("interview/stations.toml"))?;
+    let document = load_plan(workspace, &workspace.path(crate::layout::INPUTS_STATIONS))?;
     let contract = crate::styles::contract(workspace, "cv", style)?;
-    let assessment = assess_with_contract(&document, "interview/stations.toml", &contract)?;
+    let assessment = assess_with_contract(&document, crate::layout::INPUTS_STATIONS, &contract)?;
     if require_ready && !assessment.ready() {
         bail!(
             "{}. Run ccvl profile-status and continue the profile interview",

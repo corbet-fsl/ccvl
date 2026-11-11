@@ -12,6 +12,7 @@ function Get-SourceFingerprint {
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot "Cargo.lock")
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot "rust-toolchain.toml")
         Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot ".agent/build.rs")
+        Get-Item -ErrorAction Stop -LiteralPath (Join-Path $RepoRoot "ccvl.json")
     )
     # Rust sources and the embedded engine Typst package, sorted by the byte
     # order of their relative paths like runtime_source.rs.

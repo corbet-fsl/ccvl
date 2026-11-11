@@ -154,7 +154,7 @@ fn independent_renderer_owns_custom_paper_geometry_and_settings() {
     write(
         root,
         "ccvl.json",
-        r#"{"format":"ccvl-workspace","schema_version":8,"documents":{"cv":{"root":"cvl/cv","default_style":"orbit"}}}"#,
+        r#"{"format":"ccvl-workspace","schema_version":9,"documents":{"cv":{"root":"cvl/cv","default_style":"orbit"}}}"#,
     );
     for source in [".agent/typst/document-settings.json", "cvl/profile.toml"] {
         write(

@@ -110,7 +110,7 @@ enum Command {
     },
     /// Check station coverage and MECE ownership.
     ProfileStatus {
-        #[arg(default_value = "interview/stations.toml")]
+        #[arg(default_value = crate::layout::INPUTS_STATIONS)]
         plan: PathBuf,
         #[arg(long)]
         verify_sources: bool,

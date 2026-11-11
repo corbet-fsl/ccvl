@@ -187,7 +187,7 @@ pub fn validate_all(workspace: &Workspace) -> Result<()> {
 pub fn validate_profiles(workspace: &Workspace) -> Result<()> {
     for relative in [
         ".agent/scaffolds/interview/profile.toml",
-        "cvl/profile.toml",
+        crate::layout::INPUTS_PROFILE,
     ] {
         let profile = read_toml_value(&workspace.path(relative))?;
         validate_profile(&profile, relative)?;
@@ -228,7 +228,7 @@ fn validate_profile(profile: &Value, location: &str) -> Result<()> {
 pub fn validate_station_files(workspace: &Workspace) -> Result<()> {
     for relative in [
         ".agent/scaffolds/interview/stations.toml",
-        "interview/stations.toml",
+        crate::layout::INPUTS_STATIONS,
     ] {
         let stations = read_toml_value(&workspace.path(relative))?;
         ensure!(

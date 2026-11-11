@@ -139,7 +139,7 @@ fn named_opportunity_workspace() -> (tempfile::TempDir, Workspace) {
     write(
         "ccvl.json",
         &serde_json::json!({
-            "format": "ccvl-workspace", "schema_version": 8,
+            "format": "ccvl-workspace", "schema_version": 9,
             "documents": {
                 "cv": {"root": "cvl/cv", "default_style": "plain"},
                 "cover_letter": {"root": "cvl/cl", "default_style": "plain"}

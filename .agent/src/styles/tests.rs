@@ -79,7 +79,7 @@ fn independent_workspace() -> (tempfile::TempDir, Workspace) {
     let fixture = crate::test_support::fixture_root();
     let original = crate::test_support::repository();
     let manifest = json!({
-        "format": "ccvl-workspace", "schema_version": 8,
+        "format": "ccvl-workspace", "schema_version": 9,
         "documents": {
             "cv": {"root": "cvl/cv", "default_style": "orbit", "slots": {"styles": 1, "substyles": 1}},
             "cover_letter": {"root": "cvl/cl", "default_style": "postcard", "slots": {"styles": 1, "substyles": 1}}

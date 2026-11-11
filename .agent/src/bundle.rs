@@ -51,7 +51,7 @@ pub fn export(
     for directory in [
         workspace.path(".agent/typst/fonts"),
         leaf.style_dir().to_path_buf(),
-        workspace.path(format!("cvl/shared/{}", leaf.style)),
+        workspace.path(format!("{}/{}", crate::layout::OUTPUTS_SHARED, leaf.style)),
         workspace.path("LICENSES"),
     ] {
         if directory.is_dir() {

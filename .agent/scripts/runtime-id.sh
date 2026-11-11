@@ -31,7 +31,7 @@ source_fingerprint() (
   [[ -d "$repo_root/.agent/src" && -d "$repo_root/.agent/core/src" && -d "$repo_root/.agent/typst" ]] || return 1
   local checksum
   {
-    for relative in Cargo.toml .agent/core/Cargo.toml Cargo.lock rust-toolchain.toml .agent/build.rs; do
+    for relative in Cargo.toml .agent/core/Cargo.toml Cargo.lock rust-toolchain.toml .agent/build.rs ccvl.json; do
       checksum="$(hash_file "$repo_root/$relative")" || return 1
       printf '%s %s\n' "$relative" "$checksum"
     done

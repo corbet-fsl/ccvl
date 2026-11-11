@@ -121,16 +121,15 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
         );
     }
     let allowed = BTreeSet::from([
-        PathBuf::from("interview/README.md"),
-        PathBuf::from("interview/imports/README.md"),
-        PathBuf::from("interview/stations.toml"),
-        PathBuf::from("opportunities/README.md"),
+        PathBuf::from(crate::layout::readme(crate::layout::INPUTS_INTERVIEWS)),
+        Path::new(crate::layout::INPUTS_INTERVIEWS).join("imports/README.md"),
+        PathBuf::from(crate::layout::INPUTS_STATIONS),
+        PathBuf::from(crate::layout::readme(crate::layout::OPPORTUNITIES_ROOT)),
     ]);
     for path in public_files(workspace)? {
         let relative = workspace.relative(&path)?;
-        let in_workspace_data = relative.components().next().is_some_and(|part| {
-            part.as_os_str() == "opportunities" || part.as_os_str() == "interview"
-        });
+        let in_workspace_data = relative.starts_with(crate::layout::OPPORTUNITIES_ROOT)
+            || relative.starts_with(crate::layout::INPUTS_INTERVIEWS);
         ensure!(
             !in_workspace_data || allowed.contains(&relative),
             "public workspace contains private interview or opportunity data: {}",
@@ -153,7 +152,11 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
             relative.display()
         );
     }
-    for root in ["cvl", ".agent/typst"] {
+    for root in crate::layout::outermost(&[
+        crate::layout::OUTPUTS_CVL,
+        crate::layout::INPUTS_ASSETS,
+        ".agent/typst",
+    ]) {
         for entry in WalkDir::new(workspace.path(root)) {
             let entry = entry?;
             if entry.file_type().is_file() {
@@ -186,7 +189,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
                     || part.as_os_str() == "pdfs"
                     || part.as_os_str() == "pdf"
             });
-        if relative != Path::new("cvl/assets/signature.png") && !is_font && !is_output {
+        if relative != Path::new(crate::layout::INPUTS_SIGNATURE) && !is_font && !is_output {
             let text = String::from_utf8_lossy(&fs::read(&path)?).into_owned();
             ensure!(
                 !secret.is_match(&text),

@@ -232,7 +232,7 @@ pub fn cvl_spec_with_paper(
         leaf,
         pages,
         &leaf.content(),
-        &workspace.path("cvl/profile.toml"),
+        &workspace.path(crate::layout::INPUTS_PROFILE),
         None,
         paper,
     )
@@ -306,9 +306,10 @@ pub fn build_spec(
             .map(usize::try_from)
             .transpose()?)
         .unwrap_or(leaf.default_pages);
-    let profile = workspace.existing_inside(
-        profile.map_or_else(|| PathBuf::from("cvl/profile.toml"), Path::to_path_buf),
-    )?;
+    let profile = workspace.existing_inside(profile.map_or_else(
+        || PathBuf::from(crate::layout::INPUTS_PROFILE),
+        Path::to_path_buf,
+    ))?;
     document_spec(
         workspace,
         leaf,
@@ -491,7 +492,7 @@ fn sanitized_token(name: &str, separator: char) -> Result<String> {
     let token = name
         .split_whitespace()
         .last()
-        .context("cvl/profile.toml: name is empty")?;
+        .with_context(|| format!("{}: name is empty", crate::layout::INPUTS_PROFILE))?;
     let mut sanitized = String::with_capacity(token.len());
     let mut last_was_separator = true;
     for ch in token.chars() {
@@ -508,7 +509,8 @@ fn sanitized_token(name: &str, separator: char) -> Result<String> {
     }
     ensure!(
         !sanitized.is_empty(),
-        "cvl/profile.toml: final name token has no filename-safe characters"
+        "{}: final name token has no filename-safe characters",
+        crate::layout::INPUTS_PROFILE
     );
     Ok(sanitized)
 }
@@ -538,11 +540,11 @@ fn opportunity_file_stem(
     organisation: &str,
     position: &str,
 ) -> Result<String> {
-    let profile = workspace.read_toml_value("cvl/profile.toml")?;
+    let profile = workspace.read_toml_value(crate::layout::INPUTS_PROFILE)?;
     let name = profile
         .get("name")
         .and_then(Value::as_str)
-        .context("cvl/profile.toml: name is missing")?;
+        .with_context(|| format!("{}: name is missing", crate::layout::INPUTS_PROFILE))?;
     Ok(format!(
         "{}_{}_{}",
         applicant_filename_token(name)?,
@@ -579,11 +581,11 @@ fn previous_kind_first_filename(
     position: &str,
     kind: DocumentKind,
 ) -> Result<String> {
-    let profile = workspace.read_toml_value("cvl/profile.toml")?;
+    let profile = workspace.read_toml_value(crate::layout::INPUTS_PROFILE)?;
     let name = profile
         .get("name")
         .and_then(Value::as_str)
-        .context("cvl/profile.toml: name is missing")?;
+        .with_context(|| format!("{}: name is missing", crate::layout::INPUTS_PROFILE))?;
     let stem = format!(
         "{}_{}_{}",
         sanitized_token(name, '-')?,
@@ -629,7 +631,7 @@ pub fn opportunity_specs(
         .parent()
         .context("application record has no parent")?;
     let pdfs = parent.join("pdfs");
-    let profile = workspace.path("cvl/profile.toml");
+    let profile = workspace.path(crate::layout::INPUTS_PROFILE);
     let cv_name = opportunity_filename(workspace, organisation, position, DocumentKind::Cv)?;
     let mut specs = vec![cv_spec(
         workspace,

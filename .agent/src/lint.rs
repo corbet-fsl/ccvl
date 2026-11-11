@@ -19,7 +19,7 @@ use serde_json::{Map, Value};
 
 use crate::workspace::Workspace;
 
-pub const PLAN: &str = "interview/stations.toml";
+pub const PLAN: &str = crate::layout::INPUTS_STATIONS;
 
 /// The plan tables whose entries the CV source marks, with their marker name.
 const ENTRY_TABLES: [(&str, &str); 3] = [
@@ -967,7 +967,7 @@ pub fn not_true_hints(
         return Ok(Vec::new());
     }
     let mut hints = plan_term_hints(&rules, document, plan_source, plan_location);
-    let cvl = workspace.path("cvl");
+    let cvl = workspace.path(crate::layout::OUTPUTS_CVL);
     let mut wording = Vec::new();
     if cvl.is_dir() {
         for entry in walkdir::WalkDir::new(&cvl)

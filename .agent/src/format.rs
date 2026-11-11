@@ -7,7 +7,7 @@ use crate::workspace::Workspace;
 
 pub fn format_typst(workspace: &Workspace, check: bool) -> Result<()> {
     let mut changed = Vec::new();
-    for root in ["cvl", ".agent/typst"] {
+    for root in [crate::layout::OUTPUTS_CVL, ".agent/typst"] {
         for entry in WalkDir::new(workspace.path(root)) {
             let entry = entry?;
             if !entry.file_type().is_file()

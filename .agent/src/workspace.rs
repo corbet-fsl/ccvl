@@ -199,7 +199,11 @@ mod tests {
     #[test]
     fn three_user_data_groups_are_top_level_and_documented() {
         let workspace = repository();
-        for name in ["interview", "cvl", "opportunities"] {
+        for name in [
+            crate::layout::INPUTS_INTERVIEWS,
+            crate::layout::OUTPUTS_CVL,
+            crate::layout::OPPORTUNITIES_ROOT,
+        ] {
             assert!(workspace.path(name).is_dir());
             assert!(workspace.path(name).join("README.md").is_file());
         }
@@ -210,15 +214,15 @@ mod tests {
         let repository = repository();
         let manifest_text = fs::read_to_string(repository.path("ccvl.json")).unwrap();
         let workspace_groups = manifest_text.split_once("\"workspace_groups\"").unwrap().1;
-        let interview = workspace_groups.find("\"interview\"").unwrap();
-        let cvl = workspace_groups.find("\"cvl\"").unwrap();
+        let inputs = workspace_groups.find("\"inputs\"").unwrap();
+        let outputs = workspace_groups.find("\"outputs\"").unwrap();
         let opportunities = workspace_groups.find("\"opportunities\"").unwrap();
-        assert!(interview < cvl && cvl < opportunities);
+        assert!(inputs < outputs && outputs < opportunities);
 
         let manifest: Value = serde_json::from_str(&manifest_text).unwrap();
         let groups = manifest["workspace_groups"].as_object().unwrap();
-        assert_eq!(groups["interview"]["stations"], "interview/stations.toml");
-        assert_eq!(groups["cvl"]["profile"], "cvl/profile.toml");
+        assert_eq!(groups["inputs"]["stations"], crate::layout::INPUTS_STATIONS);
+        assert_eq!(groups["inputs"]["profile"], crate::layout::INPUTS_PROFILE);
         assert_eq!(
             groups["opportunities"]["path"],
             "opportunities/<organisation-key>/<position-key>"

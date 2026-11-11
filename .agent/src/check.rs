@@ -61,17 +61,13 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
     let manifest = workspace.read_json("ccvl.json")?;
     ensure!(
         manifest.get("format") == Some(&Value::String("ccvl-workspace".to_owned()))
-            && manifest.get("schema_version") == Some(&Value::from(8)),
+            && manifest.get("schema_version") == Some(&Value::from(9)),
         "ccvl.json: unsupported workspace format or schema version"
     );
-    let expected_groups = json!({
-        "interview": {"root": "interview", "stations": "interview/stations.toml"},
-        "cvl": {"root": "cvl", "profile": "cvl/profile.toml", "cv": "cvl/cv", "cl": "cvl/cl"},
-        "opportunities": {"root": "opportunities", "path": "opportunities/<organisation-key>/<position-key>", "record": "application.toml", "pdfs": "pdfs", "typst": "typst"}
-    });
+    let expected_groups: Value = serde_json::from_str(crate::layout::GROUPS_JSON)?;
     ensure!(
         manifest.get("workspace_groups") == Some(&expected_groups),
-        "ccvl.json: workspace groups must be interview, cvl, and keyed opportunities"
+        "ccvl.json: workspace groups differ from the paths this runtime was built with"
     );
     let documents = manifest
         .get("documents")
@@ -81,20 +77,23 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         documents.len() == 2,
         "ccvl.json must declare CV and cover-letter discovery"
     );
-    for (key, document) in [("cv", "cv"), ("cover_letter", "cl")] {
+    for (key, document, root) in [
+        ("cv", "cv", crate::layout::OUTPUTS_CV),
+        ("cover_letter", "cl", crate::layout::OUTPUTS_CL),
+    ] {
         ensure!(
             documents.get(key).and_then(|value| value.get("root"))
-                == Some(&Value::String(format!("cvl/{document}"))),
+                == Some(&Value::String(root.to_owned())),
             "ccvl.json: {key} must use its document root"
         );
         styles::default_style(workspace, document)?;
     }
     let mut required = vec![
-        "cvl/profile.toml".to_owned(),
-        "interview/stations.toml".to_owned(),
-        "cvl/README.md".to_owned(),
-        "interview/README.md".to_owned(),
-        "opportunities/README.md".to_owned(),
+        crate::layout::INPUTS_PROFILE.to_owned(),
+        crate::layout::INPUTS_STATIONS.to_owned(),
+        crate::layout::readme(crate::layout::OUTPUTS_CVL),
+        crate::layout::readme(crate::layout::INPUTS_INTERVIEWS),
+        crate::layout::readme(crate::layout::OPPORTUNITIES_ROOT),
         ".agent/schemas/review-result.schema.json".to_owned(),
     ];
     for leaf in cv_leaves(workspace)?
@@ -165,18 +164,10 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         }
         ensure!(
             [
-                ".agent",
-                ".ci",
-                ".crow",
-                ".git",
-                ".github",
-                "LICENSES",
-                "cvl",
-                "interview",
-                "opportunities",
-                "target",
+                ".agent", ".ci", ".crow", ".git", ".github", "LICENSES", "target"
             ]
-            .contains(&name.as_ref()),
+            .contains(&name.as_ref())
+                || crate::layout::data_roots().contains(name.as_ref()),
             "unexpected top-level directory: {name}"
         );
     }
@@ -455,7 +446,7 @@ fn validate_frozen_letter_contract(cl: &Value) -> Result<()> {
 /// Document styles never vendor the measurement program or reintroduce local
 /// measurement builders; `ctypst` owns those semantics.
 fn validate_measurement_ownership(workspace: &Workspace) -> Result<()> {
-    let violations = crate::ownership::violations(&workspace.path("cvl"))?;
+    let violations = crate::ownership::violations(&workspace.path(crate::layout::OUTPUTS_CVL))?;
     ensure!(
         violations.is_empty(),
         "reintroduced measurement code: {}",
@@ -509,7 +500,7 @@ fn render_and_verify(
     artifacts: Option<&Path>,
     styles: &StyleFilter,
 ) -> Result<()> {
-    let profile = workspace.read_toml_value("cvl/profile.toml")?;
+    let profile = workspace.read_toml_value(crate::layout::INPUTS_PROFILE)?;
     let temporary = TempDir::new()?;
     let compiler = Compiler::new(workspace)?;
     let mut checked_pdfs = Vec::new();
@@ -685,7 +676,7 @@ fn require_portable_copies(
     .with_context(|| format!("cannot export the portable bundle of {}", spec.name))?;
     let project = bundle.with_record(
         crate::content::read_record(workspace, leaf.content())?,
-        workspace.read_toml_value("cvl/profile.toml")?,
+        workspace.read_toml_value(crate::layout::INPUTS_PROFILE)?,
     )?;
     let renderer = ccvl_core::render::StyleRenderer::new(&project.bundle)?;
     let portable = renderer

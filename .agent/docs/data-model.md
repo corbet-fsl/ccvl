@@ -10,6 +10,17 @@ working record.
 | `cvl/` | candidate document | approved general CV/CL sources, public render profile, generated showcase | raw evidence or one vacancy's tailoring |
 | `opportunities/` | organisation key + position key | posting, company/role research, tailored CV/CL, preparation, submission, outcome | duplicated general profile or a separate market map |
 
+## Workspace paths
+
+The `workspace_groups` table of `ccvl.json` is the single source of truth for
+where workspace data lives: `inputs` (profile, interviews, station plan,
+assets), `outputs` (the CV and cover-letter documents) and `opportunities`.
+The build embeds every entry as a constant named after its group and key
+(`INPUTS_PROFILE`, `OUTPUTS_CV`, ...), so code refers to a path by its role and
+never by a literal. Moving a folder is a manifest edit plus the move itself;
+`check` rejects a manifest that differs from the paths the runtime was built
+with.
+
 ## Candidate evidence
 
 The private working profile in `interview/profile.md` gives every candidate

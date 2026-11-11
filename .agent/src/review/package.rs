@@ -67,8 +67,10 @@ pub(super) fn validate_spec(workspace: &Workspace, spec: &Spec) -> Result<()> {
             .and_then(|name| name.to_str())
             .unwrap_or_default();
         ensure!(
-            (relative.starts_with("cvl/") && ["content.toml", "wording.toml"].contains(&name))
-                || (relative.starts_with("opportunities/") && name == "application.toml"),
+            (Path::new(&relative).starts_with(crate::layout::OUTPUTS_CVL)
+                && ["content.toml", "wording.toml"].contains(&name))
+                || (Path::new(&relative).starts_with(crate::layout::OPPORTUNITIES_ROOT)
+                    && name == crate::layout::OPPORTUNITIES_RECORD),
             "editable paths must be canonical document content or wording: {relative}"
         );
         ensure!(

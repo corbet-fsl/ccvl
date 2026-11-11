@@ -1,16 +1,19 @@
 {
   "format": "ccvl-workspace",
-  "schema_version": 8,
+  "schema_version": 9,
   "workspace_groups": {
-    "interview": {
-      "root": "interview",
-      "stations": "interview/stations.toml"
-    },
-    "cvl": {
-      "root": "cvl",
+    "inputs": {
       "profile": "cvl/profile.toml",
+      "interviews": "interview",
+      "stations": "interview/stations.toml",
+      "assets": "cvl/assets",
+      "signature": "cvl/assets/signature.png"
+    },
+    "outputs": {
+      "cvl": "cvl",
       "cv": "cvl/cv",
-      "cl": "cvl/cl"
+      "cl": "cvl/cl",
+      "shared": "cvl/shared"
     },
     "opportunities": {
       "root": "opportunities",
