@@ -15,7 +15,9 @@ bash ./ccvl check
 On Windows, run `.\ccvl.cmd check` instead.
 
 It verifies the workspace manifest, schemas, application/profile data, declared
-skills and evaluation cases, local Markdown links, Typst formatting, Git
+skills and evaluation cases, local Markdown links and the workspace paths that
+documents name in inline code (`inputs/…`, `outputs/…`, `.agent/…`; generated
+caches, private interview files and the consulted library excepted), Typst formatting, Git
 whitespace, and bundled font integrity. It discovers **36 registered PDF variants /
 84 pages** from the Harvard and Cluster style definitions.
 Each leaf record selects its showcase paper; checks also render its other

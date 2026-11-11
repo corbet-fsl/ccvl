@@ -212,12 +212,45 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
 
 fn validate_markdown_links(workspace: &Workspace) -> Result<()> {
     let link = Regex::new(r"!?\[[^]]*\]\(([^)]+)\)")?;
+    let code_path = Regex::new(r"`((?:inputs|outputs|\.agent)/[^`\s]*)`")?;
     let mut errors = Vec::new();
+    let mut missing_paths = Vec::new();
+    // Partial copies such as test fixtures hold only some documents and their
+    // targets; only a complete Git checkout vouches for every path it names.
+    let complete = workspace.path(".git").exists();
     for path in public_files(workspace)?
         .into_iter()
         .filter(|path| path.extension().is_some_and(|ext| ext == "md"))
     {
         let text = fs::read_to_string(&path)?;
+        // Workspace paths named in inline code must exist, read in the same
+        // pass as the links. They resolve against the nearest enclosing
+        // workspace (a fixture has its own ccvl.json) or the repository.
+        let base = path
+            .ancestors()
+            .skip(1)
+            .find(|directory| directory.join("ccvl.json").is_file())
+            .unwrap_or(workspace.root());
+        // Library material is consulted, never rendered, and may quote paths of
+        // other times or repositories, so it is not judged.
+        let judged = complete
+            && !workspace
+                .relative(&path)?
+                .starts_with(crate::layout::INPUTS_LIBRARY);
+        for captures in code_path.captures_iter(&text).filter(|_| judged) {
+            let named = &captures[1];
+            let relative = named.trim_end_matches('/');
+            if documented_path_is_exempt(named)
+                || base.join(relative).exists()
+                || workspace.path(relative).exists()
+            {
+                continue;
+            }
+            missing_paths.push(format!(
+                "{} -> {named}",
+                workspace.relative(&path)?.display()
+            ));
+        }
         for captures in link.captures_iter(&text) {
             let mut destination = captures[1].trim().to_owned();
             if destination.starts_with('<') && destination.contains('>') {
@@ -259,7 +292,22 @@ fn validate_markdown_links(workspace: &Workspace) -> Result<()> {
     if !errors.is_empty() {
         bail!("broken local Markdown links: {}", errors.join(", "));
     }
+    ensure!(
+        missing_paths.is_empty(),
+        "documented workspace paths do not exist: {}",
+        missing_paths.join(", ")
+    );
     Ok(())
+}
+
+/// Placeholders, generated caches and private interview files that only a
+/// personal workspace holds are documented without existing in this tree.
+fn documented_path_is_exempt(named: &str) -> bool {
+    named.contains(['<', '>', '{', '}', '*', '$', '[', ']', '|'])
+        || named.contains("...")
+        || named.contains('…')
+        || named.starts_with(".agent/cache/")
+        || Path::new(named).starts_with(crate::layout::INPUTS_INTERVIEWS)
 }
 
 fn is_review_json(path: &Path) -> bool {
