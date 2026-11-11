@@ -340,6 +340,13 @@ passes. Define it in style code, where absolute paths resolve in the
 workspace. The cletter facade is the package's `correspondence` module:
 `#import correspondence: opening, salutation`.
 
+Styles and records name workspace assets by logical name, relative to the
+assets folder of `ccvl.json` (`inputs.assets`), never by a workspace path:
+`asset("images/signatures/signature.png")` resolves it against the `assets`
+input that every build passes. A record field such as the onepager's
+`portrait_path = "images/avatars/portrait.png"` follows the same rule; a value
+that starts with `/` is still accepted as a workspace path.
+
 Modules that are not entry points, such as `src/cv.typ`, `layout.typ` and the
 shared family code, import each other by relative paths
 (`#import "../../../shared/harvard/style.typ": document-style`) and read

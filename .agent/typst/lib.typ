@@ -2,6 +2,7 @@
 // Inside a package, absolute paths name package files, so the loaders read
 // workspace files through a `read` function that the calling style defines.
 #import "application.typ": load-application, merge-wording
+#import "asset.typ": asset
 #import "application-date.typ": format-application-date
 #import "document.typ": apply-document-settings, merge-settings
 #import "document-settings.typ": validate-settings

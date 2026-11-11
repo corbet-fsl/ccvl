@@ -75,6 +75,12 @@ mod tests {
     }
 
     #[test]
+    fn typst_asset_default_matches_the_manifest() {
+        let source = include_str!("../typst/asset.typ");
+        assert!(source.contains(&format!("default: \"/{INPUTS_ASSETS}\"")));
+    }
+
+    #[test]
     fn nested_roots_are_walked_once() {
         assert_eq!(
             outermost(&[

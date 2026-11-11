@@ -3,8 +3,8 @@
 // skills, experience, education and project sections. Content that a leaf
 // leaves empty is simply not rendered, so an empty scaffold prints the header.
 #import "@local/ccvl:1.0.0": (
-  apply-document-settings, load-application, load-profile, measured-content-line, measured-paragraph, paper-settings,
-  resolve-paper, wrap-exact,
+  apply-document-settings, asset, load-application, load-profile, measured-content-line, measured-paragraph,
+  paper-settings, resolve-paper, wrap-exact,
 )
 
 // Engine helpers run inside the package; this reader resolves workspace paths here.
@@ -276,7 +276,7 @@
         column-gutter: gap,
         align: (left + top, left + top),
         text-column(column, summary-paragraph(column)),
-        image(portrait-path, width: portrait-width, height: height, fit: "cover", alt: profile.name),
+        image(asset(portrait-path), width: portrait-width, height: height, fit: "cover", alt: profile.name),
       )
     }
   })

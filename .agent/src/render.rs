@@ -434,6 +434,10 @@ pub(crate) fn style_inputs(
     let mut inputs = BTreeMap::from([
         ("application".to_owned(), application.to_owned()),
         ("profile".to_owned(), profile.to_owned()),
+        (
+            "assets".to_owned(),
+            format!("/{}", crate::layout::INPUTS_ASSETS),
+        ),
         ("locale".to_owned(), leaf.locale.clone()),
         ("pages".to_owned(), pages.to_string()),
         ("strings".to_owned(), workspace.typst_path(&leaf.strings())?),

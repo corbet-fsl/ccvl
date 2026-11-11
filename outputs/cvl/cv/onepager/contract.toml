@@ -1,6 +1,7 @@
 # Line counts are upper bounds: a leaf may leave any section empty.
 content_fields = ["headline", "location", "languages", "summary", "allow_thin", "experience", "experience_groups", "education", "projects", "skills", "portrait_path"]
-# A leaf may name a personal application photo (`portrait_path`), an external
+# A leaf may name a personal application photo (`portrait_path`, an asset name
+# such as "images/avatars/portrait.png" below inputs/assets/), an external
 # document input. The portable renderer accepts records and profiles but has no
 # candidate-binary asset input, so this style ships no portable bundle.
 # Workspace builds and resolved customization copies remain fully checked.

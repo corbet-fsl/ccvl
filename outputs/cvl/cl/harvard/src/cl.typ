@@ -1,6 +1,6 @@
 #import "@local/ccvl:1.0.0": (
-  correspondence, format-application-date, line-contract-mode, load-application, load-profile, measured-content-line,
-  measured-paragraph, paper-settings, resolve-paper,
+  asset, correspondence, format-application-date, line-contract-mode, load-application, load-profile,
+  measured-content-line, measured-paragraph, paper-settings, resolve-paper,
 )
 #import correspondence: closing as farewell-closing, opening, salutation, signature-image
 // Shared Harvard cover letter; inputs belong to the calling leaf.
@@ -196,7 +196,7 @@
     #closing
     #v(closing-before)
     // Bytes, so the path resolves in this project rather than inside the cink package.
-    #signature-image(read("/inputs/assets/images/signatures/signature.png", encoding: none), 31.5)
+    #signature-image(read(asset("images/signatures/signature.png"), encoding: none), 31.5)
     #v(closing-after)
     #profile.name
   ]
