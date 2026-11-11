@@ -16,7 +16,12 @@
       "cvl": "outputs/cvl",
       "cv": "outputs/cvl/cv",
       "cl": "outputs/cvl/cl",
-      "shared": "outputs/cvl/shared"
+      "shared": "outputs/cvl/shared",
+      "flyers": "outputs/flyers",
+      "web": "outputs/web",
+      "videos": "outputs/videos",
+      "presentations": "outputs/presentations",
+      "portfolios": "outputs/portfolios"
     },
     "opportunities": {
       "root": "opportunities",
@@ -42,6 +47,14 @@
       "slots": {
         "styles": 3,
         "substyles": 3
+      }
+    },
+    "flyers": {
+      "root": "outputs/flyers",
+      "default_style": "sketch",
+      "slots": {
+        "styles": 2,
+        "substyles": 2
       }
     }
   }

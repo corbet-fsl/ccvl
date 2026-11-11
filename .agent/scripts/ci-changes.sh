@@ -3,12 +3,14 @@
 # slow run: unknown paths, unusable ranges and other events select everything.
 #
 # Rust tests never read the showcase styles, shared families, profile or assets
-# under outputs/cvl/: they use the synthetic workspace in .agent/tests/fixtures, and the
+# under outputs/: they use the synthetic workspace in .agent/tests/fixtures, and the
 # real-data invariants they used to check (frozen contracts, leaf inventory,
 # tracked outputs, measurement ownership, document isolation, portable copies,
 # the station plan) are enforced by `ccvl check`, which the document job runs.
-# So outputs/cvl/ style, family, profile and asset changes select only the document
-# job. outputs/cvl/README.md and every path outside outputs/cvl/ that Rust tests still read
+# So style, family, profile and asset changes select only the document job; the
+# CV and cover-letter styles live in outputs/cvl/<cv|cl>/<style>/ and every other
+# output document's styles in outputs/<document>/<style>/.
+# outputs/cvl/README.md and every path outside outputs/ that Rust tests still read
 # (skills, scaffolds, schemas, fixtures, data-root READMEs, licenses bundled
 # by style exports, CI scripts) select the Rust job.
 #
@@ -19,7 +21,7 @@
 # Output lines:
 #   rust=true|false       the Rust job (format, tests, Clippy) must run
 #   documents=true|false  the document job must run
-#   styles=all|<doc>/<style> ...  styles whose documents the document job checks
+#   styles=all|<document>/<style> ...  styles whose documents the document job checks
 set -euo pipefail
 
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -40,12 +42,13 @@ add_style() {
 
 # A touched style that no longer exists (removed or renamed) changes the
 # inventory, so every style is checked; the engine rejects unknown filters.
+# ROOT is the document's folder: outputs/cvl/<cv|cl> or outputs/<document>.
 touch_style() {
-  local document="$1" style="$2"
-  if [[ -f "$repo_root/outputs/cvl/$document/$style/style.toml" ]]; then
+  local document="$1" style="$2" root="$3"
+  if [[ -f "$repo_root/$root/$style/style.toml" ]]; then
     add_style "$document/$style"
   else
-    select_everything "removed or renamed style outputs/cvl/$document/$style"
+    select_everything "removed or renamed style $root/$style"
   fi
 }
 
@@ -62,15 +65,21 @@ touch_family() {
   done
   while IFS= read -r file; do
     [[ -n "$file" ]] || continue
-    relative="${file#"$repo_root"/outputs/cvl/}"
+    relative="${file#"$repo_root"/outputs/}"
+    root=outputs
+    if [[ "$relative" == cvl/* ]]; then
+      relative="${relative#cvl/}"
+      root=outputs/cvl
+    fi
     document="${relative%%/*}"
     relative="${relative#*/}"
     style="${relative%%/*}"
-    if [[ "$relative" == */* && -f "$repo_root/outputs/cvl/$document/$style/style.toml" ]]; then
+    if [[ "$document" != shared && "$relative" == */* && \
+      -f "$repo_root/$root/$document/$style/style.toml" ]]; then
       add_style "$document/$style"
       found=true
     fi
-  done < <(grep -rlIF -- "shared/$family/" "$repo_root/outputs/cvl/cv" "$repo_root/outputs/cvl/cl" 2>/dev/null || true)
+  done < <(grep -rlIF -- "shared/$family/" "$repo_root/outputs" 2>/dev/null || true)
   [[ "$found" == true ]] || select_everything "unreferenced shared family outputs/cvl/shared/$family"
 }
 
@@ -101,7 +110,7 @@ classify_path() {
     outputs/cvl/cv/*/* | outputs/cvl/cl/*/*)
       document="${path#outputs/cvl/}"
       rest="${document#*/}"
-      touch_style "${document%%/*}" "${rest%%/*}" ;;
+      touch_style "${document%%/*}" "${rest%%/*}" "outputs/cvl/${document%%/*}" ;;
     outputs/cvl/shared/*/*)
       rest="${path#outputs/cvl/shared/}"
       touch_family "${rest%%/*}" ;;
@@ -111,6 +120,11 @@ classify_path() {
     inputs/profile.toml | inputs/assets/*) all_styles=true ;;
     # Any other cvl input could be a new data root: everything.
     outputs/cvl/*) select_everything "unclassified presentation input changed: $path" ;;
+    # The styles of every other output document: their documents only.
+    outputs/*/*/*)
+      document="${path#outputs/}"
+      rest="${document#*/}"
+      touch_style "${document%%/*}" "${rest%%/*}" "outputs/${document%%/*}" ;;
     # Read by Rust tests (README) and rendered into station-protocol CVs.
     inputs/interviews/stations.toml)
       rust=true

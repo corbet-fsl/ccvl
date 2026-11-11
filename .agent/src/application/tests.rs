@@ -617,7 +617,7 @@ fn style_leaves_cover_every_substyle_and_locale() {
     let (_directory, workspace) = crate::test_support::fixture_workspace();
     let mut expected_documents = 0;
     let mut expected_pages = 0;
-    for document in ["cv", "cl"] {
+    for document in crate::styles::documents(&workspace).unwrap() {
         let leaves = crate::styles::leaves(&workspace, document).unwrap();
         let mut expected = std::collections::BTreeSet::new();
         for definition in crate::styles::definitions(&workspace, document).unwrap() {
@@ -723,4 +723,59 @@ fn non_string_substyle_is_rejected() {
         error.contains("options/cl_substyle must be a substyle name"),
         "unexpected error: {error}"
     );
+}
+
+/// One change applied to a copy of a valid record.
+type RecordEdit = fn(&mut Value);
+
+#[test]
+fn output_records_keep_only_their_own_selection_and_content() {
+    let (_directory, workspace) = crate::test_support::fixture_workspace();
+    let leaf = crate::styles::leaves(&workspace, "flyers")
+        .unwrap()
+        .remove(0);
+    let record = crate::content::read_record(&workspace, leaf.content()).unwrap();
+    validate_document_record(&workspace, &record, "flyer", true, "flyers").unwrap();
+    let cases: [(RecordEdit, &str); 6] = [
+        (|record| record["job"] = json!({}), "unknown fields job"),
+        (
+            |record| record["options"]["cv_style"] = json!("ledger"),
+            "unknown fields cv_style",
+        ),
+        (
+            |record| record["flyers"]["headline"] = json!("x"),
+            "unknown fields headline",
+        ),
+        (
+            |record| record["options"]["pages"] = json!(2),
+            "unsupported by flyers style sketch",
+        ),
+        (
+            |record| record["options"]["flyers_paper"] = json!("a4"),
+            "fixed geometry",
+        ),
+        (
+            |record| {
+                record.as_object_mut().unwrap().remove("flyers");
+            },
+            "missing [flyers] table",
+        ),
+    ];
+    for (mutate, message) in cases {
+        let mut changed = record.clone();
+        mutate(&mut changed);
+        let error = format!(
+            "{:#}",
+            validate_document_record(&workspace, &changed, "flyer", true, "flyers").unwrap_err()
+        );
+        assert!(error.contains(message), "{message}: {error}");
+    }
+    // Opportunity records stay CV and cover-letter records.
+    let mut opportunity =
+        serde_json::to_value(crate::opportunity::blank_record(&workspace).unwrap()).unwrap();
+    opportunity["options"]["flyers_style"] = json!("sketch");
+    let error = validate_record(&workspace, &opportunity, "scaffold", false)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("unknown fields flyers_style"), "{error}");
 }

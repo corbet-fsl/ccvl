@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 include!(concat!(env!("OUT_DIR"), "/layout.rs"));
 
 /// Every workspace data path of the manifest.
-pub const DATA_PATHS: [&str; 13] = [
+pub const DATA_PATHS: [&str; 18] = [
     INPUTS_ROOT,
     INPUTS_LIBRARY,
     OUTPUTS_ROOT,
@@ -19,6 +19,11 @@ pub const DATA_PATHS: [&str; 13] = [
     OUTPUTS_CV,
     OUTPUTS_CL,
     OUTPUTS_SHARED,
+    OUTPUTS_FLYERS,
+    OUTPUTS_WEB,
+    OUTPUTS_VIDEOS,
+    OUTPUTS_PRESENTATIONS,
+    OUTPUTS_PORTFOLIOS,
     OPPORTUNITIES_ROOT,
 ];
 

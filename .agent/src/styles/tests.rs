@@ -749,7 +749,11 @@ fn style_filter_limits_document_enumeration_to_selected_styles() {
     let every = all.document_leaves(&workspace).unwrap();
     assert_eq!(
         every.len(),
-        leaves(&workspace, "cv").unwrap().len() + leaves(&workspace, "cl").unwrap().len()
+        documents(&workspace)
+            .unwrap()
+            .into_iter()
+            .map(|document| leaves(&workspace, document).unwrap().len())
+            .sum::<usize>()
     );
     let dirs = |leaves: &[StyleLeaf]| {
         leaves
@@ -1145,4 +1149,58 @@ fn list_styles_orders_the_default_designed_styles_and_empty_slots() {
     {
         assert!(!leaf.style.starts_with("slot-") && !leaf.substyle.starts_with("slot-"));
     }
+}
+
+#[test]
+fn documents_come_from_the_manifest_with_application_documents_first() {
+    let (_directory, workspace) = crate::test_support::fixture_workspace();
+    assert_eq!(documents(&workspace).unwrap(), ["cv", "cl", "flyers"]);
+    assert_eq!(document(&workspace, "flyers").unwrap(), "flyers");
+    let error = document(&workspace, "web").unwrap_err().to_string();
+    assert!(
+        error.contains("unknown document \"web\"; expected one of cv, cl, flyers"),
+        "{error}"
+    );
+    validate_slots(&workspace, "flyers").unwrap();
+    let leaves = leaves(&workspace, "flyers").unwrap();
+    assert_eq!(leaves.len(), 1);
+    let relative = |path: &Path| workspace.relative(path).unwrap();
+    assert_eq!(
+        relative(&leaves[0].adapter()),
+        Path::new("outputs/flyers/sketch/plain/en/ch/typst/flyers.typ")
+    );
+    // Every document but the CV names its default preset after itself.
+    assert_eq!(
+        relative(&leaves[0].output(1)),
+        Path::new("outputs/flyers/sketch/plain/en/ch/pdf/flyers.pdf")
+    );
+    let spec = render::cvl_spec(&workspace, &leaves[0], 1).unwrap();
+    assert_eq!(spec.kind, render::DocumentKind::Output);
+    let listed = list_styles(&workspace).unwrap();
+    assert_eq!(
+        listed["flyers"]["default"],
+        json!({"style": "sketch", "substyle": "plain"})
+    );
+    assert_eq!(listed["flyers"]["styles"][1]["status"], "empty");
+    let filter = StyleFilter::parse(&workspace, &["flyers/sketch", "flyers/slot-2"]).unwrap();
+    assert_eq!(filter.document_leaves(&workspace).unwrap().len(), 1);
+    assert!(
+        selection(&workspace, "flyers", Some("slot-2"), None)
+            .unwrap_err()
+            .to_string()
+            .contains("flyers slot-2 is an empty style slot")
+    );
+}
+
+#[test]
+fn a_document_needs_its_own_outputs_folder() {
+    let (_directory, workspace) = crate::test_support::fixture_workspace();
+    let mut manifest = workspace.read_json("ccvl.json").unwrap();
+    manifest["documents"]["resume"] = json!({"root": "outputs/resume", "default_style": "x"});
+    fs::write(workspace.path("ccvl.json"), manifest.to_string()).unwrap();
+    let error = documents(&workspace).unwrap_err().to_string();
+    assert!(
+        error.contains("document \"resume\" has no workspace_groups.outputs.resume folder"),
+        "{error}"
+    );
 }

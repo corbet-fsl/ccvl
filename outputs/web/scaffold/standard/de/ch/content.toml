@@ -1,0 +1,11 @@
+schema_version = 4
+revision = 0
+
+[options]
+language = "de-ch"
+pages = 1
+web_style = "scaffold"
+web_substyle = "standard"
+
+# Scaffold only: no web page fields defined yet.
+[web]

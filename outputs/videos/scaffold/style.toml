@@ -1,0 +1,21 @@
+# Video scaffold: prints only the approved profile header until a design is defined.
+id = "scaffold"
+api = 1
+documents = ["videos"]
+supports_locales = ["de-ch", "en-ch"]
+pages = [1]
+default_pages = 1
+substyles = ["standard", "slot-2", "slot-3", "slot-4", "slot-5"]
+empty_substyles = ["slot-2", "slot-3", "slot-4", "slot-5"]
+
+[paper.defaults]
+de-ch = "landscape-16-9"
+en-ch = "landscape-16-9"
+
+[paper.sizes.landscape-16-9]
+size_pt = [841.8898, 473.563]
+label = "16:9 landscape"
+
+# Renderer-owned: the scaffold sets this Typst paper name directly.
+[paper.sizes.landscape-16-9.settings.page]
+paper = "presentation-16-9"

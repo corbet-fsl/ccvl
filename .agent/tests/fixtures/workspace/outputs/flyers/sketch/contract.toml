@@ -1,0 +1,6 @@
+content_fields = ["tagline"]
+
+[pdf]
+size_pt = [297.6378, 419.5276]
+required_profile_fields = ["email"]
+minimum_text_chars = 10

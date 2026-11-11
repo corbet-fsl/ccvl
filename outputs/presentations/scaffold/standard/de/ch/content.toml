@@ -1,0 +1,11 @@
+schema_version = 4
+revision = 0
+
+[options]
+language = "de-ch"
+pages = 1
+presentations_style = "scaffold"
+presentations_substyle = "standard"
+
+# Scaffold only: no presentation fields defined yet.
+[presentations]

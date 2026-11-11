@@ -241,8 +241,9 @@ mod tests {
         let (_directory, workspace) = fixture_workspace();
         let compiler = render::Compiler::new(&workspace).unwrap();
         let specs = render::cvl_specs(&workspace).unwrap();
-        // ledger CV: 2 substyles × 2 locales × 3 presets; grid: 1; ledger letter: 2 × 2.
-        assert_eq!(specs.len(), 12 + 1 + 4);
+        // ledger CV: 2 substyles × 2 locales × 3 presets; grid: 1; ledger
+        // letter: 2 × 2; sketch flyer: 1.
+        assert_eq!(specs.len(), 12 + 1 + 4 + 1);
         for spec in specs {
             let document = compiler.compile(&workspace, &spec).unwrap();
             let metrics = measure::document_metrics(&workspace, &spec, &document).unwrap();
@@ -256,7 +257,7 @@ mod tests {
                 spec.name
             );
         }
-        for document in ["cv", "cl"] {
+        for document in styles::documents(&workspace).unwrap() {
             styles::validate_slots(&workspace, document).unwrap();
         }
     }

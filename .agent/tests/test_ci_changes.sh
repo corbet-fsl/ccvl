@@ -27,6 +27,10 @@ write outputs/cvl/cv/slot-4/style.toml 'empty = true'
 write outputs/cvl/shared/harvard/defaults.toml '[page]'
 write outputs/cvl/shared/modern/defaults.toml '[page]'
 write outputs/cvl/shared/orphan/defaults.toml '[page]'
+write outputs/cvl/shared/poster/defaults.toml '[page]'
+write outputs/flyers/scaffold/style.toml 'id = "scaffold"'
+write outputs/flyers/scaffold/layout.typ '#let defaults = toml("/outputs/cvl/shared/poster/defaults.toml")'
+write outputs/web/slot-2/style.toml 'empty = true'
 write README.md '# Fixture'
 
 fail() {
@@ -54,6 +58,13 @@ expect false true cv/slot-4 outputs/cvl/cv/slot-4/style.toml
 # Shared families serve their same-named and referencing styles.
 expect false true 'cl/harvard cv/cluster cv/harvard' outputs/cvl/shared/harvard/style.typ
 expect false true cv/modern outputs/cvl/shared/modern/defaults.toml
+# Other output documents select their own styles; families serve them too.
+expect false true flyers/scaffold outputs/flyers/scaffold/standard/en/ch/content.toml
+expect false true 'cv/modern flyers/scaffold web/slot-2' \
+  outputs/flyers/scaffold/layout.typ outputs/cvl/cv/modern/style.toml outputs/web/slot-2/style.toml
+expect false true flyers/scaffold outputs/cvl/shared/poster/defaults.toml
+expect true true all outputs/flyers/removed/standard/en/ch/content.toml
+expect true true all outputs/flyers/README.md outputs/README.md
 # An unreferenced family or a removed style changes the inventory: everything.
 expect true true all outputs/cvl/shared/orphan/defaults.toml
 expect true true all outputs/cvl/cv/removed/standard/en/ch/content.toml

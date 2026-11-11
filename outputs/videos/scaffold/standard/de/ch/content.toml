@@ -1,0 +1,11 @@
+schema_version = 4
+revision = 0
+
+[options]
+language = "de-ch"
+pages = 1
+videos_style = "scaffold"
+videos_substyle = "standard"
+
+# Scaffold only: no video fields defined yet.
+[videos]

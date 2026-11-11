@@ -1,0 +1,21 @@
+# Portfolio scaffold: prints only the approved profile header until a design is defined.
+id = "scaffold"
+api = 1
+documents = ["portfolios"]
+supports_locales = ["de-ch", "en-ch"]
+pages = [1]
+default_pages = 1
+substyles = ["standard", "slot-2", "slot-3", "slot-4", "slot-5"]
+empty_substyles = ["slot-2", "slot-3", "slot-4", "slot-5"]
+
+[paper.defaults]
+de-ch = "a4"
+en-ch = "a4"
+
+[paper.sizes.a4]
+size_pt = [595.2756, 841.8898]
+label = "A4"
+
+# Renderer-owned: the scaffold sets this Typst paper name directly.
+[paper.sizes.a4.settings.page]
+paper = "a4"

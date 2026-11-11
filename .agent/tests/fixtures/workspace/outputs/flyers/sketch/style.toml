@@ -1,0 +1,9 @@
+# Synthetic generic output document: one page, fixed geometry, no paper presets.
+id = "sketch"
+api = 1
+documents = ["flyers"]
+supports_locales = ["en-ch"]
+pages = [1]
+default_pages = 1
+substyles = ["plain", "slot-2"]
+empty_substyles = ["slot-2"]

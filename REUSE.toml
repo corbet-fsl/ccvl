@@ -61,9 +61,8 @@ path = [
   ".github/CONTRIBUTING.md",
   ".github/SECURITY.md",
   "README.md",
-  "outputs/cvl/**/README.md",
+  "outputs/**/README.md",
   "inputs/**/README.md",
-  "outputs/README.md",
   "opportunities/README.md",
 ]
 precedence = "override"
@@ -71,7 +70,7 @@ SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
 SPDX-License-Identifier = "CC-BY-4.0"
 
 [[annotations]]
-path = ["outputs/cvl/**/pdf/*.pdf", "outputs/cvl/**/preview/*.png"]
+path = ["outputs/**/pdf/*.pdf", "outputs/**/preview/*.png"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
 SPDX-License-Identifier = "LicenseRef-CCVL-Personal-Content"
@@ -83,6 +82,7 @@ path = [
   ".agent/docs/signature.md",
   "inputs/profile.toml",
   "outputs/cvl/*/*/*/*/*/content.toml",
+  "outputs/*/*/*/*/*/content.toml",
   "outputs/cvl/*/*/content/*/*/wording.toml",
   "outputs/cvl/cv/harvard/src/entries-*.typ",
   "outputs/cvl/cv/cluster/drafts/*.md",
@@ -123,6 +123,14 @@ path = [
   "outputs/cvl/*/*/*/*/*/typst/*.typ",
   "outputs/cvl/cv/harvard/src/cv.typ",
   "outputs/cvl/cl/harvard/src/cl.typ",
+  "outputs/*/*/style.toml",
+  "outputs/*/*/layout.typ",
+  "outputs/*/*/contract.toml",
+  "outputs/*/*/scaffold.toml",
+  "outputs/*/*/*/substyle.toml",
+  "outputs/*/*/*/*/*/strings.toml",
+  "outputs/*/*/*/*/*/layout.toml",
+  "outputs/*/*/*/*/*/typst/*.typ",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"

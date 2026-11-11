@@ -1,0 +1,5 @@
+id = "slot-2"
+api = 1
+documents = ["flyers"]
+empty = true
+substyles = ["slot-1", "slot-2"]

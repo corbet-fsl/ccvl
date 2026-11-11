@@ -1,0 +1,11 @@
+schema_version = 4
+revision = 0
+
+[options]
+language = "en-ch"
+pages = 1
+flyers_style = "sketch"
+flyers_substyle = "plain"
+
+[flyers]
+tagline = "Synthetic flyer for engine tests."

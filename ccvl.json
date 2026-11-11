@@ -16,7 +16,12 @@
       "cvl": "outputs/cvl",
       "cv": "outputs/cvl/cv",
       "cl": "outputs/cvl/cl",
-      "shared": "outputs/cvl/shared"
+      "shared": "outputs/cvl/shared",
+      "flyers": "outputs/flyers",
+      "web": "outputs/web",
+      "videos": "outputs/videos",
+      "presentations": "outputs/presentations",
+      "portfolios": "outputs/portfolios"
     },
     "opportunities": {
       "root": "opportunities",
@@ -50,6 +55,46 @@
     "cl": {
       "root": "outputs/cvl/cl",
       "default_style": "harvard",
+      "slots": {
+        "styles": 4,
+        "substyles": 5
+      }
+    },
+    "flyers": {
+      "root": "outputs/flyers",
+      "default_style": "scaffold",
+      "slots": {
+        "styles": 4,
+        "substyles": 5
+      }
+    },
+    "web": {
+      "root": "outputs/web",
+      "default_style": "scaffold",
+      "slots": {
+        "styles": 4,
+        "substyles": 5
+      }
+    },
+    "videos": {
+      "root": "outputs/videos",
+      "default_style": "scaffold",
+      "slots": {
+        "styles": 4,
+        "substyles": 5
+      }
+    },
+    "presentations": {
+      "root": "outputs/presentations",
+      "default_style": "scaffold",
+      "slots": {
+        "styles": 4,
+        "substyles": 5
+      }
+    },
+    "portfolios": {
+      "root": "outputs/portfolios",
+      "default_style": "scaffold",
       "slots": {
         "styles": 4,
         "substyles": 5

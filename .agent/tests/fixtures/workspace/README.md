@@ -13,6 +13,7 @@ a real person or reuses showcase wording; do not copy it into an application.
 | `outputs/cvl/cv/ledger` | Default CV: shared-family renderer, shared wording, two substyles, A4, the frozen station and summary contract |
 | `outputs/cvl/cv/grid` | Independent one-page CV with its own `layout.typ`; exportable as a portable bundle |
 | `outputs/cvl/cl/ledger` | Default letter: the frozen AIDA paragraph contract |
+| `outputs/flyers/sketch` | Generic output document: its own small record, fixed A6 geometry, one page |
 | `slot-<n>` | Empty style and substyle slots |
 
 The renderers emit fixed, contract-conforming line metrics instead of

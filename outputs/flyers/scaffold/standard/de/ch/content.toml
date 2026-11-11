@@ -1,0 +1,11 @@
+schema_version = 4
+revision = 0
+
+[options]
+language = "de-ch"
+pages = 1
+flyers_style = "scaffold"
+flyers_substyle = "standard"
+
+# Scaffold only: no flyer fields defined yet.
+[flyers]
