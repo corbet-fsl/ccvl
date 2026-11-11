@@ -24,15 +24,15 @@ fn explanation_preserves_precedence_and_reports_each_winning_source() {
     assert_eq!(compact["settings"]["header"]["after_pt"], 5.5);
     assert_eq!(
         compact["origins"]["/header/after_pt"],
-        "cvl/cv/ledger/compact/substyle.toml"
+        "outputs/cvl/cv/ledger/compact/substyle.toml"
     );
     assert_eq!(
         compact["origins"]["/paragraph/leading_em"],
-        "cvl/shared/ledger/defaults.toml"
+        "outputs/cvl/shared/ledger/defaults.toml"
     );
     assert_eq!(
         compact["origins"]["/page/paper"],
-        "cvl/cv/ledger/style.toml#paper.sizes.a4.settings"
+        "outputs/cvl/cv/ledger/style.toml#paper.sizes.a4.settings"
     );
     assert_eq!(compact["sources"].as_array().unwrap().len(), 4);
     let standard = resolve(
@@ -44,7 +44,7 @@ fn explanation_preserves_precedence_and_reports_each_winning_source() {
     assert_eq!(standard["settings"]["text"]["font"], "Archivo");
     assert_eq!(
         standard["origins"]["/page/paper"],
-        "cvl/cv/ledger/style.toml#paper.sizes.a4.settings"
+        "outputs/cvl/cv/ledger/style.toml#paper.sizes.a4.settings"
     );
     // An independent renderer is never assigned this schema or a guessed merge.
     let mut custom = selected(&workspace, "ledger", "primary", "en-ch");
@@ -166,7 +166,7 @@ fn invalid_overridden_input_still_names_its_source_file() {
     fs::create_dir_all(&leaf.dir).unwrap();
     leaf.defaults = Some(root.join("defaults.toml"));
     fs::copy(
-        original.path("cvl/shared/ledger/defaults.toml"),
+        original.path("outputs/cvl/shared/ledger/defaults.toml"),
         root.join("defaults.toml"),
     )
     .unwrap();

@@ -175,7 +175,7 @@ fn find_root(start: &Path) -> Option<PathBuf> {
 mod tests {
     use super::*;
 
-    /// The repository's own data roots, manifest and CI files; never `cvl/`
+    /// The repository's own data roots, manifest and CI files; never `outputs/cvl/`
     /// style content, whose outputs `check` verifies.
     fn repository() -> Workspace {
         Workspace::at(crate::test_support::repository()).unwrap()

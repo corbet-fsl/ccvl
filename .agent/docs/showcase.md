@@ -6,13 +6,13 @@ also an invitation to talk:
 
 | Language | CV | Cover letter |
 |---|---|---|
-| Deutsch | [four-page CV](../../cvl/cv/cluster/d-plus/de/ch/pdf/cv-4.pdf) | [open cover letter](../../cvl/cl/harvard/frame/de/ch/pdf/cl.pdf) |
-| English | [four-page CV](../../cvl/cv/cluster/d-plus/en/ch/pdf/cv-4.pdf) | [open cover letter](../../cvl/cl/harvard/frame/en/ch/pdf/cl.pdf) |
+| Deutsch | [four-page CV](../../outputs/cvl/cv/cluster/d-plus/de/ch/pdf/cv-4.pdf) | [open cover letter](../../outputs/cvl/cl/harvard/frame/de/ch/pdf/cl.pdf) |
+| English | [four-page CV](../../outputs/cvl/cv/cluster/d-plus/en/ch/pdf/cv-4.pdf) | [open cover letter](../../outputs/cvl/cl/harvard/frame/en/ch/pdf/cl.pdf) |
 
 The CV opens with one page grouped into finance, technology and consulting;
 the two- and three-page presets sit beside each four-page file. The same
 content also exists as a chronological Harvard CV, for example
-[D+](../../cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf), and as the `left-rule`
+[D+](../../outputs/cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf), and as the `left-rule`
 cover letter.
 
 This is Julian Corbet's personal showcase. You may view it and use it to

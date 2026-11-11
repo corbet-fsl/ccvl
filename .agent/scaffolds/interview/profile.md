@@ -5,7 +5,7 @@ last_reviewed: ""
 
 # Candidate working profile
 
-Copy this file to `interview/profile.md` in a private downstream repository.
+Copy this file to `inputs/interviews/profile.md` in a private downstream repository.
 Keep it informal and information-rich while interviewing. It is a private
 source of truth, not polished CV wording. Replace every instruction before
 using a claim in an application.

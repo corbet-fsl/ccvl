@@ -151,11 +151,11 @@ impl Downstream {
             &json!({
                 "schema_version": 1,
                 "upstream": {"remote": "upstream", "url": UPSTREAM_URL, "branch": "main"},
-                "allowed_paths": ["ccvl-downstream.json", "interview/"],
+                "allowed_paths": ["ccvl-downstream.json", "inputs/interviews/"],
             })
             .to_string(),
         );
-        downstream.write("interview/profile.md", "PRIVATE_SENTINEL\n");
+        downstream.write("inputs/interviews/profile.md", "PRIVATE_SENTINEL\n");
         downstream.git(&["add", "."]);
         downstream.git(&["commit", "--quiet", "-m", "private fixture"]);
         downstream.commit = downstream.rev_parse();
@@ -346,7 +346,7 @@ fn archive_checksum_and_extracted_source_changes_are_refused() {
     assert_eq!(trace, [] as [std::string::String; 0]);
     assert!(stderr(&output).contains("Source archive checksum mismatch."));
     fs::write(
-        fixture.extracted.join("interview/profile.md"),
+        fixture.extracted.join("inputs/interviews/profile.md"),
         "changed private source",
     )
     .unwrap();
@@ -367,7 +367,7 @@ fn archive_and_bundle_tree_disagreement_is_refused() {
     bytes[position..position + original.len()].copy_from_slice(b"ALTERED_TRANSPORT");
     fs::write(&fixture.archive, &bytes).unwrap();
     fs::write(
-        fixture.extracted.join("interview/profile.md"),
+        fixture.extracted.join("inputs/interviews/profile.md"),
         "ALTERED_TRANSPORT",
     )
     .unwrap();

@@ -10,7 +10,7 @@ referenced from any runbook).
 | Rule domain | Home | Must not duplicate into |
 |---|---|---|
 | Evidence, register, MECE, targeting, hyphen criteria | `editorial.md` | skills, contracts |
-| Letter geometry (paragraphs, lines, highlights) | `cvl/<style>/contract.toml` + `cover-letter.md` | skills, scaffolds |
+| Letter geometry (paragraphs, lines, highlights) | `outputs/cvl/<style>/contract.toml` + `cover-letter.md` | skills, scaffolds |
 | Review protocol, finding taxonomy, correction allowance | `review.md` | skills (route, do not restate) |
 | Skill run order, self-check, readiness | `skills/ccvl-apply/SKILL.md` | docs |
 | Locale mechanics (spelling, greetings, closings, dates) | cletter and family | ccvl docs, skills, code |

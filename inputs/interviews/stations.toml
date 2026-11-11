@@ -2,10 +2,10 @@ schema_version = 1
 updated = "2026-11-01"
 
 # The author's showcase record. Every fact mirrors the approved Harvard CV
-# (cvl/cv/harvard/src/entries-en.typ): one fact per role line and bullet.
+# (outputs/cvl/cv/harvard/src/entries-en.typ): one fact per role line and bullet.
 
 # Claims that are not true of the author. Every occurrence in application
-# wording or cvl/ sources is printed as a hint by ccvl check.
+# wording or outputs/cvl/ sources is printed as a hint by ccvl check.
 [[not_true]]
 term = "SAP"
 note = "No professional SAP or ERP experience; the own mini ERP of the hardware business is the only ERP work"
@@ -31,7 +31,7 @@ facts = [
   { id = "cenvion-2", text = "Developed RAG-based AI search across project and portfolio data; made internal knowledge searchable" },
   { id = "cenvion-3", text = "Built Excel project-finance models; analysed cash flows, returns and financing scenarios" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "swisscom"
@@ -49,7 +49,7 @@ facts = [
   { id = "swisscom-2", text = "Supported CHF 10m+ supplier negotiations; identified CHF 100k+ immediate savings potential" },
   { id = "swisscom-3", text = "Modelled cloud economics and 2× compute density under DC constraints; selected for the TOM workstream" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "airbus"
@@ -67,7 +67,7 @@ facts = [
   { id = "airbus-2", text = "Single case: quantified six-figure annual savings potential; triggered eight-figure multi-site investment" },
   { id = "airbus-3", text = "Tailored 0-to-1 AI pilot to three departments’ objectives; secured stakeholder buy-in with business case" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "covendit"
@@ -85,7 +85,7 @@ facts = [
   { id = "covendit-2", text = "Built AI-assisted longlisting before ChatGPT; automated target screening and cut research time by 80%" },
   { id = "covendit-3", text = "Advised PE clients on targets; won a retainer and received an Associate-level return offer" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "nexgen"
@@ -103,7 +103,7 @@ facts = [
   { id = "nexgen-2", text = "Diagnosed an ETL bottleneck for a client pitch; cut processing time by 99%, from 24 hours to 15 minutes" },
   { id = "nexgen-3", text = "Prepared regulatory/IT analysis for thought leadership and pitches; supported business development" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "consulting-venture"
@@ -121,7 +121,7 @@ facts = [
   { id = "consulting-venture-2", text = "Delivered management | IT engagements across leadership | process | cloud | DLT from analysis to delivery" },
   { id = "consulting-venture-3", text = "Managed project P&L end to end: acquisition, proposals, pricing, contracts, budgets, margins and cash flow" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "student-consulting"
@@ -139,7 +139,7 @@ facts = [
   { id = "student-consulting-2", text = "ENACTUS X: Co-built social venture for homeless people; created jobs and generated media coverage" },
   { id = "student-consulting-3", text = "AIESEC: Coordinated international placements with DAX firms; digitised talent-team workflows via CRM" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "teaching-research-venture"
@@ -157,7 +157,7 @@ facts = [
   { id = "teaching-research-venture-2", text = "Market research: interviewed 50+ CEOs and analysed 1'000+ calls; produced analyses and dashboards" },
   { id = "teaching-research-venture-3", text = "Built and ran my own side venture for 16 years, spanning technical services, repairs and eCommerce" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "executive-education"
@@ -174,7 +174,7 @@ facts = [
   { id = "executive-education-1", text = "Summer School: Advised Schwarz Digits as Junior Consultant on the EU AI Act; assessed its implications" },
   { id = "executive-education-2", text = "Case studies: Project finance (NPV/ROI), scenario analysis and capital allocation under uncertainty" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "physics-degrees"
@@ -191,7 +191,7 @@ facts = [
   { id = "physics-degrees-1", text = "Focus: AI/ML (1.0) | high-tech IP (1.15) | electronics (1.3) | biophysics (1.3) | chemistry (1.0)" },
   { id = "physics-degrees-2", text = "Research: Near-infrared spectroscopy | terahertz imaging | accelerator physics (LINAC)" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "psychology-degree"
@@ -208,7 +208,7 @@ facts = [
   { id = "psychology-degree-1", text = "Focus: AI/ML & neuroscience | AR/VR training | clinical/organisational psychology (1.0)" },
   { id = "psychology-degree-2", text = "Research at FIAS (9 mos.): Modelled stereovision and neural tuning with ML; quantified empathy" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "certificates"
@@ -225,7 +225,7 @@ facts = [
   { id = "certificates-1", text = "CFI certification programmes (ongoing): BIDA | CBCA | CMSA | FMVA; training: Excel (VBA) | BI (Tableau)" },
   { id = "certificates-2", text = "Additional training: GenAI | automation | public speaking | negotiation | leadership | communication" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "consulting-finance-networks"
@@ -242,7 +242,7 @@ facts = [
   { id = "consulting-finance-networks-1", text = "At university: Bain Spark | BCG Emeralds | WFI Consulting Cup; BDSU & Studienstiftung alumnus" },
   { id = "consulting-finance-networks-2", text = "SECA Young Member; connected with practitioners across Swiss PE, VC and Corporate Development" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "technology-communities"
@@ -259,7 +259,7 @@ facts = [
   { id = "technology-communities-1", text = "Co-organised Swiss Python Summit & Web Zurich (2025); AV operations and speaker coordination" },
   { id = "technology-communities-2", text = "Digitale Gesellschaft | LUG | digitalswitzerland | Impact Hub; focus: GenAI & digital sovereignty" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "crisis-support"
@@ -276,7 +276,7 @@ facts = [
   { id = "crisis-support-1", text = "Intervened in life-threatening situations multiple times; provided first aid and ensured EMS handover" },
   { id = "crisis-support-2", text = "De-escalated acute psychosocial crises; stabilised, oriented and referred people to specialist support" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "mentoring"
@@ -293,7 +293,7 @@ facts = [
   { id = "mentoring-1", text = "One of few male Kids Hotline counsellors; supported youth on identity, body image & self-doubt" },
   { id = "mentoring-2", text = "Co-developed psychology mentoring across cohorts; supported Physics Student Council & Night of Science" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "family-responsibility"
@@ -310,7 +310,7 @@ facts = [
   { id = "family-responsibility-1", text = "Supported siblings personally & financially: top-grade Abitur (1.0) | medical studies | company launch" },
   { id = "family-responsibility-2", text = "Took family care leave in 2025; coordinated care, financing & long-term support for my mother" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[stations]]
 id = "open-source-community"
@@ -327,7 +327,7 @@ facts = [
   { id = "open-source-community-1", text = "Lived with 20+ people from 10+ countries; actively fostered intercultural exchange through shared living" },
   { id = "open-source-community-2", text = "Published 50+ open-source projects; contributed to other projects, most recently oo7 (cybersecurity)" },
 ]
-source_refs = ["author-confirmed:2026-09-03", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["author-confirmed:2026-09-03", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "product-innovation"
@@ -337,7 +337,7 @@ facts = [
   { id = "product-innovation-1", text = "cfetch: local-first AI memory (RAG) | up to 93.4% less wasted context | >15% token-saving potential" },
   { id = "product-innovation-2", text = "cterm: remote-first coding terminal | dotkeeper: P2P code sync | cbar: cross-machine 2D app launcher" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "declarative-systems-platform"
@@ -347,7 +347,7 @@ facts = [
   { id = "declarative-systems-platform-1", text = "Unified hosts, storage, networks, desktops & apps across NixOS and Arch in one reproducible platform" },
   { id = "declarative-systems-platform-2", text = "Deployed NixOS, k3s, Argo CD & OpenTofu on GCP & bare metal | signed updates | health checks | rollback" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "content-innovation"
@@ -357,7 +357,7 @@ facts = [
   { id = "content-innovation-1", text = "Produced 4K multi-camera video for Swiss Python Summit, Winter Congress & CoSin (Chaos Singularity)" },
   { id = "content-innovation-2", text = "Ran GPU-hosted ComfyUI for GenAI media | caudio: audio routing across 3 hosts with failover & recovery" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "careervector-jobcache"
@@ -367,7 +367,7 @@ facts = [
   { id = "careervector-jobcache-1", text = "CareerVector: AI-native career platform across collaborative web, desktop & terminal workflows with Typst" },
   { id = "careervector-jobcache-2", text = "JobCache: built 91 Rust adapters for continuous, distributed ingestion & deduplication of CH/EU job ads" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "private-ai-cloud"
@@ -377,7 +377,7 @@ facts = [
   { id = "private-ai-cloud-1", text = "Operated 30+ private services and 100+ TB with SSO, monitoring, automated backups & disaster recovery" },
   { id = "private-ai-cloud-2", text = "Ran local LLMs & AI agents in production on shared GPU infrastructure | >90% lower cost than public cloud" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "management-buy-in"
@@ -387,7 +387,7 @@ facts = [
   { id = "management-buy-in-1", text = "Identified an Indian IT outsourcing target for an MBI and independently conducted end-to-end due diligence" },
   { id = "management-buy-in-2", text = "Built the acquisition thesis; assessed strategic fit, opportunities & risks through the final go/no-go decision" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "solar-recovery"
@@ -397,7 +397,7 @@ facts = [
   { id = "solar-recovery-1", text = "Restored the core system on day one and kept sales & field service operational until full replacement" },
   { id = "solar-recovery-2", text = "Tested cloud migration options against operating needs; prevented six-to-seven-figure misinvestment" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "leadership-digital-pivot"
@@ -407,7 +407,7 @@ facts = [
   { id = "leadership-digital-pivot-1", text = "Redesigned Performance Leadership offering for scalable hybrid delivery and built on-demand infrastructure" },
   { id = "leadership-digital-pivot-2", text = "Aligned funnel to customer pain points; diversified revenue and placed courses with Haufe Akademie" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "crypto-infrastructure"
@@ -417,7 +417,7 @@ facts = [
   { id = "crypto-infrastructure-1", text = "Sized and costed pilot and operating model; sourced hardware and actively managed operating risks" },
   { id = "crypto-infrastructure-2", text = "Delivered monitored, stable mining operation on schedule; optimised hash rate via custom firmware" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[projects]]
 id = "it-services-ecommerce"
@@ -427,7 +427,7 @@ facts = [
   { id = "it-services-ecommerce-1", text = "Built and ran a hardware business for SME & B2C clients: sales | custom builds | diagnostics | repairs" },
   { id = "it-services-ecommerce-2", text = "Automated listings, inventory, tracking and logistics for five-figure eBay operation through own mini-ERP" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "ai-products-tooling"
@@ -437,7 +437,7 @@ facts = [
   { id = "ai-products-tooling-2", text = "Open Source AI Tooling: OpenCode | Ollama | vLLM | llama.cpp | Open WebUI | Hugging Face | Langfuse" },
   { id = "ai-products-tooling-3", text = "Models: GPT | Claude | Gemini | GLM | DeepSeek | Qwen | Kimi | MiniMax | MiMo | Llama | Mistral | Gemma" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "applied-ai-data"
@@ -447,7 +447,7 @@ facts = [
   { id = "applied-ai-data-2", text = "Agentic Systems: AI Agents | Multi-Agent Systems | Model Context Protocol (MCP) | Agent SDKs | Tool Use" },
   { id = "applied-ai-data-3", text = "Data Science & ML: Statistics | Machine Learning | Time Series | Predictive Modelling | Experiments | R" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "software-infrastructure"
@@ -457,7 +457,7 @@ facts = [
   { id = "software-infrastructure-2", text = "Web & Publishing: Svelte | Astro | HTML | CSS | REST | GraphQL | WebSockets | Markdown | Typst" },
   { id = "software-infrastructure-3", text = "Cloud & Data Platforms: PostgreSQL | Data Pipelines | Linux | Nix/NixOS | Kubernetes | GitOps | OpenTofu" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "innovation-management"
@@ -467,7 +467,7 @@ facts = [
   { id = "innovation-management-2", text = "Technology Scouting: Emerging Technologies | Trend Analysis | Horizon Scanning | Technology Assessment" },
   { id = "innovation-management-3", text = "Product Innovation: Product Discovery | Prototyping | Proof of Concept (PoC) | MVP | Market Validation" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "strategy"
@@ -477,7 +477,7 @@ facts = [
   { id = "strategy-2", text = "Growth Strategy: Business Development | Market Entry | Go-to-Market | Partnerships | Pricing | B2B" },
   { id = "strategy-3", text = "Technology Strategy: AI Strategy | Roadmaps | Business Cases | Enterprise Architecture | TCO | FinOps" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "transformation-governance"
@@ -487,7 +487,7 @@ facts = [
   { id = "transformation-governance-2", text = "Change & Value Creation: AI Adoption | Change Management | Benefits Realisation | Cost Transformation" },
   { id = "transformation-governance-3", text = "AI Governance: EU AI Act | Responsible AI | Model Risk | DORA | Operational Resilience | GDPR" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "finance-ma"
@@ -497,7 +497,7 @@ facts = [
   { id = "finance-ma-2", text = "Corporate Finance: Financial Modelling | Valuation | DCF | Multiples | Project Finance | NPV | IRR | DSCR" },
   { id = "finance-ma-3", text = "M&A: Target Screening | Financial Due Diligence | Synergy Assessment | Post-Merger Integration (PMI)" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "private-markets"
@@ -507,7 +507,7 @@ facts = [
   { id = "private-markets-2", text = "Investment Strategies: Buyouts | Growth Equity | Direct Lending | Distressed Debt | Special Situations" },
   { id = "private-markets-3", text = "CIO Office: Investment Strategy | Multi-Asset | Portfolio Construction | Strategic Asset Allocation (SAA)" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 
 [[competencies]]
 id = "trading-risk"
@@ -517,4 +517,4 @@ facts = [
   { id = "trading-risk-2", text = "Systematic Trading: Alpha Signals | Backtesting | Trade Execution | Futures | Swaps | Options | Hedging" },
   { id = "trading-risk-3", text = "Quantitative Risk: PnL | Value at Risk (VaR) | Stress Testing | Monte Carlo | Option Pricing | Volatility" },
 ]
-source_refs = ["cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["cv:outputs/cvl/cv/harvard/src/entries-en.typ"]

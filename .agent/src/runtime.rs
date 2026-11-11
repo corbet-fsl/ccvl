@@ -30,8 +30,12 @@ mod tests {
             fs::copy(root.join(relative), destination).unwrap();
         }
         verify(directory.path()).unwrap();
-        fs::create_dir_all(directory.path().join("cvl")).unwrap();
-        fs::write(directory.path().join("cvl/profile.toml"), "personal edit").unwrap();
+        fs::create_dir_all(directory.path().join("inputs")).unwrap();
+        fs::write(
+            directory.path().join("inputs/profile.toml"),
+            "personal edit",
+        )
+        .unwrap();
         verify(directory.path()).unwrap();
         // The engine Typst package is compiled in; its fonts and docs stay data.
         let package = directory.path().join(".agent/typst/lib.typ");

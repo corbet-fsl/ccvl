@@ -1,6 +1,6 @@
 # Synthetic signature asset
 
-The public cover-letter showcase uses `cvl/assets/signature.png`, an
+The public cover-letter showcase uses `inputs/assets/images/signatures/signature.png`, an
 original synthetic graphic generated for ccvl. It is a visual demo element,
 not a legal signature and not a reconstruction of the author's handwriting.
 

@@ -10,7 +10,7 @@ language = "en-ch"
 pages = 4
 generate_cl = true
 application_date = "2026-09"
-# Render look: one entry of cvl/cv/harvard/style.toml substyles. This leaf is the
+# Render look: one entry of outputs/cvl/cv/harvard/style.toml substyles. This leaf is the
 # standard CV; records without the field render as standard.
 cv_substyle = "standard"
 

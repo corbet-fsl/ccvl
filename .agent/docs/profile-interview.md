@@ -9,11 +9,11 @@ then applies a deterministic station gate to the publishable CV plan.
 
 | Artifact | Purpose | Publication status |
 |---|---|---|
-| `interview/imports/` | read-only source-document inbox | private and ignored |
-| `interview/profile.md` | informal, source-linked working portrait | private and ignored |
-| `interview/journal.md` | visible interview progress and deferred questions | private and ignored |
-| `interview/stations.toml` | selected and unassigned station candidates | private working state |
-| `cvl/cv/<style>/<substyle>/<lang>/ch/` and `cvl/cl/<style>/<substyle>/<lang>/ch/` | approved rendered wording and presentation | publishable candidate data |
+| `inputs/interviews/imports/` | read-only source-document inbox | private and ignored |
+| `inputs/interviews/profile.md` | informal, source-linked working portrait | private and ignored |
+| `inputs/interviews/journal.md` | visible interview progress and deferred questions | private and ignored |
+| `inputs/interviews/stations.toml` | selected and unassigned station candidates | private working state |
+| `outputs/cvl/cv/<style>/<substyle>/<lang>/ch/` and `outputs/cvl/cl/<style>/<substyle>/<lang>/ch/` | approved rendered wording and presentation | publishable candidate data |
 
 The journal is written before the next question is asked. A user can inspect it
 at any time, paste information directly into it, or provide more documents.
@@ -112,7 +112,7 @@ Duplicate terms and unknown fields are errors.
 
 1. **Protect:** determine whether personal data would be published and warn
    before writing to a public destination.
-2. **Ingest:** inventory attached, pasted, and `interview/imports/` sources; preserve
+2. **Ingest:** inventory attached, pasted, and `inputs/interviews/imports/` sources; preserve
    them read-only and cross-reference conflicts.
 3. **Capture:** ask one broad question, save the answer, and create candidate
    stations and atomic facts without prematurely choosing sections.
@@ -203,7 +203,7 @@ the file's history. An acknowledgement without a reason is an error.
 |---|---|---|
 | interview fact differs from, is missing in, or has no counterpart in the CV | `profile-status --verify-sources`, `check` | `allow_drift = "<reason>"` on the fact, or on the entry for all of its lines |
 | a CV entry has no interview entry | `profile-status --verify-sources`, `check` | add the entry |
-| a `not_true` term occurs in application wording, `cvl/` sources or the plan | `check`; also `measure-opportunity` and `build-opportunity` for that record | `[lint] allow` in the application record; `except` phrases in the rule |
+| a `not_true` term occurs in application wording, `outputs/cvl/` sources or the plan | `check`; also `measure-opportunity` and `build-opportunity` for that record | `[lint] allow` in the application record; `except` phrases in the rule |
 | an entry or fact is confirmed only by someone other than the candidate | `profile-status` | the candidate reviews it and adds `user-confirmed:<date>` |
 | a figure in application wording occurs in no interview fact | `check --figures` only | `[lint] allow` in the application record |
 
@@ -216,8 +216,8 @@ not mark are not reported, because the plan may hold surplus material.
 
 The `not_true` scan covers the `[cv]` and `[cl]` tables of
 `opportunities/**/application.toml` (skipping `variants/` and `review/`
-folders), the `[cv]` and `[cl]` tables of `cvl/` TOML files, every
-non-comment line of `cvl/` Typst sources, and the plan's own labels, anchors
+folders), the `[cv]` and `[cl]` tables of `outputs/cvl/` TOML files, every
+non-comment line of `outputs/cvl/` Typst sources, and the plan's own labels, anchors
 and facts. An application record acknowledges a match for the employer's own
 context rather than the candidate's experience:
 

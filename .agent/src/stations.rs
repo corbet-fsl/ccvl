@@ -862,7 +862,7 @@ mod tests {
         let (_fixture, workspace) = crate::test_support::fixture_workspace();
         let result = validate_interview(&workspace, true).unwrap();
         assert_eq!(result.page_counts, BTreeMap::from([(1, 6), (2, 10)]));
-        let contract_path = workspace.path("cvl/cv/ledger/contract.toml");
+        let contract_path = workspace.path("outputs/cvl/cv/ledger/contract.toml");
         let contract = fs::read_to_string(&contract_path).unwrap();
         fs::write(
             &contract_path,
@@ -875,7 +875,7 @@ mod tests {
         let projects = (1..=10).map(|i| format!("project-{i}")).collect::<Vec<_>>();
         let projects = projects.iter().map(String::as_str).collect::<Vec<_>>();
         let write = |name: &str, source: &str| {
-            let path = workspace.path(format!("cvl/cv/ledger/src/{name}"));
+            let path = workspace.path(format!("outputs/cvl/cv/ledger/src/{name}"));
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, source).unwrap();
         };

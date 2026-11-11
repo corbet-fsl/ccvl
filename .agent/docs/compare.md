@@ -22,7 +22,7 @@ Each item names one variant, much like the operands of `diff a b c`:
 
 | Item | Renders |
 |---|---|
-| `harvard/d-plus` | a style and substyle with the showcase content in `cvl/` |
+| `harvard/d-plus` | a style and substyle with the showcase content in `outputs/cvl/` |
 | `harvard/compact@de-ch:2` | the same with its own locale and page preset |
 | `default`, `cluster/default`, `harvard` | the workspace default style, or a style's first substyle |
 | `opportunities/acme/lead` or `…/application.toml` | an application record with its own style, language and pages |
@@ -54,7 +54,7 @@ alike.
 
 Style and record items render through the same path as `build-cv` and
 `build-cl`, but into `.agent/cache/comparisons/<name>/`; checked-in outputs
-such as `cvl/cv/<style>/<substyle>/<language>/<region>/pdf/cv-4.pdf` are never
+such as `outputs/cvl/cv/<style>/<substyle>/<language>/<region>/pdf/cv-4.pdf` are never
 written. Every item and the requested pages are validated before the first
 render, so a typo fails fast.
 
@@ -162,7 +162,7 @@ The current rendering against a PDF from an older build:
 
 ```sh
 mkdir -p .agent/cache/old
-git show HEAD~5:cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf > .agent/cache/old/cv-4.pdf
+git show HEAD~5:outputs/cvl/cv/harvard/d-plus/en/ch/pdf/cv-4.pdf > .agent/cache/old/cv-4.pdf
 bash ./ccvl compare .agent/cache/old/cv-4.pdf harvard/d-plus:4
 ```
 

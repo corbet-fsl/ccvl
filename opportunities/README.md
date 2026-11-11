@@ -58,7 +58,7 @@ downstream. See [Contacts and application status](../.agent/docs/contacts.md)
 for both formats.
 
 Company, role, and fit research belongs here with its sources. General facts
-or preferences learned about the user belong in `interview/`.
+or preferences learned about the user belong in `inputs/interviews/`.
 
 Create the record deterministically, then ask the `ccvl-apply` skill to
 research, draft, review, measure, and render it:

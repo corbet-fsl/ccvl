@@ -25,25 +25,25 @@ The product has four domains:
 
 ```text
 .agent/                                  implementation and agent workflows
-interview/                               knowledge and evidence about the user
-cvl/                                     approved general CV and cover letter
+inputs/                                  profile, interviews, assets and library
+outputs/cvl/                             approved general CV and cover letter
 opportunities/<organisation>/<position>/ one concrete job and its documents
 ```
 
 `.github/` contains hosted CI workflows and `LICENSES/` contains the complete
 legal texts. There is no separate market map. General preferences discovered
-with the user belong in `interview/`; company and role research belongs beside
+with the user belong in `inputs/interviews/`; company and role research belongs beside
 the concrete job in `opportunities/`.
 
 Included are:
 
 - Harvard German and English CVs with checked two-, three-, and four-page
   variants, a five-line Summary, and a measured target-neutral cover letter;
-- [D+ spacing for Harvard](cvl/cv/harvard/d-plus/README.md) and a
-  [cluster CV](cvl/cv/cluster/README.md) whose first page regroups seven
+- [D+ spacing for Harvard](outputs/cvl/cv/harvard/d-plus/README.md) and a
+  [cluster CV](outputs/cvl/cv/cluster/README.md) whose first page regroups seven
   approved Harvard stations into finance, technology and consulting sections,
   followed by the unchanged Harvard pages 2–4;
-- [a rendered gallery and full folder overview](cvl/README.md);
+- [a rendered gallery and full folder overview](outputs/cvl/README.md);
 - one validated `application.toml` per concrete opportunity;
 - a shared Rust and Typst engine with bundled fonts and reproducible PDF
   output;
@@ -72,8 +72,8 @@ bash ./ccvl build-opportunity example-org strategy-lead
 ```
 
 Generated general documents are written to
-`cvl/cv/<style>/<substyle>/<language>/<region>/pdf/cv-{2,3,4}.pdf` and
-`cvl/cl/<style>/<substyle>/<language>/<region>/pdf/cl.pdf`.
+`outputs/cvl/cv/<style>/<substyle>/<language>/<region>/pdf/cv-{2,3,4}.pdf` and
+`outputs/cvl/cl/<style>/<substyle>/<language>/<region>/pdf/cl.pdf`.
 The shipped Harvard CV substyles are `d-plus` (the default), `standard`, `compact` and `aligned`;
 cover-letter substyles are `frame` (the default) and `left-rule`. `bash ./ccvl list-styles` shows every
 style, substyle and empty slot. Use `build-cv en-ch 4 --style harvard --substyle compact` or
@@ -108,15 +108,15 @@ builds, shared artifacts, dependency caches, and publication gate.
 The workflow moves in one direction:
 
 ```text
-interview/ -> cvl/ -> opportunities/<organisation>/<position>/
+inputs/interviews/ -> outputs/cvl/ -> opportunities/<organisation>/<position>/
      ^                         |
      +----- verified facts ----+
 ```
 
 Start with `ccvl-profile`: import sources or answer one question at a time
-while the agent maintains `interview/profile.md`, `interview/journal.md`, and
-`interview/stations.toml`. Once the evidence and fixed station layout are
-complete, replace the general showcase under `cvl/` with approved wording.
+while the agent maintains `inputs/interviews/profile.md`, `inputs/interviews/journal.md`, and
+`inputs/interviews/stations.toml`. Once the evidence and fixed station layout are
+complete, replace the general showcase under `outputs/cvl/` with approved wording.
 Create one directory for each concrete job; its posting, research, tailored
 documents, interview preparation, submission record, and outcome all stay
 together.

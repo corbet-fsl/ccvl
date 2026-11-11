@@ -41,7 +41,7 @@ change the requested page count automatically to make another paper size fit.
 
 A style owns the visual system: page geometry, fonts, composition and content
 fields. A substyle is a variation within that style. Create
-`cvl/<cv|cl>/<style>/<substyle>/<language>/<country>/`; never put a substyle
+`outputs/cvl/<cv|cl>/<style>/<substyle>/<language>/<country>/`; never put a substyle
 beside its parent style. Independent styles need not import Harvard or use
 `src/`. Share code only where it actually belongs to the same design.
 
@@ -49,7 +49,7 @@ Each document has a fixed grid of style and substyle positions, declared as
 `slots` in `ccvl.json`. A new design fills an empty slot instead of adding a
 position. For a substyle, rename its `slot-N` entry in `substyles` to the real
 name, remove it from `empty_substyles` and add its directory and leaves. For a
-style, replace the lowest-numbered `cvl/<cv|cl>/slot-N/` directory with the
+style, replace the lowest-numbered `outputs/cvl/<cv|cl>/slot-N/` directory with the
 new style; list its undesigned positions as `slot-N` by position in both
 `substyles` and `empty_substyles`. Never name a style or substyle `default`;
 that name selects the workspace default.

@@ -34,9 +34,9 @@ impl Fixture {
         ] {
             fs::write(root.join(path), "{}\n").unwrap();
         }
-        fs::create_dir_all(root.join("cvl/cv/demo/en/ch")).unwrap();
+        fs::create_dir_all(root.join("outputs/cvl/cv/demo/en/ch")).unwrap();
         fs::write(
-            root.join("cvl/cv/demo/en/ch/content.toml"),
+            root.join("outputs/cvl/cv/demo/en/ch/content.toml"),
             "claim = 'Participated in a project'\n",
         )
         .unwrap();
@@ -74,8 +74,8 @@ impl Fixture {
                 document: "cv".into(),
                 locale: "en-ch".into(),
                 pages: 1,
-                application: "cvl/cv/demo/en/ch/content.toml".into(),
-                profile: "cvl/profile.toml".into(),
+                application: "outputs/cvl/cv/demo/en/ch/content.toml".into(),
+                profile: "inputs/profile.toml".into(),
                 style: None,
                 substyle: None,
                 paper: None,
@@ -86,7 +86,7 @@ impl Fixture {
                 role: SourceRole::Candidate,
             }],
             rubric: vec!["rubric.txt".into()],
-            editable: vec!["cvl/cv/demo/en/ch/content.toml".into()],
+            editable: vec!["outputs/cvl/cv/demo/en/ch/content.toml".into()],
         }
     }
 
@@ -472,7 +472,7 @@ fn cancel_deadline_token_budget_and_strict_result_schema_fail_closed() {
 fn run_paths_cannot_escape_private_review_locations() {
     let fixture = Fixture::new();
     for path in [
-        "cvl/review/run",
+        "outputs/cvl/review/run",
         ".agent/cache/review/../../x",
         "opportunities/org/job/review/run/extra",
     ] {

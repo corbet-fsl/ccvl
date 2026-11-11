@@ -7,9 +7,9 @@ not a universal schema for every possible Typst element.
 
 ## Where choices live
 
-1. `cvl/shared/<style>/defaults.toml`: that family's base design, where its
+1. `outputs/cvl/shared/<style>/defaults.toml`: that family's base design, where its
    CV and CL deliberately share settings.
-2. `cvl/<document>/<style>/<substyle>/substyle.toml`: substyle overrides.
+2. `outputs/cvl/<document>/<style>/<substyle>/substyle.toml`: substyle overrides.
 3. `<substyle>/<language>/<country>/layout.toml`: locale overrides.
 4. The selected named paper preset in `style.toml`: explicit paper settings
    and expected PDF dimensions, with a declared default per locale.

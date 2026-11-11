@@ -13,12 +13,14 @@ fn cvl_outputs_use_numeric_page_names() {
                 assert_eq!(
                     spec.output,
                     workspace.path(format!(
-                        "cvl/cv/ledger/{substyle}/{lang}/ch/pdf/cv-{pages}.pdf"
+                        "outputs/cvl/cv/ledger/{substyle}/{lang}/ch/pdf/cv-{pages}.pdf"
                     ))
                 );
                 assert_eq!(
                     spec.source,
-                    workspace.path(format!("cvl/cv/ledger/{substyle}/{lang}/ch/typst/cv.typ"))
+                    workspace.path(format!(
+                        "outputs/cvl/cv/ledger/{substyle}/{lang}/ch/typst/cv.typ"
+                    ))
                 );
             }
         }
@@ -26,7 +28,9 @@ fn cvl_outputs_use_numeric_page_names() {
             let spec = cvl_cl_spec(&workspace, locale, None, Some(&selection(substyle))).unwrap();
             assert_eq!(
                 spec.output,
-                workspace.path(format!("cvl/cl/ledger/{substyle}/{lang}/ch/pdf/cl.pdf"))
+                workspace.path(format!(
+                    "outputs/cvl/cl/ledger/{substyle}/{lang}/ch/pdf/cl.pdf"
+                ))
             );
         }
     }
@@ -39,9 +43,11 @@ fn cvl_outputs_use_numeric_page_names() {
 #[test]
 fn opportunity_record_selects_its_locale_pages_and_documents() {
     let workspace = crate::test_support::fixture_view();
-    let mut document =
-        crate::content::read_record(&workspace, "cvl/cv/ledger/primary/en/ch/content.toml")
-            .unwrap();
+    let mut document = crate::content::read_record(
+        &workspace,
+        "outputs/cvl/cv/ledger/primary/en/ch/content.toml",
+    )
+    .unwrap();
     document["options"]["language"] = "en-ch".into();
     document["options"]["pages"] = 3.into();
     document["options"]["generate_cl"] = false.into();
@@ -141,13 +147,13 @@ fn named_opportunity_workspace() -> (tempfile::TempDir, Workspace) {
         &serde_json::json!({
             "format": "ccvl-workspace", "schema_version": 9,
             "documents": {
-                "cv": {"root": "cvl/cv", "default_style": "plain"},
-                "cover_letter": {"root": "cvl/cl", "default_style": "plain"}
+                "cv": {"root": "outputs/cvl/cv", "default_style": "plain"},
+                "cover_letter": {"root": "outputs/cvl/cl", "default_style": "plain"}
             }
         })
         .to_string(),
     );
-    write("cvl/profile.toml", "name = \"Sample Taylor\"\n");
+    write("inputs/profile.toml", "name = \"Sample Taylor\"\n");
     let original = crate::test_support::repository();
     let mut record: toml::Value = toml::from_str(
         &fs::read_to_string(original.join(".agent/scaffolds/opportunity/application.toml"))
@@ -165,7 +171,7 @@ fn named_opportunity_workspace() -> (tempfile::TempDir, Workspace) {
             .as_table_mut()
             .unwrap()
             .insert(document.into(), toml::Value::Table(toml::map::Map::new()));
-        let base = format!("cvl/{document}/plain");
+        let base = format!("outputs/cvl/{document}/plain");
         write(
             &format!("{base}/style.toml"),
             &format!(
@@ -184,7 +190,7 @@ fn named_opportunity_workspace() -> (tempfile::TempDir, Workspace) {
     }
     for document in ["cv", "cl"] {
         write(
-            &format!("cvl/{document}/plain/standard/en/us/content.toml"),
+            &format!("outputs/cvl/{document}/plain/standard/en/us/content.toml"),
             &toml::to_string(&record).unwrap(),
         );
     }
@@ -330,7 +336,7 @@ fn opportunity_output_symlinks_cannot_redirect_writes_or_cleanup() {
 #[test]
 fn input_default_rewrite_points_copy_at_record() {
     let cv = "#let pages = int(sys.inputs.at(\"pages\", default: \"4\"))\n\
-                  #let application-path = sys.inputs.at(\"application\", default: \"/cvl/cv/harvard/standard/en/ch/content.toml\")\n";
+                  #let application-path = sys.inputs.at(\"application\", default: \"/outputs/cvl/cv/harvard/standard/en/ch/content.toml\")\n";
     let resolved = rewrite_input_default(
         cv,
         "application",
@@ -341,20 +347,23 @@ fn input_default_rewrite_points_copy_at_record() {
         "sys.inputs.at(\"application\", default: \"/opportunities/acme/lead/application.toml\")"
     ));
     assert!(resolved.contains("sys.inputs.at(\"pages\", default: \"3\")"));
-    assert!(!resolved.contains("/cvl/cv/harvard/standard/en/ch/content.toml"));
+    assert!(!resolved.contains("/outputs/cvl/cv/harvard/standard/en/ch/content.toml"));
 
-    let cl = "#let substyle-path = sys.inputs.at(\"substyle\", default: \"/cvl/cl/harvard/left-rule/de/ch/substyle.toml\")\n";
-    let resolved =
-        rewrite_input_default(cl, "substyle", "/cvl/cl/harvard/frame/de/ch/substyle.toml");
+    let cl = "#let substyle-path = sys.inputs.at(\"substyle\", default: \"/outputs/cvl/cl/harvard/left-rule/de/ch/substyle.toml\")\n";
+    let resolved = rewrite_input_default(
+        cl,
+        "substyle",
+        "/outputs/cvl/cl/harvard/frame/de/ch/substyle.toml",
+    );
     assert!(resolved.contains(
-        "sys.inputs.at(\"substyle\", default: \"/cvl/cl/harvard/frame/de/ch/substyle.toml\")"
+        "sys.inputs.at(\"substyle\", default: \"/outputs/cvl/cl/harvard/frame/de/ch/substyle.toml\")"
     ));
-    let shared = "#let shared-defaults-path = sys.inputs.at(\"shared-defaults\", default: \"/cvl/shared/harvard/defaults.toml\")\n";
+    let shared = "#let shared-defaults-path = sys.inputs.at(\"shared-defaults\", default: \"/outputs/cvl/shared/harvard/defaults.toml\")\n";
     assert_eq!(
         rewrite_input_default(
             shared,
             "shared-defaults",
-            "/cvl/shared/harvard/defaults.toml"
+            "/outputs/cvl/shared/harvard/defaults.toml"
         ),
         shared
     );
@@ -375,7 +384,7 @@ fn resolved_copy_carries_provenance_and_record_defaults() {
         "en-ch",
         3,
         &leaf.content(),
-        &workspace.path("cvl/profile.toml"),
+        &workspace.path("inputs/profile.toml"),
         &output,
         &selection("primary"),
     )
@@ -388,14 +397,14 @@ fn resolved_copy_carries_provenance_and_record_defaults() {
     let text = resolved_typ_text(
         &template,
         &spec,
-        "cvl/cv/ledger/primary/en/ch/typst/cv.typ",
+        "outputs/cvl/cv/ledger/primary/en/ch/typst/cv.typ",
         "acme",
         "lead",
     );
     assert!(text.starts_with(
         "// Resolved customization copy emitted by `ccvl build-opportunity acme lead`."
     ));
-    assert!(text.contains("Template: cvl/cv/ledger/primary/en/ch/typst/cv.typ"));
+    assert!(text.contains("Template: outputs/cvl/cv/ledger/primary/en/ch/typst/cv.typ"));
     assert!(text.contains("application: /opportunities/acme/lead/application.toml"));
     assert!(text.contains("pages: 3"));
     assert!(text.contains("// strings: "));
@@ -403,7 +412,7 @@ fn resolved_copy_carries_provenance_and_record_defaults() {
     assert!(text.contains("// shared-defaults: "));
     assert!(!text.contains("| style: "));
     assert!(text.ends_with('\n'));
-    assert!(!text.contains("default: \"/cvl/cv/ledger/primary/en/ch/content.toml\""));
+    assert!(!text.contains("default: \"/outputs/cvl/cv/ledger/primary/en/ch/content.toml\""));
     assert!(text.contains("sys.inputs.at(\"pages\", default: \"3\")"));
 }
 
@@ -456,15 +465,15 @@ fn cvl_specs_carry_their_leaf_paths() {
         let spec = cvl_cv_spec(&workspace, "en-ch", pages, Some(&selection("compact"))).unwrap();
         assert_eq!(
             spec.inputs.get("strings").map(String::as_str),
-            Some("/cvl/cv/ledger/compact/en/ch/strings.toml")
+            Some("/outputs/cvl/cv/ledger/compact/en/ch/strings.toml")
         );
         assert_eq!(
             spec.inputs.get("substyle").map(String::as_str),
-            Some("/cvl/cv/ledger/compact/substyle.toml")
+            Some("/outputs/cvl/cv/ledger/compact/substyle.toml")
         );
         assert_eq!(
             spec.inputs.get("shared-defaults").map(String::as_str),
-            Some("/cvl/shared/ledger/defaults.toml")
+            Some("/outputs/cvl/shared/ledger/defaults.toml")
         );
         assert!(!spec.inputs.contains_key("style"));
     }
@@ -472,17 +481,17 @@ fn cvl_specs_carry_their_leaf_paths() {
     let spec = cvl_cv_spec(&workspace, "en-ch", 4, None).unwrap();
     assert_eq!(
         spec.inputs.get("substyle").map(String::as_str),
-        Some("/cvl/cv/ledger/primary/substyle.toml")
+        Some("/outputs/cvl/cv/ledger/primary/substyle.toml")
     );
     let spec = cvl_cl_spec(&workspace, "de-ch", None, None).unwrap();
     assert_eq!(
         spec.inputs.get("substyle").map(String::as_str),
-        Some("/cvl/cl/ledger/rule/substyle.toml")
+        Some("/outputs/cvl/cl/ledger/rule/substyle.toml")
     );
     let spec = cvl_cl_spec(&workspace, "de-ch", None, Some(&selection("frame"))).unwrap();
     assert_eq!(
         spec.inputs.get("strings").map(String::as_str),
-        Some("/cvl/cl/ledger/frame/de/ch/strings.toml")
+        Some("/outputs/cvl/cl/ledger/frame/de/ch/strings.toml")
     );
 }
 
@@ -504,7 +513,7 @@ fn mismatched_record_selection_fails_before_compiling() {
         "en-ch",
         2,
         &record,
-        &workspace.path("cvl/profile.toml"),
+        &workspace.path("inputs/profile.toml"),
         &output,
         &selection("primary"),
     )

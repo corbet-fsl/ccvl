@@ -6,8 +6,8 @@ working record.
 
 | Domain | Unit | Contains | Must not contain |
 |---|---|---|---|
-| `interview/` | candidate | imports, rich profile, journal, evidence, preferences, conflicts, station allocation | tailored application copy |
-| `cvl/` | candidate document | approved general CV/CL sources, public render profile, generated showcase | raw evidence or one vacancy's tailoring |
+| `inputs/interviews/` | candidate | imports, rich profile, journal, evidence, preferences, conflicts, station allocation | tailored application copy |
+| `outputs/cvl/` | candidate document | approved general CV/CL sources, public render profile, generated showcase | raw evidence or one vacancy's tailoring |
 | `opportunities/` | organisation key + position key | posting, company/role research, tailored CV/CL, preparation, submission, outcome | duplicated general profile or a separate market map |
 
 ## Workspace paths
@@ -23,7 +23,7 @@ with.
 
 ## Candidate evidence
 
-The private working profile in `interview/profile.md` gives every candidate
+The private working profile in `inputs/interviews/profile.md` gives every candidate
 claim one of three states:
 
 - `verified`: supported by a named source or explicit user confirmation;
@@ -35,11 +35,11 @@ work, and side initiatives retain their real scope.
 
 The profile interview maintains three complementary records:
 
-- `interview/profile.md` is the informal, information-rich portrait and claim
+- `inputs/interviews/profile.md` is the informal, information-rich portrait and claim
   ledger;
-- `interview/journal.md` records inputs, progress, conflicts, preferences, and
+- `inputs/interviews/journal.md` records inputs, progress, conflicts, preferences, and
   deferred prompts;
-- `interview/stations.toml` assigns verified atomic facts to CV stations.
+- `inputs/interviews/stations.toml` assigns verified atomic facts to CV stations.
 
 A station has one truthful kind, one final page and section, and one or more
 uniquely owned fact IDs. The distinction between kind and placement lets
@@ -47,13 +47,13 @@ substantial independent work appear under Experience without becoming a false
 employment claim. See [Profile interview and station
 allocation](profile-interview.md).
 
-`cvl/profile.toml` is deliberately narrower: it contains approved public
+`inputs/profile.toml` is deliberately narrower: it contains approved public
 fields needed to render the CV and cover letter. It is not a second rich
 profile or evidence store.
 
 General document wording can be shared between substyles of the same
 document, style and locale. Its owner is
-`cvl/<cv|cl>/<style>/content/<language>/<country>/wording.toml`;
+`outputs/cvl/<cv|cl>/<style>/content/<language>/<country>/wording.toml`;
 each leaf's `content.toml` keeps its metadata, source reference and explicit
 wording overrides. Different styles keep independent wording. See
 [Styles](styles.md) for the merge rules.
@@ -80,7 +80,7 @@ or explicit approval; the public showcase is not a source of candidate facts.
 
 Locale and language codes are always lowercase, for example `de-ch`.
 This covers `options.language` in every `application.toml`, the locale keys
-in `ccvl.json` and `cvl/profile.toml`, the `expected-language` assertions in
+in `ccvl.json` and `inputs/profile.toml`, the `expected-language` assertions in
 the Typst templates, and every locale argument passed to the correspondence
 libraries. The correspondence family (`cgreet`, `cfarewell`, `cink`,
 `cdate`, `cletter`) stores and returns lowercase locale identifiers and accepts
@@ -115,5 +115,5 @@ outcomes stay in the same job directory without retroactively rewriting what
 was submitted.
 
 Broad market research is outside ccvl's storage model. If exploration reveals
-a durable fact or preference about the user, record it in `interview/`. If it
+a durable fact or preference about the user, record it in `inputs/interviews/`. If it
 concerns a real company or job, create or update that opportunity.

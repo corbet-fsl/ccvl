@@ -1,7 +1,7 @@
 # Document styles and rendered gallery
 
-`cvl/` owns the approved general documents and their showcase outputs. Private
-source evidence stays in `interview/`; concrete applications stay in
+`outputs/cvl/` owns the approved general documents and their showcase outputs. Private
+source evidence stays in `inputs/interviews/`; concrete applications stay in
 `opportunities/`. Harvard and Cluster both show the approved showcase: they share
 the Harvard pages 2–4 and differ only in the first page, chronological in
 Harvard and grouped under a finance-and-AI summary in Cluster. The displayed
@@ -12,7 +12,7 @@ name/contact come from the approved public profile.
 The hierarchy is **document → style → substyle → language → country**.
 
 ```text
-cvl/
+outputs/cvl/
 ├── profile.toml                         # approved render identity
 ├── assets/                              # approved shared profile assets
 ├── shared/                              # each family's chosen sharing
@@ -78,7 +78,7 @@ Every leaf names its shared source under `[wording].source`. Sharing stays
 inside the same document/style/language/country. Harvard, Cluster, Modern and Onepager each own
 independent wording; CV and letter sources are separate.
 Nested fields merge, while arrays replace whole arrays. Private opportunity
-records remain self-contained. See [the interface](../.agent/docs/styles.md)
+records remain self-contained. See [the interface](../../.agent/docs/styles.md)
 for the exact source and override rules.
 
 ## What ships
@@ -147,9 +147,9 @@ bash ./ccvl list-styles
 bash ./ccvl compare harvard/d-plus cluster/d-plus
 ```
 
-Use [the style-creation skill](../.agent/skills/ccvl-style/SKILL.md),
-[the interface](../.agent/docs/styles.md), and
-[the Typst defaults audit](../.agent/docs/typst-defaults.md) for new designs.
+Use [the style-creation skill](../../.agent/skills/ccvl-style/SKILL.md),
+[the interface](../../.agent/docs/styles.md), and
+[the Typst defaults audit](../../.agent/docs/typst-defaults.md) for new designs.
 Reusable changes originate in ccvl and merge into applications; private
 research, evidence and tailored wording remain downstream.
 
@@ -169,5 +169,5 @@ the rasterizer and rendering settings match and every image is intact; local
 cache records live in `.agent/cache/previews/`. It consumes the actual PDFs; it does not
 invent mockups. Inspect every changed page at full resolution as well as in
 this comparison; `bash ./ccvl compare` renders any variants side by side into
-one review PDF ([guide](../.agent/docs/compare.md)). A shorter PDF's surplus page previews are removed after a
+one review PDF ([guide](../../.agent/docs/compare.md)). A shorter PDF's surplus page previews are removed after a
 successful refresh. Remove obsolete previews if entire page presets are removed.

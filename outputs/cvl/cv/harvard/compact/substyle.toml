@@ -1,6 +1,6 @@
 # compact: thin whitespace-only CV variant. Same renderer, same contracts
 # as standard; only vertical spacing tightened. Horizontal measure (page,
-# text, accents, bullet indent) stays in cvl/shared/harvard/defaults.toml: changing
+# text, accents, bullet indent) stays in outputs/cvl/shared/harvard/defaults.toml: changing
 # it would reflow every measured line, so a delta may never name those keys.
 
 [header]

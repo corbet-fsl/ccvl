@@ -16,7 +16,7 @@ Preserve what happened without converting a plausible explanation into fact.
 3. Update funnel metrics only from recorded events.
 4. Propose changes to opportunity selection, evidence collection, CV emphasis, or interview
    preparation with an explicit rationale and confidence level.
-5. Feed durable verified facts back into `interview/`; do not rewrite source
+5. Feed durable verified facts back into `inputs/interviews/`; do not rewrite source
    history to make an outcome look inevitable.
 
 Use `.agent/scaffolds/opportunity/outcome.md` as

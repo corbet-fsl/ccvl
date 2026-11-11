@@ -54,7 +54,7 @@ Invalid dates and localized free text are rejected. When updating an existing
 record, preserve its date and precision (for example, `"September 2026"`
 becomes `"2026-09"`); do not infer a day or substitute today's date.
 
-For Harvard, line lengths are authored as plain text; fill bounds come from `cvl/cv/harvard/contract.toml` and `cvl/cl/harvard/contract.toml`.
+For Harvard, line lengths are authored as plain text; fill bounds come from `outputs/cvl/cv/harvard/contract.toml` and `outputs/cvl/cl/harvard/contract.toml`.
 Typst measures actual glyph width with the bundled font. The Summary must
 render to exactly five lines; thin Summary lines fail unless explicitly
 allowed, and its closing line may extend up to 102% of the measure.
@@ -96,7 +96,7 @@ No locale or page argument is needed: the record owns both. The build writes
 `pdfs/CV_<Name>_<Org>_<Pos>.pdf` and, when enabled,
 `pdfs/CL_<Name>_<Org>_<Pos>.pdf` below the keyed opportunity. The kind comes
 first; names use underscores only, never dashes. `<Name>` is the
-final whitespace-delimited token of `cvl/profile.toml` `name`, used only as a
+final whitespace-delimited token of `inputs/profile.toml` `name`, used only as a
 filename convention. Letters and numbers are retained; every other character
 becomes an underscore, runs collapse and edge underscores are trimmed. `<Org>`
 and `<Pos>` use the validated opportunity keys with each segment capitalized
@@ -149,7 +149,7 @@ the complete six-paragraph, 26-body-line letter contract implemented by Harvard,
 with five additional one-line highlights between paragraphs 3 and 4. Its
 argument roles and paragraph structure belong together. A general/open letter
 remains in the appropriate
-`cvl/cl/<style>/` wording owner and does not create an invented vacancy.
+`outputs/cvl/cl/<style>/` wording owner and does not create an invented vacancy.
 
 Run [the actor–critic protocol](review.md) to bind independent findings to actual
 sources, current PDF text and every page. Review records stay private beside

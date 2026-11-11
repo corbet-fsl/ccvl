@@ -67,7 +67,7 @@ fn cover_letter_contract_rejects_weakened_density_and_closing_spill() {
     validate_manifest(&workspace).unwrap();
     validate_styles(&workspace).unwrap();
     validate_frozen_contracts(&workspace).unwrap();
-    let contract_path = temporary.path().join("cvl/cl/ledger/contract.toml");
+    let contract_path = temporary.path().join("outputs/cvl/cl/ledger/contract.toml");
     for (pointer, weakened, message) in [
         ("/line_fill/body/non_final_minimum", 75, "body fill"),
         ("/line_fill/body/minimum", 60, "body fill"),
@@ -89,7 +89,7 @@ fn cover_letter_contract_rejects_weakened_density_and_closing_spill() {
 #[test]
 fn cv_contract_and_compact_delta_reject_weakened_budgets() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
-    let contract_path = temporary.path().join("cvl/cv/ledger/contract.toml");
+    let contract_path = temporary.path().join("outputs/cvl/cv/ledger/contract.toml");
     for (pointer, weakened, message) in [
         ("/summary_lines", toml::Value::from(4), "exactly five lines"),
         ("/summary_fill/minimum", 90.into(), "95/97/100"),
@@ -112,7 +112,9 @@ fn cv_contract_and_compact_delta_reject_weakened_budgets() {
         fs::write(&contract_path, text).unwrap();
     }
     validate_frozen_contracts(&workspace).unwrap();
-    let compact = temporary.path().join("cvl/cv/ledger/compact/substyle.toml");
+    let compact = temporary
+        .path()
+        .join("outputs/cvl/cv/ledger/compact/substyle.toml");
     let original = fs::read_to_string(&compact).unwrap();
     for (delta, message) in [
         (
@@ -157,12 +159,12 @@ fn frozen_contracts_bind_harvard_even_without_its_opt_in_markers() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
     // Without the markers a style owns its geometry: a three-paragraph letter
     // and a summary-free CV are valid independent designs.
-    let letter = temporary.path().join("cvl/cl/ledger/contract.toml");
+    let letter = temporary.path().join("outputs/cvl/cl/ledger/contract.toml");
     let text = fs::read_to_string(&letter).unwrap();
     let independent = text.replace("[editorial]\nstructure = \"aida\"\n", "");
     fs::write(&letter, &independent).unwrap();
     weaken(&letter, "/highlights/count", 3.into());
-    let cv = temporary.path().join("cvl/cv/ledger/contract.toml");
+    let cv = temporary.path().join("outputs/cvl/cv/ledger/contract.toml");
     let cv_text = fs::read_to_string(&cv).unwrap();
     let mut table: toml::Table = toml::from_str(&cv_text).unwrap();
     table.remove("layout_contract");
@@ -171,12 +173,14 @@ fn frozen_contracts_bind_harvard_even_without_its_opt_in_markers() {
     validate_frozen_contracts(&workspace).unwrap();
     // The shipped Harvard style keeps the frozen budgets regardless.
     for (document, contract) in [("cl", &letter), ("cv", &cv)] {
-        let harvard = temporary.path().join(format!("cvl/{document}/harvard"));
+        let harvard = temporary
+            .path()
+            .join(format!("outputs/cvl/{document}/harvard"));
         fs::create_dir_all(&harvard).unwrap();
         let style = fs::read_to_string(
             temporary
                 .path()
-                .join(format!("cvl/{document}/ledger/style.toml")),
+                .join(format!("outputs/cvl/{document}/ledger/style.toml")),
         )
         .unwrap()
         .replace("id = \"ledger\"", "id = \"harvard\"");
@@ -195,7 +199,11 @@ fn frozen_contracts_bind_harvard_even_without_its_opt_in_markers() {
 fn style_sources_cannot_vendor_measurement_code() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
     validate_measurement_ownership(&workspace).unwrap();
-    fs::write(temporary.path().join("cvl/cv/grid/measure-v1.typ"), "").unwrap();
+    fs::write(
+        temporary.path().join("outputs/cvl/cv/grid/measure-v1.typ"),
+        "",
+    )
+    .unwrap();
     let error = validate_measurement_ownership(&workspace)
         .unwrap_err()
         .to_string();
@@ -219,7 +227,9 @@ fn documents_must_not_read_the_opposite_document_tree() {
         require_document_isolation(&workspace, &observed, &leaf)
     };
     build().unwrap();
-    let renderer = temporary.path().join("cvl/shared/ledger/render.typ");
+    let renderer = temporary
+        .path()
+        .join("outputs/cvl/shared/ledger/render.typ");
     let text = fs::read_to_string(&renderer).unwrap();
     fs::write(
         &renderer,
@@ -232,7 +242,7 @@ fn documents_must_not_read_the_opposite_document_tree() {
     let error = build().unwrap_err().to_string();
     assert!(
         error.contains(
-            "cv ledger/primary/en-ch reads the cl document tree: cvl/cl/ledger/contract.toml"
+            "cv ledger/primary/en-ch reads the cl document tree: outputs/cvl/cl/ledger/contract.toml"
         ),
         "{error}"
     );
@@ -256,12 +266,14 @@ fn resolved_copies_and_portable_bundles_must_reproduce_the_build() {
         verify(document, style).unwrap();
     }
     // An input without a literal default cannot compile as an emitted copy.
-    let entry = temporary.path().join("cvl/cv/grid/wide/en/ch/typst/cv.typ");
+    let entry = temporary
+        .path()
+        .join("outputs/cvl/cv/grid/wide/en/ch/typst/cv.typ");
     let original = fs::read_to_string(&entry).unwrap();
     fs::write(
         &entry,
         original.replace(
-            "sys.inputs.at(\"strings\", default: \"/cvl/cv/grid/wide/en/ch/strings.toml\")",
+            "sys.inputs.at(\"strings\", default: \"/outputs/cvl/cv/grid/wide/en/ch/strings.toml\")",
             "sys.inputs.at(\"strings\")",
         ),
     )
@@ -270,11 +282,11 @@ fn resolved_copies_and_portable_bundles_must_reproduce_the_build() {
     assert!(error.contains("resolved copy"), "{error}");
     fs::write(&entry, original).unwrap();
     // A renderer input outside the exported style breaks the portable bundle.
-    let layout = temporary.path().join("cvl/cv/grid/layout.typ");
+    let layout = temporary.path().join("outputs/cvl/cv/grid/layout.typ");
     let text = fs::read_to_string(&layout).unwrap();
     fs::write(
         &layout,
-        format!("#import \"/cvl/shared/ledger/render.typ\": contact\n{text}"),
+        format!("#import \"/outputs/cvl/shared/ledger/render.typ\": contact\n{text}"),
     )
     .unwrap();
     let error = format!("{:#}", verify("cv", "grid").unwrap_err());
@@ -293,7 +305,7 @@ fn portable_bundle_is_an_explicit_boolean_without_source_files() {
             .contains("source_files")
     );
     let (temporary, workspace) = crate::test_support::fixture_workspace();
-    let contract = temporary.path().join("cvl/cv/grid/contract.toml");
+    let contract = temporary.path().join("outputs/cvl/cv/grid/contract.toml");
     let text = fs::read_to_string(&contract).unwrap();
     fs::write(
         &contract,

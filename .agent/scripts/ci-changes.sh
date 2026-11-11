@@ -3,12 +3,12 @@
 # slow run: unknown paths, unusable ranges and other events select everything.
 #
 # Rust tests never read the showcase styles, shared families, profile or assets
-# under cvl/: they use the synthetic workspace in .agent/tests/fixtures, and the
+# under outputs/cvl/: they use the synthetic workspace in .agent/tests/fixtures, and the
 # real-data invariants they used to check (frozen contracts, leaf inventory,
 # tracked outputs, measurement ownership, document isolation, portable copies,
 # the station plan) are enforced by `ccvl check`, which the document job runs.
-# So cvl/ style, family, profile and asset changes select only the document
-# job. cvl/README.md and every path outside cvl/ that Rust tests still read
+# So outputs/cvl/ style, family, profile and asset changes select only the document
+# job. outputs/cvl/README.md and every path outside outputs/cvl/ that Rust tests still read
 # (skills, scaffolds, schemas, fixtures, data-root READMEs, licenses bundled
 # by style exports, CI scripts) select the Rust job.
 #
@@ -42,10 +42,10 @@ add_style() {
 # inventory, so every style is checked; the engine rejects unknown filters.
 touch_style() {
   local document="$1" style="$2"
-  if [[ -f "$repo_root/cvl/$document/$style/style.toml" ]]; then
+  if [[ -f "$repo_root/outputs/cvl/$document/$style/style.toml" ]]; then
     add_style "$document/$style"
   else
-    select_everything "removed or renamed style cvl/$document/$style"
+    select_everything "removed or renamed style outputs/cvl/$document/$style"
   fi
 }
 
@@ -55,30 +55,30 @@ touch_style() {
 touch_family() {
   local family="$1" found=false file relative document style
   for document in cv cl; do
-    if [[ -f "$repo_root/cvl/$document/$family/style.toml" ]]; then
+    if [[ -f "$repo_root/outputs/cvl/$document/$family/style.toml" ]]; then
       add_style "$document/$family"
       found=true
     fi
   done
   while IFS= read -r file; do
     [[ -n "$file" ]] || continue
-    relative="${file#"$repo_root"/cvl/}"
+    relative="${file#"$repo_root"/outputs/cvl/}"
     document="${relative%%/*}"
     relative="${relative#*/}"
     style="${relative%%/*}"
-    if [[ "$relative" == */* && -f "$repo_root/cvl/$document/$style/style.toml" ]]; then
+    if [[ "$relative" == */* && -f "$repo_root/outputs/cvl/$document/$style/style.toml" ]]; then
       add_style "$document/$style"
       found=true
     fi
-  done < <(grep -rlIF -- "shared/$family/" "$repo_root/cvl/cv" "$repo_root/cvl/cl" 2>/dev/null || true)
-  [[ "$found" == true ]] || select_everything "unreferenced shared family cvl/shared/$family"
+  done < <(grep -rlIF -- "shared/$family/" "$repo_root/outputs/cvl/cv" "$repo_root/outputs/cvl/cl" 2>/dev/null || true)
+  [[ "$found" == true ]] || select_everything "unreferenced shared family outputs/cvl/shared/$family"
 }
 
 # The interview station plan is rendered into, and validated by, every CV
 # style whose contract declares the station layout protocol.
 touch_station_plan() {
   local contract style
-  for contract in "$repo_root"/cvl/cv/*/contract.toml; do
+  for contract in "$repo_root"/outputs/cvl/cv/*/contract.toml; do
     [[ -f "$contract" ]] || continue
     if grep -q '^\[layout_contract' "$contract"; then
       style="${contract%/contract.toml}"
@@ -98,27 +98,28 @@ classify_path() {
       Cargo.toml | Cargo.lock | rust-toolchain.toml | ccvl.json)
       select_everything "engine input changed: $path" ;;
     # Showcase styles and shared families: their documents only.
-    cvl/cv/*/* | cvl/cl/*/*)
-      rest="${path#cvl/*/}"
-      touch_style "${path:4:2}" "${rest%%/*}" ;;
-    cvl/shared/*/*)
-      rest="${path#cvl/shared/}"
+    outputs/cvl/cv/*/* | outputs/cvl/cl/*/*)
+      document="${path#outputs/cvl/}"
+      rest="${document#*/}"
+      touch_style "${document%%/*}" "${rest%%/*}" ;;
+    outputs/cvl/shared/*/*)
+      rest="${path#outputs/cvl/shared/}"
       touch_family "${rest%%/*}" ;;
     # Read by Rust tests (existence), never rendered.
-    cvl/README.md) rust=true ;;
+    outputs/cvl/README.md) rust=true ;;
     # The profile and assets reach every document, but no Rust test.
-    cvl/profile.toml | cvl/assets/*) all_styles=true ;;
+    inputs/profile.toml | inputs/assets/*) all_styles=true ;;
     # Any other cvl input could be a new data root: everything.
-    cvl/*) select_everything "unclassified presentation input changed: $path" ;;
+    outputs/cvl/*) select_everything "unclassified presentation input changed: $path" ;;
     # Read by Rust tests (README) and rendered into station-protocol CVs.
-    interview/stations.toml)
+    inputs/interviews/stations.toml)
       rust=true
       touch_station_plan ;;
     # Real-workspace inputs that Rust tests read, plus the Rust job's own
     # scripts and release-gate inputs.
     .agent/skills/* | .agent/scaffolds/* | .agent/schemas/* | \
       .agent/tests/fixtures/* | .agent/tests/skill-cases.json | \
-      .agent/docs/editorial.md | interview/* | opportunities/* | \
+      .agent/docs/editorial.md | inputs/interviews/* | opportunities/* | \
       REUSE.toml | LICENSES/* | .crow/downstream-sync.yaml | \
       .crow/release-archive.yaml | \
       .agent/release-platforms.txt | .agent/scripts/ci-check.sh | \

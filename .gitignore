@@ -1,12 +1,12 @@
 # Opportunity outputs (pdfs/ + typst/) are committed (PDFs via LFS).
 
 # Private user knowledge; only the public scaffold and station example ship.
-/interview/*
-!/interview/README.md
-!/interview/imports/
-/interview/imports/*
-!/interview/imports/README.md
-!/interview/stations.toml
+/inputs/interviews/*
+!/inputs/interviews/README.md
+!/inputs/interviews/imports/
+/inputs/interviews/imports/*
+!/inputs/interviews/imports/README.md
+!/inputs/interviews/stations.toml
 
 # Local build state
 /.agent/cache/

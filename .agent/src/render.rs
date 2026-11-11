@@ -279,7 +279,7 @@ pub fn cl_spec(
 }
 
 /// The spec `build-cv` and `build-cl` render for one leaf. The application
-/// defaults to the leaf's own content and the profile to `cvl/profile.toml`.
+/// defaults to the leaf's own content and the profile to `inputs/profile.toml`.
 /// Explicit `pages` win, then the record's `options.pages` (CV) or
 /// `options.cl_pages` (letter), then the leaf's default preset.
 pub fn build_spec(

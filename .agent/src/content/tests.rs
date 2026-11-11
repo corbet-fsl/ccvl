@@ -14,11 +14,11 @@ fn fixture() -> (tempfile::TempDir, Workspace) {
     write(
         root,
         "ccvl.json",
-        &json!({"documents": {"cv": {"root": "cvl/cv"}, "cover_letter": {"root": "cvl/cl"}}})
+        &json!({"documents": {"cv": {"root": "outputs/cvl/cv"}, "cover_letter": {"root": "outputs/cvl/cl"}}})
             .to_string(),
     );
     for (document, style) in [("cv", "first"), ("cv", "second"), ("cl", "first")] {
-        let prefix = format!("cvl/{document}/{style}");
+        let prefix = format!("outputs/cvl/{document}/{style}");
         write(
             root,
             &format!("{prefix}/style.toml"),
@@ -65,8 +65,8 @@ fn query_record(workspace: &Workspace, path: &str) -> Result<Value> {
 #[test]
 fn shared_edits_reach_sibling_substyles_but_preserve_explicit_exceptions() {
     let (_temporary, workspace) = fixture();
-    let one = "cvl/cv/first/one/en/ch/content.toml";
-    let two = "cvl/cv/first/two/en/ch/content.toml";
+    let one = "outputs/cvl/cv/first/one/en/ch/content.toml";
+    let two = "outputs/cvl/cv/first/two/en/ch/content.toml";
     write(
         workspace.root(),
         two,
@@ -82,7 +82,7 @@ fn shared_edits_reach_sibling_substyles_but_preserve_explicit_exceptions() {
     assert!(before.get("wording").is_none());
     write(
         workspace.root(),
-        "cvl/cv/first/content/en/ch/wording.toml",
+        "outputs/cvl/cv/first/content/en/ch/wording.toml",
         "[cv]\ntitle = \"Updated shared wording\"\nitems = [\"changed\"]\n[cv.details]\nleft = \"updated\"\nright = \"updated\"\n",
     );
     for path in [one, two] {
@@ -97,15 +97,15 @@ fn shared_edits_reach_sibling_substyles_but_preserve_explicit_exceptions() {
         json!({"left": "updated", "right": "exception"})
     );
     assert_eq!(
-        read_record(&workspace, "cvl/cv/second/one/en/ch/content.toml").unwrap()["cv"]["title"],
+        read_record(&workspace, "outputs/cvl/cv/second/one/en/ch/content.toml").unwrap()["cv"]["title"],
         "second"
     );
     assert_eq!(
-        read_record(&workspace, "cvl/cl/first/one/en/ch/content.toml").unwrap()["cl"]["title"],
+        read_record(&workspace, "outputs/cvl/cl/first/one/en/ch/content.toml").unwrap()["cl"]["title"],
         "first"
     );
     assert_eq!(
-        read_record(&workspace, "cvl/cv/first/one/en/us/content.toml").unwrap()["cv"]["title"],
+        read_record(&workspace, "outputs/cvl/cv/first/one/en/us/content.toml").unwrap()["cv"]["title"],
         "first"
     );
 }
@@ -113,12 +113,12 @@ fn shared_edits_reach_sibling_substyles_but_preserve_explicit_exceptions() {
 #[test]
 fn source_scope_and_nested_references_fail_in_rust_and_direct_typst() {
     let (_temporary, workspace) = fixture();
-    let path = "cvl/cv/first/one/en/ch/content.toml";
+    let path = "outputs/cvl/cv/first/one/en/ch/content.toml";
     for source in [
         "../../../../second/content/en/ch/wording.toml",
         "../../../../../cl/first/content/en/ch/wording.toml",
         "../../../content/en/us/wording.toml",
-        "/cvl/cv/first/content/en/ch/wording.toml",
+        "/outputs/cvl/cv/first/content/en/ch/wording.toml",
         "../../../content/en/ch/other.toml",
     ] {
         write(
@@ -141,7 +141,7 @@ fn source_scope_and_nested_references_fail_in_rust_and_direct_typst() {
     ] {
         write(
             workspace.root(),
-            "cvl/cv/first/content/en/ch/wording.toml",
+            "outputs/cvl/cv/first/content/en/ch/wording.toml",
             shared,
         );
         assert!(read_record(&workspace, path).is_err());
@@ -152,7 +152,7 @@ fn source_scope_and_nested_references_fail_in_rust_and_direct_typst() {
 #[test]
 fn private_records_are_self_contained_and_whole_array_overrides_can_be_empty() {
     let (_temporary, workspace) = fixture();
-    let path = "cvl/cv/first/one/en/ch/content.toml";
+    let path = "outputs/cvl/cv/first/one/en/ch/content.toml";
     write(
         workspace.root(),
         path,
@@ -187,14 +187,14 @@ fn private_records_are_self_contained_and_whole_array_overrides_can_be_empty() {
 #[test]
 fn a_wording_symlink_cannot_cross_style_ownership() {
     let (_temporary, workspace) = fixture();
-    let expected = workspace.path("cvl/cv/first/content/en/ch/wording.toml");
+    let expected = workspace.path("outputs/cvl/cv/first/content/en/ch/wording.toml");
     fs::remove_file(&expected).unwrap();
     std::os::unix::fs::symlink(
-        workspace.path("cvl/cv/second/content/en/ch/wording.toml"),
+        workspace.path("outputs/cvl/cv/second/content/en/ch/wording.toml"),
         expected,
     )
     .unwrap();
-    let error = read_record(&workspace, "cvl/cv/first/one/en/ch/content.toml")
+    let error = read_record(&workspace, "outputs/cvl/cv/first/one/en/ch/content.toml")
         .unwrap_err()
         .to_string();
     assert!(error.contains("symlink"), "{error}");
@@ -203,8 +203,8 @@ fn a_wording_symlink_cannot_cross_style_ownership() {
 #[test]
 fn shared_letter_does_not_read_or_observe_an_absent_or_malformed_cv_root() {
     let (_temporary, workspace) = fixture();
-    fs::remove_dir_all(workspace.path("cvl/cv")).unwrap();
-    let path = "cvl/cl/first/one/en/ch/content.toml";
+    fs::remove_dir_all(workspace.path("outputs/cvl/cv")).unwrap();
+    let path = "outputs/cvl/cl/first/one/en/ch/content.toml";
     for malformed in [false, true] {
         if malformed {
             let mut manifest = workspace.read_json("ccvl.json").unwrap();
@@ -219,7 +219,7 @@ fn shared_letter_does_not_read_or_observe_an_absent_or_malformed_cv_root() {
             !observed
                 .observed_inputs()
                 .iter()
-                .any(|path| path.starts_with(workspace.path("cvl/cv")))
+                .any(|path| path.starts_with(workspace.path("outputs/cvl/cv")))
         );
     }
 }
@@ -257,10 +257,10 @@ fn shared_family_renderers_ignore_missing_and_malformed_opposite_contracts() {
         for relative in [
             "ccvl.json",
             ".agent/typst",
-            "cvl/shared/ledger",
-            "cvl/profile.toml",
-            "interview/stations.toml",
-            &format!("cvl/{document}/ledger"),
+            "outputs/cvl/shared/ledger",
+            "inputs/profile.toml",
+            "inputs/interviews/stations.toml",
+            &format!("outputs/cvl/{document}/ledger"),
         ] {
             copy_sources(&original, root, relative);
         }
@@ -282,7 +282,7 @@ fn shared_family_renderers_ignore_missing_and_malformed_opposite_contracts() {
             if malformed {
                 write(
                     root,
-                    &format!("cvl/{opposite}/ledger/contract.toml"),
+                    &format!("outputs/cvl/{opposite}/ledger/contract.toml"),
                     "invalid = [",
                 );
             }
@@ -301,7 +301,7 @@ fn shared_family_renderers_ignore_missing_and_malformed_opposite_contracts() {
                 !observed
                     .observed_inputs()
                     .iter()
-                    .any(|path| path.starts_with(workspace.path(format!("cvl/{opposite}"))))
+                    .any(|path| path.starts_with(workspace.path(format!("outputs/cvl/{opposite}"))))
             );
         }
     }

@@ -13,7 +13,7 @@ license with the original copyright notice and exact provenance.
 
 ## Synthetic showcase signature
 
-`cvl/assets/signature.png` is an original synthetic signature-like graphic,
+`inputs/assets/images/signatures/signature.png` is an original synthetic signature-like graphic,
 generated with OpenAI image generation on 3 September 2026 for this repository.
 It is not a scan, imitation, or reconstruction of Julian Corbet's handwritten
 signature. The exact generation prompt, asset properties, and checksum are

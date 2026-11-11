@@ -955,7 +955,7 @@ fn application_records(workspace: &Workspace) -> Result<Vec<PathBuf>> {
 }
 
 /// Every `not_true` occurrence in application wording (`[cv]` and `[cl]`),
-/// in `cvl/` wording sources and in the plan's own entries.
+/// in `outputs/cvl/` wording sources and in the plan's own entries.
 pub fn not_true_hints(
     workspace: &Workspace,
     document: &Value,

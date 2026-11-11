@@ -63,7 +63,7 @@ fn drift(plan_source: &str) -> Vec<String> {
     drift_against(
         &plan(plan_source),
         plan_source,
-        "interview/stations.toml",
+        "inputs/interviews/stations.toml",
         CV,
         "cv.typ",
     )
@@ -118,20 +118,20 @@ fn drift_reports_differing_missing_and_extra_facts_with_locations() {
     let hints = drift(PLAN_SOURCE);
     assert_eq!(hints.len(), 4, "{hints:#?}");
     assert!(hints[0].starts_with(
-        "interview/stations.toml:10: interview fact alpha-2 differs from CV bullet 2 at cv.typ:8;"
+        "inputs/interviews/stations.toml:10: interview fact alpha-2 differs from CV bullet 2 at cv.typ:8;"
     ));
     assert!(
         hints[0].contains(r#"interview: "Cut review time by 70%"; CV: "Cut review time by 80%""#)
     );
     assert!(hints[1].starts_with(
-        "interview/stations.toml:11: interview fact alpha-3 has no CV bullet 3 in station alpha at cv.typ:3"
+        "inputs/interviews/stations.toml:11: interview fact alpha-3 has no CV bullet 3 in station alpha at cv.typ:3"
     ));
     assert_eq!(
         hints[2],
         r#"cv.typ:12: CV subheading of station beta has no interview fact beta-role: "First aid | de-escalation""#
     );
     assert!(hints[3].starts_with(
-        "interview/stations.toml:21: anchor of project gamma differs from CV subheading at cv.typ:19;"
+        "inputs/interviews/stations.toml:21: anchor of project gamma differs from CV subheading at cv.typ:19;"
     ));
 }
 
@@ -141,7 +141,7 @@ fn drift_reports_cv_entries_missing_from_the_plan() {
     let hints = drift(&source);
     assert!(
         hints.contains(
-            &"cv.typ:10: CV station beta has no interview entry in interview/stations.toml"
+            &"cv.typ:10: CV station beta has no interview entry in inputs/interviews/stations.toml"
                 .to_owned()
         ),
         "{hints:#?}"
@@ -285,23 +285,23 @@ fn not_true_hints_cover_records_cvl_sources_and_the_plan() {
     );
     write(
         &workspace,
-        "cvl/cv/ledger/src/entries-en.typ",
+        "outputs/cvl/cv/ledger/src/entries-en.typ",
         "// SAP in a comment is not wording\n#cv-b[Automated a five-figure eBay operation through own mini-ERP]\n#cv-b[Ran SAP reports]\n",
     );
     let hints = not_true_hints(
         &workspace,
         &plan(&plan_source),
         &plan_source,
-        "interview/stations.toml",
+        "inputs/interviews/stations.toml",
     )
     .unwrap();
     assert_eq!(hints.len(), 5, "{hints:#?}");
     assert!(hints[0].starts_with(
-        r#"interview/stations.toml:14: fact alpha-1 says "SAP", which matches not_true term "SAP""#
+        r#"inputs/interviews/stations.toml:14: fact alpha-1 says "SAP", which matches not_true term "SAP""#
     ));
     assert_eq!(
         hints[1],
-        r#"cvl/cv/ledger/src/entries-en.typ:3: "SAP" matches not_true term "SAP": Never used SAP professionally"#
+        r#"outputs/cvl/cv/ledger/src/entries-en.typ:3: "SAP" matches not_true term "SAP": Never used SAP professionally"#
     );
     assert!(hints[2].starts_with(r#"opportunities/acme/lead/application.toml:7: "SAP" matches"#));
     assert!(hints[3].starts_with(r#"opportunities/acme/lead/application.toml:7: "ERP" matches"#));
@@ -408,16 +408,16 @@ source_refs = ["confirmed-by:Jane Doe:2026-10-01", "confirmed-by:Max Muster:2026
 [[projects]]
 id = "gamma"
 facts = [{ id = "gamma-1", text = "Fact" }]
-source_refs = ["confirmed-by:Jane Doe:2026-10-01", "cv:cvl/cv/harvard/src/entries-en.typ"]
+source_refs = ["confirmed-by:Jane Doe:2026-10-01", "cv:outputs/cvl/cv/harvard/src/entries-en.typ"]
 "#;
     let document = plan(source);
     validate_plan(&document, "plan").unwrap();
-    let hints = second_look_hints(&document, source, "interview/stations.toml");
+    let hints = second_look_hints(&document, source, "inputs/interviews/stations.toml");
     assert_eq!(
         hints,
         [
-            "interview/stations.toml:6: fact alpha-1 is confirmed only by Jane Doe (2026-10-01), not by the candidate; worth a second look",
-            "interview/stations.toml:12: station beta is confirmed only by Jane Doe (2026-10-01), Max Muster (2026-10-02), not by the candidate; worth a second look",
+            "inputs/interviews/stations.toml:6: fact alpha-1 is confirmed only by Jane Doe (2026-10-01), not by the candidate; worth a second look",
+            "inputs/interviews/stations.toml:12: station beta is confirmed only by Jane Doe (2026-10-01), Max Muster (2026-10-02), not by the candidate; worth a second look",
         ]
     );
     assert!(candidate_confirmation("user-confirmed:2026-09-03"));

@@ -369,7 +369,7 @@ mod tests {
 
         for relative in [
             "config.json",
-            "cvl/review/result.json",
+            "outputs/cvl/review/result.json",
             "opportunities/example/role/content.json",
             "opportunities/example/role/reviews/result.json",
             "opportunities/example/review/result.json",

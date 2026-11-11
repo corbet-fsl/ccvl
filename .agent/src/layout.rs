@@ -6,7 +6,10 @@ use std::collections::BTreeSet;
 include!(concat!(env!("OUT_DIR"), "/layout.rs"));
 
 /// Every workspace data path of the manifest.
-pub const DATA_PATHS: [&str; 10] = [
+pub const DATA_PATHS: [&str; 13] = [
+    INPUTS_ROOT,
+    INPUTS_LIBRARY,
+    OUTPUTS_ROOT,
     INPUTS_PROFILE,
     INPUTS_INTERVIEWS,
     INPUTS_STATIONS,
@@ -69,8 +72,13 @@ mod tests {
     #[test]
     fn nested_roots_are_walked_once() {
         assert_eq!(
-            outermost(&["cvl", "cvl/assets", ".agent/typst", "cvl"]),
-            [".agent/typst", "cvl"]
+            outermost(&[
+                "outputs/cvl",
+                "outputs/cvl/assets",
+                ".agent/typst",
+                "outputs/cvl"
+            ]),
+            [".agent/typst", "outputs/cvl"]
         );
         assert_eq!(
             outermost(&["inputs/assets", "outputs/cvl"]),

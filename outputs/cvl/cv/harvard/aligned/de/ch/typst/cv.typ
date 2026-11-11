@@ -1,14 +1,14 @@
 // Harvard CV: aligned, de-ch. Defaults also make this leaf directly compilable.
-#import "/cvl/cv/harvard/src/cv.typ": cv-renderer
-#import "/cvl/cv/harvard/src/entries-de.typ": render-entries
+#import "/outputs/cvl/cv/harvard/src/cv.typ": cv-renderer
+#import "/outputs/cvl/cv/harvard/src/entries-de.typ": render-entries
 #let cv-pages = int(sys.inputs.at("pages", default: "4"))
-#let application-path = sys.inputs.at("application", default: "/cvl/cv/harvard/aligned/de/ch/content.toml")
-#let profile-path = sys.inputs.at("profile", default: "/cvl/profile.toml")
-#let strings-path = sys.inputs.at("strings", default: "/cvl/cv/harvard/aligned/de/ch/strings.toml")
-#let substyle-path = sys.inputs.at("substyle", default: "/cvl/cv/harvard/aligned/substyle.toml")
+#let application-path = sys.inputs.at("application", default: "/outputs/cvl/cv/harvard/aligned/de/ch/content.toml")
+#let profile-path = sys.inputs.at("profile", default: "/inputs/profile.toml")
+#let strings-path = sys.inputs.at("strings", default: "/outputs/cvl/cv/harvard/aligned/de/ch/strings.toml")
+#let substyle-path = sys.inputs.at("substyle", default: "/outputs/cvl/cv/harvard/aligned/substyle.toml")
 #let paper-input = sys.inputs.at("paper", default: "")
-#let layout-path = sys.inputs.at("layout", default: "/cvl/cv/harvard/aligned/de/ch/layout.toml")
-#let shared-defaults-path = sys.inputs.at("shared-defaults", default: "/cvl/shared/harvard/defaults.toml")
+#let layout-path = sys.inputs.at("layout", default: "/outputs/cvl/cv/harvard/aligned/de/ch/layout.toml")
+#let shared-defaults-path = sys.inputs.at("shared-defaults", default: "/outputs/cvl/shared/harvard/defaults.toml")
 #let cv = cv-renderer(
   application-path: application-path,
   profile-path: profile-path,

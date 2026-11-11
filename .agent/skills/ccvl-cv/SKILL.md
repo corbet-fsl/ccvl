@@ -6,7 +6,7 @@ description: Write, tailor, render and verify persuasive, truthful, MECE ccvl CV
 # Create and revise a ccvl CV
 
 Resolve `options.cv_style` and `options.cv_substyle`, then read that style’s
-metadata and contract under `cvl/cv/<style>/`. Make the document legible to
+metadata and contract under `outputs/cvl/cv/<style>/`. Make the document legible to
 recruiters and specialists. Harvard is the shipped default; another style may
 use entirely different content fields, geometry, fonts and page presets.
 
@@ -44,7 +44,7 @@ answers its archived posting. Do not invent a vacancy for a general document.
 
 ## Summary (Harvard CV)
 
-Maintain the opportunity-independent master below `cvl/`. For every
+Maintain the opportunity-independent master below `outputs/cvl/`. For every
 concrete role, read `cv.summary` from
 `opportunities/<organisation-key>/<position-key>/application.toml`. It is
 one flowing paragraph that must typeset to exactly five lines — not four,
@@ -73,7 +73,7 @@ sentences with correct enumeration commas and embedded, prioritised keywords
 These counts are the Harvard family's contract — shared by the `standard`
 and `compact` CV substyles, which differ only in whitespace — not engine law:
 other styles bring their own contracts. Before polishing or
-tailoring, load `interview/stations.toml` and run
+tailoring, load `inputs/interviews/stations.toml` and run
 `ccvl profile-status --verify-sources`. Page 1 must contain 6–8 full experience
 stations. Page 2 contains exactly 10 supporting stations with two bullets each.
 Page 3 contains exactly 10 projects or initiatives with two bullets each. Page
@@ -99,7 +99,7 @@ actions: always do both within the active review run's correction allowance.
 An exhausted allowance leaves the draft incomplete, never accepted.
 
 Every controlled CV line is measured against a minimum, target, and maximum
-fill percentage from `cvl/cv/harvard/contract.toml` for its actual Typst container. A sparse or
+fill percentage from `outputs/cvl/cv/harvard/contract.toml` for its actual Typst container. A sparse or
 overflowing line is a failed draft. Add relevant, verified signal or tighten
 the wording, then run `ccvl measure` again. Never use filler merely to make a
 draft pass.

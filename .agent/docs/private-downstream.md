@@ -19,14 +19,14 @@ it as a fork.
 The clone temporarily contains the reference-only personal showcase under the
 narrow replacement permission in
 `LICENSES/LicenseRef-CCVL-Personal-Content.txt`. Keep the working repository
-non-public while replacing the approved sources under `cvl/`, the signature
+non-public while replacing the approved sources under `outputs/cvl/`, the signature
 asset, public identifier manifest, and generated personal PDFs. The reusable
 mechanism and neutral scaffolds may be modified under their separate licenses;
 the showcase author's claims and wording may not be carried into another
 person's application.
 
-Keep the same domains as upstream: private user knowledge in `interview/`, the
-approved general document in `cvl/`, and one keyed package at
+Keep the same domains as upstream: private user knowledge in `inputs/interviews/`, the
+approved general document in `outputs/cvl/`, and one keyed package at
 `opportunities/<organisation-key>/<position-key>/` for every concrete job.
 Create an opportunity with `ccvl new-opportunity`; do not maintain a second
 Markdown copy of the tailored fields in `application.toml`.
@@ -35,7 +35,7 @@ Markdown copy of the tailored fields in `application.toml`.
 
 Keep a `ccvl-downstream.json` file in the downstream. It names the exact
 upstream remote and the only paths the downstream may own. A personalised
-downstream normally owns its policy, sync workflow, `interview/`, `cvl/`, and
+downstream normally owns its policy, sync workflow, `inputs/interviews/`, `outputs/cvl/`, and
 `opportunities/`; `.agent/`, the root launchers, schemas, skills, tests, and
 fixed layout contracts remain upstream-owned. Narrow this list when a
 downstream intentionally keeps the public showcase unchanged. `upstream.url` is

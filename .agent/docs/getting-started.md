@@ -13,8 +13,8 @@ use this prompt:
 
 > Set up this ccvl workspace. Read AGENTS.md, use the ccvl-install skill and the
 > checked-in platform dispatcher, verify the complete general CVL, then help me
-> build my evidence-backed profile in `interview/` and replace the approved
-> document sources in `cvl/`. Keep every concrete job, its research, and its
+> build my evidence-backed profile in `inputs/interviews/` and replace the approved
+> document sources in `outputs/cvl/`. Keep every concrete job, its research, and its
 > CV/CL under `opportunities/`. Interview me until the CV has enough verified
 > material for the fixed layout contract, and keep a visible journal as we go.
 > Ask me about facts, not tooling, unless the
@@ -67,10 +67,10 @@ All product commands are available through `bash ./ccvl help` or
 ## What happens next
 
 Start with `ccvl-profile`. It builds a private, source-linked fact base in
-`interview/` before the public general CVL is replaced. You can attach or paste
-a CV, drop several sources into `interview/imports/`, or answer one
+`inputs/interviews/` before the public general CVL is replaced. You can attach or paste
+a CV, drop several sources into `inputs/interviews/imports/`, or answer one
 conversational question at a time. The agent maintains
-`interview/journal.md` so you can inspect what has already been captured.
+`inputs/interviews/journal.md` so you can inspect what has already been captured.
 
 The first CV page needs 6–8 full experience stations. The second needs exactly
 10 supporting stations with two bullets each; page 3 needs exactly 10 projects

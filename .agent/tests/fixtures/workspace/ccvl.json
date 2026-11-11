@@ -3,17 +3,20 @@
   "schema_version": 9,
   "workspace_groups": {
     "inputs": {
-      "profile": "cvl/profile.toml",
-      "interviews": "interview",
-      "stations": "interview/stations.toml",
-      "assets": "cvl/assets",
-      "signature": "cvl/assets/signature.png"
+      "root": "inputs",
+      "profile": "inputs/profile.toml",
+      "interviews": "inputs/interviews",
+      "stations": "inputs/interviews/stations.toml",
+      "assets": "inputs/assets",
+      "signature": "inputs/assets/images/signatures/signature.png",
+      "library": "inputs/library"
     },
     "outputs": {
-      "cvl": "cvl",
-      "cv": "cvl/cv",
-      "cl": "cvl/cl",
-      "shared": "cvl/shared"
+      "root": "outputs",
+      "cvl": "outputs/cvl",
+      "cv": "outputs/cvl/cv",
+      "cl": "outputs/cvl/cl",
+      "shared": "outputs/cvl/shared"
     },
     "opportunities": {
       "root": "opportunities",
@@ -25,7 +28,7 @@
   },
   "documents": {
     "cv": {
-      "root": "cvl/cv",
+      "root": "outputs/cvl/cv",
       "default_style": "ledger",
       "slots": {
         "styles": 3,
@@ -33,7 +36,7 @@
       }
     },
     "cover_letter": {
-      "root": "cvl/cl",
+      "root": "outputs/cvl/cl",
       "default_style": "ledger",
       "slots": {
         "styles": 3,

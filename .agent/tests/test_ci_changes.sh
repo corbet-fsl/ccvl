@@ -15,18 +15,18 @@ write() {
 
 mkdir -p "$fixture/.agent/scripts"
 cp "$repo_root/.agent/scripts/ci-changes.sh" "$selector"
-write cvl/cv/harvard/style.toml 'defaults = "../../shared/harvard/defaults.toml"'
-write cvl/cv/harvard/standard/en/ch/content.toml '[cv]'
-write cvl/cv/harvard/contract.toml $'presets = [2, 3, 4]\n\n[layout_contract.page_1.entries]\nminimum = 6'
-write cvl/cv/modern/contract.toml 'content_fields = []'
-write cvl/cl/harvard/style.toml 'defaults = "../../shared/harvard/defaults.toml"'
-write cvl/cv/cluster/style.toml 'defaults = "../../shared/cluster/defaults.toml"'
-write cvl/cv/cluster/layout.typ '#import "/cvl/shared/harvard/style.typ": document-style'
-write cvl/cv/modern/style.toml 'defaults = "../../shared/modern/defaults.toml"'
-write cvl/cv/slot-4/style.toml 'empty = true'
-write cvl/shared/harvard/defaults.toml '[page]'
-write cvl/shared/modern/defaults.toml '[page]'
-write cvl/shared/orphan/defaults.toml '[page]'
+write outputs/cvl/cv/harvard/style.toml 'defaults = "../../shared/harvard/defaults.toml"'
+write outputs/cvl/cv/harvard/standard/en/ch/content.toml '[cv]'
+write outputs/cvl/cv/harvard/contract.toml $'presets = [2, 3, 4]\n\n[layout_contract.page_1.entries]\nminimum = 6'
+write outputs/cvl/cv/modern/contract.toml 'content_fields = []'
+write outputs/cvl/cl/harvard/style.toml 'defaults = "../../shared/harvard/defaults.toml"'
+write outputs/cvl/cv/cluster/style.toml 'defaults = "../../shared/cluster/defaults.toml"'
+write outputs/cvl/cv/cluster/layout.typ '#import "/outputs/cvl/shared/harvard/style.typ": document-style'
+write outputs/cvl/cv/modern/style.toml 'defaults = "../../shared/modern/defaults.toml"'
+write outputs/cvl/cv/slot-4/style.toml 'empty = true'
+write outputs/cvl/shared/harvard/defaults.toml '[page]'
+write outputs/cvl/shared/modern/defaults.toml '[page]'
+write outputs/cvl/shared/orphan/defaults.toml '[page]'
 write README.md '# Fixture'
 
 fail() {
@@ -45,32 +45,32 @@ expect() {
 
 # Style-only changes check only the touched style, without the Rust job:
 # Rust tests use synthetic fixtures and check enforces the real-data rules.
-expect false true cv/modern cvl/cv/modern/standard/en/ch/layout.toml
-expect false true cv/modern cvl/cv/modern/style.toml cvl/cv/modern/timeline/de/ch/content.toml
-expect false true 'cl/harvard cv/modern' cvl/cv/modern/README.md cvl/cl/harvard/frame/substyle.toml
-expect false true cv/harvard cvl/cv/harvard/standard/en/ch/content.toml cvl/cv/harvard/contract.toml
+expect false true cv/modern outputs/cvl/cv/modern/standard/en/ch/layout.toml
+expect false true cv/modern outputs/cvl/cv/modern/style.toml outputs/cvl/cv/modern/timeline/de/ch/content.toml
+expect false true 'cl/harvard cv/modern' outputs/cvl/cv/modern/README.md outputs/cvl/cl/harvard/frame/substyle.toml
+expect false true cv/harvard outputs/cvl/cv/harvard/standard/en/ch/content.toml outputs/cvl/cv/harvard/contract.toml
 # A lone empty slot style is a valid selection that renders no documents.
-expect false true cv/slot-4 cvl/cv/slot-4/style.toml
+expect false true cv/slot-4 outputs/cvl/cv/slot-4/style.toml
 # Shared families serve their same-named and referencing styles.
-expect false true 'cl/harvard cv/cluster cv/harvard' cvl/shared/harvard/style.typ
-expect false true cv/modern cvl/shared/modern/defaults.toml
+expect false true 'cl/harvard cv/cluster cv/harvard' outputs/cvl/shared/harvard/style.typ
+expect false true cv/modern outputs/cvl/shared/modern/defaults.toml
 # An unreferenced family or a removed style changes the inventory: everything.
-expect true true all cvl/shared/orphan/defaults.toml
-expect true true all cvl/cv/removed/standard/en/ch/content.toml
+expect true true all outputs/cvl/shared/orphan/defaults.toml
+expect true true all outputs/cvl/cv/removed/standard/en/ch/content.toml
 # The profile and assets reach every document but no Rust test.
-expect false true all cvl/profile.toml
-expect false true all cvl/assets/signature.png
+expect false true all inputs/profile.toml
+expect false true all inputs/assets/images/signatures/signature.png
 # Other cvl inputs could be new data roots; the README is read by Rust tests.
-expect true true all cvl/cv/README.md
-expect true false '' cvl/README.md
+expect true true all outputs/cvl/cv/README.md
+expect true false '' outputs/cvl/README.md
 # Cloud session setup is shellchecked by the lint job only.
 expect false false '' .agent/scripts/web-session-setup.sh
 # The station plan feeds the CVs declaring the station layout protocol.
-expect true true cv/harvard interview/stations.toml
-expect true true 'cl/harvard cv/harvard' interview/stations.toml cvl/cl/harvard/left-rule/en/ch/strings.toml
-mv "$fixture/cvl/cv/harvard/contract.toml" "$scratch/contract.toml"
-expect true false '' interview/stations.toml
-mv "$scratch/contract.toml" "$fixture/cvl/cv/harvard/contract.toml"
+expect true true cv/harvard inputs/interviews/stations.toml
+expect true true 'cl/harvard cv/harvard' inputs/interviews/stations.toml outputs/cvl/cl/harvard/left-rule/en/ch/strings.toml
+mv "$fixture/outputs/cvl/cv/harvard/contract.toml" "$scratch/contract.toml"
+expect true false '' inputs/interviews/stations.toml
+mv "$scratch/contract.toml" "$fixture/outputs/cvl/cv/harvard/contract.toml"
 # Engine and manifest changes check every document; so do selection changes.
 for path in .agent/src/check.rs .agent/core/src/lib.rs .agent/build.rs \
   .agent/typst/document.typ Cargo.toml Cargo.lock rust-toolchain.toml ccvl.json \
@@ -80,7 +80,7 @@ done
 # Real-workspace inputs that Rust tests read, and the Rust job's scripts.
 for path in .agent/skills/ccvl-cv/SKILL.md .agent/scaffolds/opportunity/application.toml \
   .agent/schemas/review-result.schema.json .agent/tests/fixtures/application-dates.json \
-  .agent/tests/skill-cases.json .agent/docs/editorial.md interview/README.md \
+  .agent/tests/skill-cases.json .agent/docs/editorial.md inputs/interviews/README.md \
   opportunities/README.md REUSE.toml LICENSES/CC-BY-4.0.txt .crow/downstream-sync.yaml \
   .agent/release-platforms.txt .agent/scripts/ci-check.sh .agent/scripts/release-ci.sh \
   .agent/scripts/rust-toolchain.sh .agent/scripts/release-evidence.sh \
@@ -103,7 +103,7 @@ expect false false '' .agent/docs/ci.md README.md
 # Anything unclassified fails safe.
 expect true true all new-root/file.txt
 expect true true all .gitignore
-expect true true all cvl/cv/modern/style.toml .agent/docs/ci.md new-root/file.txt
+expect true true all outputs/cvl/cv/modern/style.toml .agent/docs/ci.md new-root/file.txt
 
 # Git ranges and GitHub events.
 git_fixture() { git -C "$fixture" -c user.name=ccvl -c user.email=ccvl@example.invalid -c commit.gpgsign=false "$@"; }
@@ -112,7 +112,7 @@ git_fixture add -A
 git_fixture commit -q -m base
 base="$(git_fixture rev-parse HEAD)"
 git_fixture checkout -q -b feature
-write cvl/cv/modern/standard/en/ch/layout.toml '[page]'
+write outputs/cvl/cv/modern/standard/en/ch/layout.toml '[page]'
 write .agent/docs/guide.md '# Guide'
 git_fixture add -A
 git_fixture commit -q -m feature

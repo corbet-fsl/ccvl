@@ -329,7 +329,7 @@
       "options": [
         {
           "id": "save-user-preference-in-interview",
-          "text": "Record the durable user preference in interview/ so it can inform later applications."
+          "text": "Record the durable user preference in inputs/interviews/ so it can inform later applications."
         },
         {
           "id": "save-role-research-in-opportunity",
@@ -581,7 +581,7 @@
       "options": [
         {
           "id": "nest-substyles",
-          "text": "Put sidebar and topbar under the new style within cvl/cv and let the style own its layout."
+          "text": "Put sidebar and topbar under the new style within outputs/cvl/cv and let the style own its layout."
         },
         {
           "id": "own-contract",
@@ -593,7 +593,7 @@
         },
         {
           "id": "siblings",
-          "text": "Place sidebar and topbar directly under cvl/cv beside Harvard."
+          "text": "Place sidebar and topbar directly under outputs/cvl/cv beside Harvard."
         }
       ],
       "required": [
@@ -922,7 +922,7 @@
       "options": [
         {
           "id": "write-general-owner",
-          "text": "Write in the existing general letter wording owner under cvl/cl/<style>/, following its declared audience."
+          "text": "Write in the existing general letter wording owner under outputs/cvl/cl/<style>/, following its declared audience."
         },
         {
           "id": "review-general-mode",

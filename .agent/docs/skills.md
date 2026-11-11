@@ -16,7 +16,7 @@ cover the portable application lifecycle without creating another data domain.
 | `ccvl-outcome` | observed events, exact feedback, funnel evidence, calibration | invented causes |
 
 General facts, direction, and preferences learned about the candidate go to
-`interview/`. Company and role research exists only inside a concrete
+`inputs/interviews/`. Company and role research exists only inside a concrete
 `opportunities/<organisation>/<position>/` package. ccvl does not maintain a
 standalone market map.
 

@@ -125,7 +125,7 @@ fn reserved_default_resolves_command_line_and_record_selections() {
     let record = directory.path().join("application.toml");
     let mut content = crate::content::read_record(
         &workspace,
-        workspace.path("cvl/cv/ledger/compact/en/ch/content.toml"),
+        workspace.path("outputs/cvl/cv/ledger/compact/en/ch/content.toml"),
     )
     .unwrap();
     content["options"]["cv_style"] = "default".into();

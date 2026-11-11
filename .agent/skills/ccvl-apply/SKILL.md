@@ -81,9 +81,9 @@ Create a new opportunity with `ccvl new-opportunity <organisation-key>
 posting as `posting.md` beside it — the one human-readable position reference,
 holding source, tasks, requirements, company context and preparation notes —
 plus URL, retrieval time, deadline and research. General/open
-letters remain in their existing `cvl/cl/<style>/` wording owner and follow the
+letters remain in their existing `outputs/cvl/cl/<style>/` wording owner and follow the
 user's stated audience and purpose; do not invent a vacancy or create a fake
-opportunity. Record durable candidate facts/preferences in `interview/`.
+opportunity. Record durable candidate facts/preferences in `inputs/interviews/`.
 
 Use verified facts without asking for confirmation again. Missing evidence
 calls for a focused factual question when it would materially improve the

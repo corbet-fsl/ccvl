@@ -58,7 +58,7 @@ fn summary_metric(actual: f64) -> Value {
 }
 
 fn repo_cv_spec() -> DocumentSpec {
-    cv_spec("cvl/cv/ledger/primary/de/ch/content.toml")
+    cv_spec("outputs/cvl/cv/ledger/primary/de/ch/content.toml")
 }
 
 fn metric(kind: &str, identifier: &str) -> Value {
@@ -143,7 +143,7 @@ fn cover_letter_templates_enforce_body_closing_and_highlight_bounds() {
                     .to_owned()
             };
             let source = format!(
-                "#import \"/cvl/shared/ledger/render.typ\": with-body-fill, with-highlight-fill\n\
+                "#import \"/outputs/cvl/shared/ledger/render.typ\": with-body-fill, with-highlight-fill\n\
                      #import \"@local/ccvl:1.0.0\": measured-paragraph, measured-line\n\
                      #set page(width: 200pt, height: 100pt, margin: 10pt)\n\
                      #set text(font: \"Archivo\", size: 10pt, hyphenate: false)\n\
@@ -236,8 +236,8 @@ fn closing_line_spill_renders_without_wrapping() {
 /// (A4, 12/15mm margins, Archivo 10.5pt, no block spacing).
 const FIXTURE_SETTINGS: &str = "#import \"@local/ccvl:1.0.0\": apply-document-settings\n\
     #import \"@local/ccvl:1.0.0\": resolve-paper, paper-settings\n\
-    #let preset = resolve-paper(toml(\"/cvl/cv/ledger/style.toml\"), \"de-ch\")\n\
-    #show: apply-document-settings.with(paper-settings((toml(\"/cvl/shared/ledger/defaults.toml\"), toml(\"/cvl/cv/ledger/primary/substyle.toml\"), toml(\"/cvl/cv/ledger/primary/de/ch/layout.toml\")), preset))\n";
+    #let preset = resolve-paper(toml(\"/outputs/cvl/cv/ledger/style.toml\"), \"de-ch\")\n\
+    #show: apply-document-settings.with(paper-settings((toml(\"/outputs/cvl/shared/ledger/defaults.toml\"), toml(\"/outputs/cvl/cv/ledger/primary/substyle.toml\"), toml(\"/outputs/cvl/cv/ledger/primary/de/ch/layout.toml\")), preset))\n";
 
 #[test]
 fn paragraph_closing_spill_renders_without_wrapping() {
@@ -428,12 +428,12 @@ fn summary_counsel_notes_allowed_thin_and_tolerated_spill() {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(
         directory.path().join("ccvl.json"),
-        "{\"documents\":{\"cv\":{\"root\":\"cvl/cv\"},\"cover_letter\":{\"root\":\"cvl/cl\"}}}",
+        "{\"documents\":{\"cv\":{\"root\":\"outputs/cvl/cv\"},\"cover_letter\":{\"root\":\"outputs/cvl/cl\"}}}",
     )
     .unwrap();
-    std::fs::create_dir_all(directory.path().join("cvl/cv/ledger")).unwrap();
+    std::fs::create_dir_all(directory.path().join("outputs/cvl/cv/ledger")).unwrap();
     std::fs::write(
-        directory.path().join("cvl/cv/ledger/contract.toml"),
+        directory.path().join("outputs/cvl/cv/ledger/contract.toml"),
         "last_line_maximum = 102\n[summary_fill]\nminimum = 60\ntarget = 82\nmaximum = 100\n",
     )
     .unwrap();
@@ -518,8 +518,8 @@ fn empty_recipient_name_warns_but_stays_valid() {
     // Target-neutral records leave the recipient empty: formal salutation
     // stays valid, but measurement must surface a visible advisory.
     for locale in [
-        "cvl/cl/ledger/rule/de/ch/content.toml",
-        "cvl/cl/ledger/rule/en/ch/content.toml",
+        "outputs/cvl/cl/ledger/rule/de/ch/content.toml",
+        "outputs/cvl/cl/ledger/rule/en/ch/content.toml",
     ] {
         let spec = cover_letter_spec_with_application(locale);
         let warnings = recipient_warnings(&workspace, &spec).unwrap();
@@ -596,20 +596,20 @@ fn typst_salutation_helper_keeps_only_the_last_token() {
 fn summary_counsel_uses_shared_wording_and_leaf_exceptions_like_typst() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    let leaf = "cvl/cv/ledger/primary/en/ch/content.toml";
-    let shared = "cvl/cv/ledger/content/en/ch/wording.toml";
+    let leaf = "outputs/cvl/cv/ledger/primary/en/ch/content.toml";
+    let shared = "outputs/cvl/cv/ledger/content/en/ch/wording.toml";
     for relative in [leaf, shared] {
         std::fs::create_dir_all(root.join(relative).parent().unwrap()).unwrap();
     }
     std::fs::write(
         root.join("ccvl.json"),
         json!({"documents": {
-            "cv": {"root": "cvl/cv"}, "cover_letter": {"root": "cvl/cl"}
+            "cv": {"root": "outputs/cvl/cv"}, "cover_letter": {"root": "outputs/cvl/cl"}
         }})
         .to_string(),
     )
     .unwrap();
-    std::fs::write(root.join("cvl/cv/ledger/style.toml"),
+    std::fs::write(root.join("outputs/cvl/cv/ledger/style.toml"),
         "id = \"ledger\"\napi = 1\ndocuments = [\"cv\"]\nsupports_locales = [\"en-ch\"]\npages = [4]\ndefault_pages = 4\nsubstyles = [\"primary\"]\n"
     ).unwrap();
     let workspace = Workspace::at(root).unwrap();

@@ -1,5 +1,5 @@
 //! Synthetic test workspaces. Tests never read the checked-in showcase under
-//! `cvl/`: they copy `.agent/tests/fixtures/workspace` (see its README) or
+//! `outputs/cvl/`: they copy `.agent/tests/fixtures/workspace` (see its README) or
 //! generate a probe workspace, plus the engine-owned inputs every workspace
 //! needs (`.agent/typst`, scaffolds and schemas). Real-data invariants of the
 //! showcase are enforced by `ccvl check`; see `.agent/docs/ci.md`.
@@ -12,7 +12,7 @@ use std::{
 use crate::Workspace;
 use serde_json::json;
 
-/// Engine-owned repository inputs. Never use this for `cvl/` content.
+/// Engine-owned repository inputs. Never use this for `outputs/cvl/` content.
 pub(crate) fn repository() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
@@ -146,15 +146,18 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
         &json!({
             "format": "ccvl-workspace", "schema_version": 9,
             "documents": {
-                "cv": {"root": "cvl/cv", "default_style": "probe"},
-                "cover_letter": {"root": "cvl/cl", "default_style": "probe"}
+                "cv": {"root": "outputs/cvl/cv", "default_style": "probe"},
+                "cover_letter": {"root": "outputs/cvl/cl", "default_style": "probe"}
             }
         })
         .to_string(),
     );
     let schema = ".agent/typst/document-settings.json";
     write(schema, &fs::read_to_string(source.join(schema)).unwrap());
-    for relative in ["cvl/shared/ledger/defaults.toml", "cvl/profile.toml"] {
+    for relative in [
+        "outputs/cvl/shared/ledger/defaults.toml",
+        "inputs/profile.toml",
+    ] {
         write(
             relative,
             &fs::read_to_string(fixture.join(relative)).unwrap(),
@@ -177,12 +180,15 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
             }
         });
         write(
-            &format!("cvl/{document}/probe/style.toml"),
+            &format!("outputs/cvl/{document}/probe/style.toml"),
             &toml::to_string(&definition).unwrap(),
         );
-        write(&format!("cvl/{document}/probe/plain/substyle.toml"), "");
+        write(
+            &format!("outputs/cvl/{document}/probe/plain/substyle.toml"),
+            "",
+        );
         for region in ["ch", "us"] {
-            let base = format!("cvl/{document}/probe/plain/en/{region}");
+            let base = format!("outputs/cvl/{document}/probe/plain/en/{region}");
             let mut record: serde_json::Value = toml::from_str(
                 &fs::read_to_string(source.join(".agent/scaffolds/opportunity/application.toml"))
                     .unwrap(),
@@ -211,8 +217,8 @@ pub(crate) fn paper_workspace() -> (tempfile::TempDir, Workspace) {
 #import "@local/ccvl:1.0.0": apply-document-settings
 #import "@local/ccvl:1.0.0": resolve-paper, paper-settings
 #let record = toml(sys.inputs.at("application", default: "/{base}/content.toml"))
-#let preset = resolve-paper(toml("/cvl/{document}/probe/style.toml"), "en-{region}", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("{document}_paper", default: none))
-#let settings = paper-settings((toml("/cvl/shared/ledger/defaults.toml"), toml(sys.inputs.at("layout", default: "/{base}/layout.toml"))), preset)
+#let preset = resolve-paper(toml("/outputs/cvl/{document}/probe/style.toml"), "en-{region}", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("{document}_paper", default: none))
+#let settings = paper-settings((toml("/outputs/cvl/shared/ledger/defaults.toml"), toml(sys.inputs.at("layout", default: "/{base}/layout.toml"))), preset)
 #show: apply-document-settings.with(settings)
 #preset.label
 #record.{document}.message

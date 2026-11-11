@@ -47,7 +47,7 @@ fn language_shorthand_selects_the_selected_styles_only_declared_region() {
 #[test]
 fn language_shorthand_rejects_ambiguous_regions_while_explicit_selection_survives() {
     let (_temporary, workspace) = independent_workspace();
-    let path = workspace.path("cvl/cv/orbit/style.toml");
+    let path = workspace.path("outputs/cvl/cv/orbit/style.toml");
     let definition = fs::read_to_string(&path).unwrap().replace(
         "supports_locales = [\"en-us\"]",
         "supports_locales = [\"en-us\", \"en-ch\"]",
@@ -81,18 +81,19 @@ fn independent_workspace() -> (tempfile::TempDir, Workspace) {
     let manifest = json!({
         "format": "ccvl-workspace", "schema_version": 9,
         "documents": {
-            "cv": {"root": "cvl/cv", "default_style": "orbit", "slots": {"styles": 1, "substyles": 1}},
-            "cover_letter": {"root": "cvl/cl", "default_style": "postcard", "slots": {"styles": 1, "substyles": 1}}
+            "cv": {"root": "outputs/cvl/cv", "default_style": "orbit", "slots": {"styles": 1, "substyles": 1}},
+            "cover_letter": {"root": "outputs/cvl/cl", "default_style": "postcard", "slots": {"styles": 1, "substyles": 1}}
         }
     });
     write(root, "ccvl.json", &format!("{manifest}\n"));
     write(
         root,
-        "cvl/profile.toml",
-        &fs::read_to_string(fixture.join("cvl/profile.toml")).unwrap(),
+        "inputs/profile.toml",
+        &fs::read_to_string(fixture.join("inputs/profile.toml")).unwrap(),
     );
     let mut record: toml::Value = toml::from_str(
-        &fs::read_to_string(fixture.join("cvl/cv/ledger/primary/en/ch/content.toml")).unwrap(),
+        &fs::read_to_string(fixture.join("outputs/cvl/cv/ledger/primary/en/ch/content.toml"))
+            .unwrap(),
     )
     .unwrap();
     record.as_table_mut().unwrap().remove("wording");
@@ -140,7 +141,7 @@ fn independent_workspace() -> (tempfile::TempDir, Workspace) {
     );
     let record = toml::to_string(&record).unwrap();
     for (document, style, pages) in [("cv", "orbit", 1), ("cl", "postcard", 2)] {
-        let base = format!("cvl/{document}/{style}");
+        let base = format!("outputs/cvl/{document}/{style}");
         write(
             root,
             &format!("{base}/style.toml"),
@@ -162,7 +163,7 @@ fn independent_workspace() -> (tempfile::TempDir, Workspace) {
     }
     write(
         root,
-        "cvl/cv/orbit/contract.toml",
+        "outputs/cvl/cv/orbit/contract.toml",
         r#"
 [pdf]
 size_pt = [680.315, 368.504]
@@ -174,11 +175,11 @@ maximum = 1
     );
     write(
         root,
-        "cvl/cv/orbit/standard/en/us/typst/cv.typ",
+        "outputs/cvl/cv/orbit/standard/en/us/typst/cv.typ",
         r##"
 #set page(width: 240mm, height: 130mm, margin: 12mm)
 #set text(font: "EB Garamond", size: 14pt)
-#let record = toml(sys.inputs.at("application", default: "/cvl/cv/orbit/standard/en/us/content.toml"))
+#let record = toml(sys.inputs.at("application", default: "/outputs/cvl/cv/orbit/standard/en/us/content.toml"))
 #grid(columns: (1fr, 2fr), gutter: 12mm,
   rect(fill: rgb("#153347"), inset: 12pt, text(fill: white, record.cv.heading)),
   [#record.cv.body],
@@ -188,11 +189,11 @@ maximum = 1
     );
     write(
         root,
-        "cvl/cl/postcard/standard/en/us/typst/cl.typ",
+        "outputs/cvl/cl/postcard/standard/en/us/typst/cl.typ",
         r##"
 #set page(width: 120mm, height: 180mm, margin: 12mm)
 #set text(font: "IBM Plex Serif", size: 15pt)
-#let record = toml(sys.inputs.at("application", default: "/cvl/cl/postcard/standard/en/us/content.toml"))
+#let record = toml(sys.inputs.at("application", default: "/outputs/cvl/cl/postcard/standard/en/us/content.toml"))
 #for index in range(int(sys.inputs.at("pages", default: "2"))) {
   if index > 0 { pagebreak() }
   rect(fill: rgb("#e7eff6"), inset: 12pt, radius: 8pt)[#record.cl.message]
@@ -208,9 +209,9 @@ maximum = 1
 #[test]
 fn independent_styles_render_without_shared_family_geometry_content_or_sources() {
     let (_temporary, workspace) = independent_workspace();
-    assert!(!workspace.path("cvl/cv/ledger").exists());
-    assert!(!workspace.path("cvl/shared").exists());
-    assert!(!workspace.path("interview/stations.toml").exists());
+    assert!(!workspace.path("outputs/cvl/cv/ledger").exists());
+    assert!(!workspace.path("outputs/cvl/shared").exists());
+    assert!(!workspace.path("inputs/interviews/stations.toml").exists());
     let specs = render::cvl_specs(&workspace).unwrap();
     assert_eq!(specs.len(), 2);
     assert_eq!(specs[0].expected_pages, 1);
@@ -284,12 +285,12 @@ fn new_opportunities_take_page_and_content_defaults_from_the_selected_styles() {
     let (_temporary, workspace) = independent_workspace();
     write(
         workspace.root(),
-        "cvl/cv/orbit/scaffold.toml",
+        "outputs/cvl/cv/orbit/scaffold.toml",
         "heading = \"\"\nbody = \"\"\n",
     );
     write(
         workspace.root(),
-        "cvl/cl/postcard/scaffold.toml",
+        "outputs/cvl/cl/postcard/scaffold.toml",
         "message = \"\"\nnote = \"\"\n",
     );
     let record = crate::opportunity::blank_record(&workspace).unwrap();
@@ -328,12 +329,12 @@ fn full_workspace_check_accepts_independent_styles() {
     }
     write(
         workspace.root(),
-        "interview/stations.toml",
+        "inputs/interviews/stations.toml",
         "schema_version = 1\nstations = []\n",
     );
     for relative in [
-        "cvl/README.md",
-        "interview/README.md",
+        "outputs/cvl/README.md",
+        "inputs/interviews/README.md",
         "opportunities/README.md",
     ] {
         write(workspace.root(), relative, "# Independent fixture\n");
@@ -370,22 +371,27 @@ fn full_workspace_check_accepts_independent_styles() {
     }
     // The profile is locale data, not a built-in de-ch/en-ch list.
     let mut profile: toml::Value =
-        toml::from_str(&fs::read_to_string(workspace.path("cvl/profile.toml")).unwrap()).unwrap();
+        toml::from_str(&fs::read_to_string(workspace.path("inputs/profile.toml")).unwrap())
+            .unwrap();
     let fields = profile["localized"]["en-ch"].clone();
     let mut locales = toml::Table::new();
     locales.insert("en-us".into(), fields);
     profile["localized"] = locales.into();
     write(
         workspace.root(),
-        "cvl/profile.toml",
+        "inputs/profile.toml",
         &toml::to_string(&profile).unwrap(),
     );
     crate::format::format_typst(&workspace, false).unwrap();
     render::render_cvl(&workspace).unwrap();
     crate::check::run(&workspace).unwrap();
-    assert!(!workspace.path("cvl/cv/ledger").exists());
-    assert!(!workspace.path("cvl/cl/ledger").exists());
-    write(workspace.root(), "cvl/cv/broken/style.toml", "invalid = [");
+    assert!(!workspace.path("outputs/cvl/cv/ledger").exists());
+    assert!(!workspace.path("outputs/cvl/cl/ledger").exists());
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/broken/style.toml",
+        "invalid = [",
+    );
     let error = crate::check::run(&workspace).unwrap_err();
     assert!(format!("{error:#}").contains("broken/style.toml"));
     let spec = render::cvl_cv_spec(&workspace, "en-us", 1, None).unwrap();
@@ -398,12 +404,12 @@ fn full_workspace_check_accepts_independent_styles() {
 #[test]
 fn identical_substyle_names_in_two_cv_styles_have_distinct_paths() {
     let (_temporary, workspace) = independent_workspace();
-    let from = workspace.path("cvl/cv/orbit");
+    let from = workspace.path("outputs/cvl/cv/orbit");
     for entry in walkdir::WalkDir::new(&from) {
         let entry = entry.unwrap();
         if entry.file_type().is_file() {
             let relative = entry.path().strip_prefix(&from).unwrap();
-            let target = workspace.path("cvl/cv/second").join(relative);
+            let target = workspace.path("outputs/cvl/cv/second").join(relative);
             fs::create_dir_all(target.parent().unwrap()).unwrap();
             fs::write(
                 target,
@@ -445,7 +451,11 @@ fn malformed_style_contracts_fail_instead_of_disabling_checks() {
         "[pdf]\ntagged = \"yes\"",
         "[[metric_rules]]\nkind = \"title\"\nminimum = -1",
     ] {
-        write(workspace.root(), "cvl/cv/orbit/contract.toml", invalid);
+        write(
+            workspace.root(),
+            "outputs/cvl/cv/orbit/contract.toml",
+            invalid,
+        );
         assert!(contract(&workspace, "cv", "orbit").is_err(), "{invalid}");
     }
 }
@@ -471,7 +481,7 @@ fn pdf_geometry_is_selected_per_locale_and_missing_locale_fails() {
     let (_temporary, isolated) = independent_workspace();
     write(
         isolated.root(),
-        "cvl/cv/orbit/contract.toml",
+        "outputs/cvl/cv/orbit/contract.toml",
         "[pdf.by_locale.en-ch]\nsize_pt = [612, 792]\n",
     );
     assert!(
@@ -496,13 +506,13 @@ fn layout_input_changes_exported_paper_and_font_and_pdf_policy_is_enforced() {
         workspace.root(),
         "defaults.toml",
         &fs::read_to_string(
-            crate::test_support::fixture_root().join("cvl/shared/ledger/defaults.toml"),
+            crate::test_support::fixture_root().join("outputs/cvl/shared/ledger/defaults.toml"),
         )
         .unwrap(),
     );
     write(
         workspace.root(),
-        "cvl/cv/orbit/standard/en/us/typst/cv.typ",
+        "outputs/cvl/cv/orbit/standard/en/us/typst/cv.typ",
         r#"
 #import "@local/ccvl:1.0.0": apply-document-settings, merge-settings
 #let config = merge-settings(toml("/defaults.toml"), toml(sys.inputs.at("layout")))
@@ -524,7 +534,7 @@ Explicit settings must change the actual paper and embedded typeface.
     ] {
         write(
             workspace.root(),
-            "cvl/cv/orbit/standard/en/us/layout.toml",
+            "outputs/cvl/cv/orbit/standard/en/us/layout.toml",
             &format!(
                 "[page]\npaper = {paper:?}\n[text]\nfont = {font:?}\nlang = \"en\"\nregion = \"US\"\n"
             ),
@@ -544,7 +554,7 @@ Explicit settings must change the actual paper and embedded typeface.
 #[test]
 fn selected_leaf_ignores_unfinished_siblings_and_unrelated_styles() {
     let (_temporary, workspace) = independent_workspace();
-    let path = workspace.path("cvl/cv/orbit/style.toml");
+    let path = workspace.path("outputs/cvl/cv/orbit/style.toml");
     let text = fs::read_to_string(&path)
         .unwrap()
         .replace(
@@ -556,7 +566,11 @@ fn selected_leaf_ignores_unfinished_siblings_and_unrelated_styles() {
             "supports_locales = [\"en-us\", \"en-ch\"]",
         );
     fs::write(&path, text).unwrap();
-    write(workspace.root(), "cvl/cv/broken/style.toml", "invalid = [");
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/broken/style.toml",
+        "invalid = [",
+    );
     let selected = selection(&workspace, "cv", Some("orbit"), Some("standard")).unwrap();
     assert!(leaf(&workspace, "cv", "en-us", &selected).is_ok());
     assert!(leaf(&workspace, "cv", "en-ch", &selected).is_err());
@@ -576,7 +590,7 @@ fn individual_build_validates_only_its_document_but_records_validate_enabled_doc
     ] {
         let (_temporary, workspace) = independent_workspace();
         let record_path = workspace.path(format!(
-            "cvl/{document}/{style}/standard/en/us/content.toml"
+            "outputs/cvl/{document}/{style}/standard/en/us/content.toml"
         ));
         let mut record = workspace
             .read_toml_value(workspace.relative(&record_path).unwrap())
@@ -585,7 +599,7 @@ fn individual_build_validates_only_its_document_but_records_validate_enabled_doc
         fs::write(&record_path, toml::to_string(&record).unwrap()).unwrap();
         write(
             workspace.root(),
-            &format!("cvl/{unrelated}/{other_style}/style.toml"),
+            &format!("outputs/cvl/{unrelated}/{other_style}/style.toml"),
             "invalid = [",
         );
         let selected = selection(&workspace, document, Some(style), None).unwrap();
@@ -659,9 +673,9 @@ fn extra_fonts_are_loaded_only_for_the_selected_style_even_with_a_shared_compile
         }
     }
     assert!(replacements > 0);
-    let font_path = workspace.path("cvl/cv/orbit/fixture.ttf");
+    let font_path = workspace.path("outputs/cvl/cv/orbit/fixture.ttf");
     fs::write(&font_path, font).unwrap();
-    let definition_path = workspace.path("cvl/cv/orbit/style.toml");
+    let definition_path = workspace.path("outputs/cvl/cv/orbit/style.toml");
     let definition = fs::read_to_string(&definition_path).unwrap();
     fs::write(
         &definition_path,
@@ -673,7 +687,7 @@ fn extra_fonts_are_loaded_only_for_the_selected_style_even_with_a_shared_compile
         ("cl", "postcard", "IBM Plex Serif"),
     ] {
         let source = workspace.path(format!(
-            "cvl/{document}/{style}/standard/en/us/typst/{document}.typ"
+            "outputs/cvl/{document}/{style}/standard/en/us/typst/{document}.typ"
         ));
         fs::write(
             &source,
@@ -683,7 +697,11 @@ fn extra_fonts_are_loaded_only_for_the_selected_style_even_with_a_shared_compile
         )
         .unwrap();
     }
-    write(workspace.root(), "cvl/cv/broken/style.toml", "invalid = [");
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/broken/style.toml",
+        "invalid = [",
+    );
     let compiler = render::Compiler::new(&workspace).unwrap();
     for (document, style) in [("cv", "orbit"), ("cl", "postcard"), ("cv", "orbit")] {
         let selected = selection(&workspace, document, Some(style), None).unwrap();
@@ -819,7 +837,7 @@ fn style_filter_rejects_malformed_and_unknown_selections() {
 
 /// Replace the orbit fixture's substyle declaration.
 fn orbit_substyles(workspace: &Workspace, declaration: &str) {
-    let path = workspace.path("cvl/cv/orbit/style.toml");
+    let path = workspace.path("outputs/cvl/cv/orbit/style.toml");
     let text = fs::read_to_string(&path)
         .unwrap()
         .replace("substyles = [\"standard\"]\n", declaration);
@@ -873,7 +891,7 @@ fn real_styles_and_substyles_cannot_be_named_default() {
     let (_temporary, workspace) = independent_workspace();
     write(
         workspace.root(),
-        "cvl/cv/default/style.toml",
+        "outputs/cvl/cv/default/style.toml",
         "id = \"default\"\napi = 1\ndocuments = [\"cv\"]\nsupports_locales = [\"en-us\"]\npages = [1]\ndefault_pages = 1\nsubstyles = [\"standard\"]\n",
     );
     let error = format!("{:#}", definitions(&workspace, "cv").unwrap_err());
@@ -955,7 +973,11 @@ fn empty_substyle_slots_keep_their_position_and_produce_no_leaves() {
         assert!(error.contains(message), "{declaration}: {error}");
     }
     orbit_substyles(&workspace, "");
-    write(workspace.root(), "cvl/cv/orbit/slot-2/substyle.toml", "");
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/orbit/slot-2/substyle.toml",
+        "",
+    );
     let error = format!("{:#}", definition(&workspace, "cv", "orbit").unwrap_err());
     assert!(error.contains("must not have a directory"), "{error}");
 }
@@ -965,7 +987,11 @@ const EMPTY_STYLE: &str = "id = \"slot-2\"\napi = 1\ndocuments = [\"cv\"]\nempty
 #[test]
 fn empty_style_slots_have_an_exact_shape_and_cannot_be_selected() {
     let (_temporary, workspace) = independent_workspace();
-    write(workspace.root(), "cvl/cv/slot-2/style.toml", EMPTY_STYLE);
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/slot-2/style.toml",
+        EMPTY_STYLE,
+    );
     assert_eq!(definitions(&workspace, "cv").unwrap().len(), 2);
     assert_eq!(leaves(&workspace, "cv").unwrap().len(), 1);
     assert_eq!(
@@ -987,22 +1013,22 @@ fn empty_style_slots_have_an_exact_shape_and_cannot_be_selected() {
     }
     for (path, text, message) in [
         (
-            "cvl/cv/slot-2/style.toml",
+            "outputs/cvl/cv/slot-2/style.toml",
             format!("{EMPTY_STYLE}pages = [1]\n"),
             "an empty style slot contains only",
         ),
         (
-            "cvl/cv/slot-2/style.toml",
+            "outputs/cvl/cv/slot-2/style.toml",
             EMPTY_STYLE.replace("[\"slot-1\", \"slot-2\"]", "[\"slot-2\", \"slot-1\"]"),
             "must be named \"slot-1\" for its position",
         ),
         (
-            "cvl/cv/spare/style.toml",
+            "outputs/cvl/cv/spare/style.toml",
             EMPTY_STYLE.replace("slot-2\"\napi", "spare\"\napi"),
             "an empty style slot must be named slot-<n>",
         ),
         (
-            "cvl/cv/slot-2/style.toml",
+            "outputs/cvl/cv/slot-2/style.toml",
             "id = \"slot-2\"\napi = 1\ndocuments = [\"cv\"]\nsupports_locales = [\"en-us\"]\npages = [1]\ndefault_pages = 1\nsubstyles = [\"standard\"]\n".to_owned(),
             "slot-<n> names are reserved for empty style slots",
         ),
@@ -1013,7 +1039,11 @@ fn empty_style_slots_have_an_exact_shape_and_cannot_be_selected() {
         assert!(error.contains(message), "{text}: {error}");
     }
     let (_temporary, workspace) = independent_workspace();
-    write(workspace.root(), "cvl/cv/slot-2/style.toml", EMPTY_STYLE);
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/slot-2/style.toml",
+        EMPTY_STYLE,
+    );
     let manifest = fs::read_to_string(workspace.path("ccvl.json"))
         .unwrap()
         .replace(
@@ -1042,16 +1072,20 @@ fn manifest_slots_fix_the_style_and_substyle_counts() {
     );
     let error = validate_slots(&workspace, "cv").unwrap_err().to_string();
     assert!(error.contains("exactly 2 styles"), "{error}");
-    write(workspace.root(), "cvl/cv/slot-2/style.toml", EMPTY_STYLE);
+    write(
+        workspace.root(),
+        "outputs/cvl/cv/slot-2/style.toml",
+        EMPTY_STYLE,
+    );
     validate_slots(&workspace, "cv").unwrap();
     configure(2, 3);
     let error = validate_slots(&workspace, "cv").unwrap_err().to_string();
     assert!(error.contains("exactly 3 substyles"), "{error}");
     configure(2, 2);
-    fs::remove_dir_all(workspace.path("cvl/cv/slot-2")).unwrap();
+    fs::remove_dir_all(workspace.path("outputs/cvl/cv/slot-2")).unwrap();
     write(
         workspace.root(),
-        "cvl/cv/slot-1/style.toml",
+        "outputs/cvl/cv/slot-1/style.toml",
         &EMPTY_STYLE.replace("id = \"slot-2\"", "id = \"slot-1\""),
     );
     let error = validate_slots(&workspace, "cv").unwrap_err().to_string();

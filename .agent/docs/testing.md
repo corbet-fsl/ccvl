@@ -39,7 +39,7 @@ Harvard rules, not assumptions about every document style. The independent
 styles own different fields and page geometry and do not need Harvard metrics.
 `check` pins those frozen budgets and the compact delta's horizontal measure,
 requires letter metrics to carry the contract's fill bounds, rejects measurement
-code vendored under `cvl/`, requires every build to read nothing in the other
+code vendored under `outputs/cvl/`, requires every build to read nothing in the other
 document's tree, compiles every leaf's resolved customization copy without CLI
 inputs to the same PDF, and renders the portable bundles of styles declaring
 `portable_bundle` (Cluster) to the same PDF.
@@ -67,7 +67,7 @@ loading each other's extra fonts. Watcher fixtures exercise actual transitive
 reads, missing and changing dependencies, invalid metadata, font recovery,
 optional inputs, symlinks and edits during compilation.
 
-`render-previews.sh` regenerates the [gallery](../../cvl/README.md) from the
+`render-previews.sh` regenerates the [gallery](../../outputs/cvl/README.md) from the
 registered PDFs; thumbnails complement full-resolution page inspection.
 It reuses previews only when PDF bytes, page count, the renderer executable
 and reported version, rendering script, and every output image still match.
@@ -104,7 +104,7 @@ overflow causes an editorial iteration instead of a one-error-at-a-time loop.
 
 ### Rust test fixtures
 
-`cargo test` never reads the showcase under `cvl/` (only its README). Engine
+`cargo test` never reads the showcase under `outputs/cvl/` (only its README). Engine
 tests copy the synthetic workspace in
 [`.agent/tests/fixtures/workspace`](../tests/fixtures/workspace/README.md) into
 a temporary directory with the engine's Typst library, scaffolds and schemas
@@ -121,7 +121,7 @@ application.
 Real-data invariants of the showcase are not `cargo test` cases: `check`
 enforces them for the selected styles, and in full on `main`, the daily
 schedule and manual dispatch; see [Selecting CI checks](ci.md). Tests may still
-read engine-owned repository paths outside `cvl/`, such as skills, docs,
+read engine-owned repository paths outside `outputs/cvl/`, such as skills, docs,
 scaffolds, schemas, `REUSE.toml`, `LICENSES/` and the data-root READMEs.
 
 ## Small-model skill evaluation

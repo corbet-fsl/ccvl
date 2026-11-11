@@ -52,7 +52,7 @@ fn paper_precedence_names_and_selected_document_scope_are_explicit() {
     assert!(render::cvl_spec_with_paper(&workspace, &leaf, 1, Some("../a4")).is_err());
     let temporary = tempfile::tempdir_in(workspace.root()).unwrap();
     let application = temporary.path().join("application.toml");
-    let profile = workspace.path("cvl/profile.toml");
+    let profile = workspace.path("inputs/profile.toml");
     let output = temporary.path().join("my-exact-name.pdf");
     let mut record = content::read_record(&workspace, leaf.content()).unwrap();
     record["options"]["cv_paper"] = "us-letter".into();
@@ -126,7 +126,7 @@ fn explanation_reports_selected_preset_and_validates_before_merging() {
     assert_eq!(explained["settings"]["page"]["paper"], "us-letter");
     assert_eq!(
         explained["origins"]["/page/paper"],
-        "cvl/cv/probe/style.toml#paper.sizes.us-letter.settings"
+        "outputs/cvl/cv/probe/style.toml#paper.sizes.us-letter.settings"
     );
     leaf.paper
         .as_mut()
@@ -154,9 +154,9 @@ fn independent_renderer_owns_custom_paper_geometry_and_settings() {
     write(
         root,
         "ccvl.json",
-        r#"{"format":"ccvl-workspace","schema_version":9,"documents":{"cv":{"root":"cvl/cv","default_style":"orbit"}}}"#,
+        r#"{"format":"ccvl-workspace","schema_version":9,"documents":{"cv":{"root":"outputs/cvl/cv","default_style":"orbit"}}}"#,
     );
-    for source in [".agent/typst/document-settings.json", "cvl/profile.toml"] {
+    for source in [".agent/typst/document-settings.json", "inputs/profile.toml"] {
         write(
             root,
             source,
@@ -165,7 +165,7 @@ fn independent_renderer_owns_custom_paper_geometry_and_settings() {
     }
     write(
         root,
-        "cvl/cv/orbit/style.toml",
+        "outputs/cvl/cv/orbit/style.toml",
         r#"
 id = "orbit"
 api = 1
@@ -191,7 +191,7 @@ height = 140
 "#,
     );
     let mut record =
-        content::read_record(&original, "cvl/cv/probe/plain/en/us/content.toml").unwrap();
+        content::read_record(&original, "outputs/cvl/cv/probe/plain/en/us/content.toml").unwrap();
     record["options"]["cv_style"] = "orbit".into();
     record["options"]["cv_substyle"] = "plain".into();
     record["options"]["generate_cl"] = false.into();
@@ -199,18 +199,18 @@ height = 140
     record["cv"] = json!({"message": "Independent custom paper"});
     write(
         root,
-        "cvl/cv/orbit/plain/en/us/content.toml",
+        "outputs/cvl/cv/orbit/plain/en/us/content.toml",
         &toml::to_string(&record).unwrap(),
     );
-    write(root, "cvl/cv/orbit/plain/substyle.toml", "");
-    write(root, "cvl/cv/orbit/plain/en/us/strings.toml", "");
+    write(root, "outputs/cvl/cv/orbit/plain/substyle.toml", "");
+    write(root, "outputs/cvl/cv/orbit/plain/en/us/strings.toml", "");
     write(
         root,
-        "cvl/cv/orbit/plain/en/us/typst/cv.typ",
+        "outputs/cvl/cv/orbit/plain/en/us/typst/cv.typ",
         r#"
 #import "@local/ccvl:1.0.0": resolve-paper
-#let record = toml(sys.inputs.at("application", default: "/cvl/cv/orbit/plain/en/us/content.toml"))
-#let preset = resolve-paper(toml("/cvl/cv/orbit/style.toml"), "en-us", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("cv_paper", default: none))
+#let record = toml(sys.inputs.at("application", default: "/outputs/cvl/cv/orbit/plain/en/us/content.toml"))
+#let preset = resolve-paper(toml("/outputs/cvl/cv/orbit/style.toml"), "en-us", requested: sys.inputs.at("paper", default: ""), recorded: record.options.at("cv_paper", default: none))
 #set page(width: preset.settings.canvas.width * 1pt, height: preset.settings.canvas.height * 1pt, margin: 10pt)
 #set text(font: "IBM Plex Serif", size: 10pt)
 #record.cv.message
@@ -245,7 +245,7 @@ fn showcase_record_selection_matches_explanation_listing_and_build() {
     assert_eq!(explained["paper"]["id"], spec.inputs["paper"]);
     assert_eq!(
         explained["paper"]["selection_source"],
-        "cvl/cv/probe/plain/en/ch/content.toml#options.cv_paper"
+        "outputs/cvl/cv/probe/plain/en/ch/content.toml#options.cv_paper"
     );
     let listed = render::list_documents(&workspace).unwrap();
     let entry = listed

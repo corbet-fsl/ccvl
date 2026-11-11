@@ -20,13 +20,13 @@ candidate, independently of the creator's showcase.
 
 Inspect the repository's publication destination before storing personal data.
 If `origin` is public or its visibility cannot be established, explain that
-`cvl/` is publishable and wait for confirmation before placing the new user's
+`outputs/cvl/` is publishable and wait for confirmation before placing the new user's
 identity or approved career wording there. Keep interview evidence private.
 Never require Git knowledge.
 
 Accept three input modes and combine them when useful:
 
-1. read files the user attached or placed in `interview/imports/`;
+1. read files the user attached or placed in `inputs/interviews/imports/`;
 2. extract a CV or profile pasted into the conversation;
 3. conduct the conversational interview below.
 
@@ -34,7 +34,7 @@ Keep source documents read-only. Cross-reference them before resolving dates,
 titles, scope, or metrics. Ask only for gaps; do not make the user repeat facts
 already present in a source.
 
-At the start, list every attached, pasted, and `interview/imports/` source that
+At the start, list every attached, pasted, and `inputs/interviews/imports/` source that
 will be used. Read all usable sources before interviewing. If sources conflict,
 show the exact alternatives and resolve them one at a time with the user rather
 than silently choosing one.
@@ -43,15 +43,15 @@ than silently choosing one.
 
 Before the first interview question:
 
-- create `interview/profile.md` from
+- create `inputs/interviews/profile.md` from
   `.agent/scaffolds/interview/profile.md`;
-- create `interview/journal.md` from
+- create `inputs/interviews/journal.md` from
   `.agent/scaffolds/interview/profile-journal.md`;
-- replace the author's example `interview/stations.toml` with the neutral
+- replace the author's example `inputs/interviews/stations.toml` with the neutral
   `.agent/scaffolds/interview/stations.toml` before recording the new candidate;
 - tell the user that the journal is updated continuously and can be inspected
   at any time. They may also paste a document or add one to
-  `interview/imports/`.
+  `inputs/interviews/imports/`.
 
 The profile is an informal, information-rich working portrait. The journal is
 an append-only account of questions, answers, extracted facts, conflicts, slot
@@ -59,7 +59,7 @@ progress, and deferred prompts. Neither is polished application copy.
 
 After every meaningful answer or imported source, update both files before
 asking the next question. Preserve the user's substance and uncertainty. Then
-update `interview/stations.toml` and run the platform command:
+update `inputs/interviews/stations.toml` and run the platform command:
 
 ```text
 Linux/macOS: bash ./ccvl profile-status
@@ -67,7 +67,7 @@ Windows:     .\ccvl.cmd profile-status
 ```
 
 Show the user the short page counts periodically, especially after a “nothing
-else” answer. Point them to `interview/journal.md` if they seem impatient or
+else” answer. Point them to `inputs/interviews/journal.md` if they seem impatient or
 want proof that the conversation is producing work.
 
 ## What counts as a station
@@ -204,9 +204,9 @@ proof that a claim is false. Show the user `bash ./ccvl profile-status
 
 ## Completion gate
 
-Once allocation is ready, populate `cvl/profile.toml` with the approved public
+Once allocation is ready, populate `inputs/profile.toml` with the approved public
 contact fields using `.agent/scaffolds/interview/profile.toml` as its shape.
-Then write the shared entries in `cvl/cv/harvard/src/entries-{de,en}.typ` and the
+Then write the shared entries in `outputs/cvl/cv/harvard/src/entries-{de,en}.typ` and the
 locale content records below each document substyle in plain
 recruiter-readable language while retaining recognised specialist terms.
 Place `// ccvl-station: <station-id>` immediately before the `#cv-h[...]` of

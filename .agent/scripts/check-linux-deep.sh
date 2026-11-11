@@ -154,11 +154,11 @@ render_suite() {
     filename="$document-$style-$substyle-$locale-$pages.pdf"
     if [[ "$document" == cv ]]; then
       "$binary" build-cv "$locale" "$pages" --style "$style" --substyle "$substyle" \
-        --application "$record" --profile cvl/profile.toml \
+        --application "$record" --profile inputs/profile.toml \
         --output "$destination/$filename" >/dev/null
     else
       "$binary" build-cl "$locale" --pages "$pages" --style "$style" --substyle "$substyle" \
-        --application "$record" --profile cvl/profile.toml \
+        --application "$record" --profile inputs/profile.toml \
         --output "$destination/$filename" >/dev/null
     fi
   done < "$validation_dir/documents.tsv"

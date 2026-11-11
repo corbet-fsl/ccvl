@@ -231,9 +231,12 @@ mod tests {
 
     #[test]
     fn directory_rules_match_descendants_only() {
-        assert!(allows("interview/", "interview/profile.md"));
-        assert!(!allows("interview/", "interview-private/profile.md"));
-        assert!(!allows("interview/", "interview"));
+        assert!(allows("inputs/interviews/", "inputs/interviews/profile.md"));
+        assert!(!allows(
+            "inputs/interviews/",
+            "interview-private/profile.md"
+        ));
+        assert!(!allows("inputs/interviews/", "interview"));
     }
 
     #[test]
@@ -250,7 +253,7 @@ mod tests {
                 url: url.map(str::to_owned),
                 branch: "main".into(),
             },
-            allowed_paths: vec!["interview/".into()],
+            allowed_paths: vec!["inputs/interviews/".into()],
         }
     }
 
@@ -266,7 +269,7 @@ mod tests {
     #[test]
     fn traversal_rules_are_rejected() {
         assert!(validate_rule("../private/").is_err());
-        assert!(validate_rule("interview/").is_ok());
+        assert!(validate_rule("inputs/interviews/").is_ok());
     }
 
     #[test]
@@ -299,8 +302,12 @@ mod tests {
             "git@forge.example.invalid:ccvl/ccvl.git"
         );
 
-        fs::create_dir(root.join("interview")).unwrap();
-        fs::write(root.join("interview/profile.md"), "private profile\n").unwrap();
+        fs::create_dir_all(root.join("inputs/interviews")).unwrap();
+        fs::write(
+            root.join("inputs/interviews/profile.md"),
+            "private profile\n",
+        )
+        .unwrap();
         fs::write(
             root.join("ccvl-downstream.json"),
             concat!(
@@ -311,14 +318,18 @@ mod tests {
                 "    \"url\": \"https://forge.example.invalid/ccvl/ccvl.git\",\n",
                 "    \"branch\": \"main\"\n",
                 "  },\n",
-                "  \"allowed_paths\": [\"ccvl-downstream.json\", \"interview/\"]\n",
+                "  \"allowed_paths\": [\"ccvl-downstream.json\", \"inputs/interviews/\"]\n",
                 "}\n"
             ),
         )
         .unwrap();
         git_at(
             root,
-            &["add", "ccvl-downstream.json", "interview/profile.md"],
+            &[
+                "add",
+                "ccvl-downstream.json",
+                "inputs/interviews/profile.md",
+            ],
         );
         git_at(root, &["commit", "-m", "private delta"]);
 

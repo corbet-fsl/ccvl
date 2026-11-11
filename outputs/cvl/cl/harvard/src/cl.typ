@@ -196,7 +196,7 @@
     #closing
     #v(closing-before)
     // Bytes, so the path resolves in this project rather than inside the cink package.
-    #signature-image(read("/cvl/assets/signature.png", encoding: none), 31.5)
+    #signature-image(read("/inputs/assets/images/signatures/signature.png", encoding: none), 31.5)
     #v(closing-after)
     #profile.name
   ]

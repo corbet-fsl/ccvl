@@ -13,7 +13,7 @@ exactly three lines; paragraph 6 mirrors it with a warm three-line close. The
 four central paragraphs carry the evidence and target case in exactly 20 lines:
 five lines each.
 
-`cvl/cl/harvard/contract.toml` is the machine-readable source of truth. Each paragraph definition
+`outputs/cvl/cl/harvard/contract.toml` is the machine-readable source of truth. Each paragraph definition
 contains its number, semantic role, purpose, and line bounds, making the
 contract self-describing for both people and agents.
 

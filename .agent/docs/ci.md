@@ -52,23 +52,23 @@ everything. It outputs `rust`, `documents` and `styles`.
 |---|---|---|
 | `.github/workflows/ci.yml`, `.agent/scripts/ci-changes.sh` | yes | all |
 | `.agent/src/**`, `.agent/core/**`, `.agent/build.rs`, `.agent/typst/**`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `ccvl.json` | yes | all |
-| `cvl/cv/<style>/**`, `cvl/cl/<style>/**` | no | `<doc>/<style>`; when that style no longer exists, the Rust job and all |
-| `cvl/shared/<family>/**` | no | same-named styles and styles whose files reference `shared/<family>/`; when none, the Rust job and all |
-| `cvl/profile.toml`, `cvl/assets/**` | no | all |
-| other `cvl/**` | yes | all |
-| `cvl/README.md` | yes | none |
-| `interview/stations.toml` | yes | CV styles whose `contract.toml` declares `[layout_contract…]` |
-| `.agent/skills/**`, `.agent/scaffolds/**`, `.agent/schemas/**`, `.agent/tests/fixtures/**`, `.agent/tests/skill-cases.json`, `.agent/docs/editorial.md`, `interview/**`, `opportunities/**`, `REUSE.toml`, `LICENSES/**`, `.crow/downstream-sync.yaml`, `.crow/release-archive.yaml`, `.agent/release-platforms.txt`, `.agent/tests/*.rs`, and the Rust job's `ci-check.sh`, `release-ci.sh`, `rust-toolchain.sh`, `release-evidence.sh`, `publish-release.sh`, `memory-admission.sh`, `downstream-sync.sh` | yes | none |
+| `outputs/cvl/cv/<style>/**`, `outputs/cvl/cl/<style>/**` | no | `<doc>/<style>`; when that style no longer exists, the Rust job and all |
+| `outputs/cvl/shared/<family>/**` | no | same-named styles and styles whose files reference `shared/<family>/`; when none, the Rust job and all |
+| `inputs/profile.toml`, `inputs/assets/**` | no | all |
+| other `outputs/cvl/**` | yes | all |
+| `outputs/cvl/README.md` | yes | none |
+| `inputs/interviews/stations.toml` | yes | CV styles whose `contract.toml` declares `[layout_contract…]` |
+| `.agent/skills/**`, `.agent/scaffolds/**`, `.agent/schemas/**`, `.agent/tests/fixtures/**`, `.agent/tests/skill-cases.json`, `.agent/docs/editorial.md`, `inputs/interviews/**`, `opportunities/**`, `REUSE.toml`, `LICENSES/**`, `.crow/downstream-sync.yaml`, `.crow/release-archive.yaml`, `.agent/release-platforms.txt`, `.agent/tests/*.rs`, and the Rust job's `ci-check.sh`, `release-ci.sh`, `rust-toolchain.sh`, `release-evidence.sh`, `publish-release.sh`, `memory-admission.sh`, `downstream-sync.sh` | yes | none |
 | Other `.agent/docs/**`, root and `.github` Markdown, `.agent/AGENT.md`, the release/skill/sync workflows, shell and PowerShell tests, bootstrap/release/lint-only scripts, `.ci/**`, other `.crow/**`, dispatchers, `justfile` | no | none |
 | Anything else | yes | all |
 
 The Rust rows follow what Rust tests read. Engine tests run on the synthetic
 workspace in `.agent/tests/fixtures/workspace` and never read the showcase
-styles, shared families, profile or assets under `cvl/`; see
+styles, shared families, profile or assets under `outputs/cvl/`; see
 [Rust test fixtures](testing.md#rust-test-fixtures). With every directory of
-`cvl/` except its README deleted, the suite still passes. They still read
+`outputs/cvl/` except its README deleted, the suite still passes. They still read
 skills, scaffolds, schemas, the fixtures, skill cases, data-root READMEs
-(including `cvl/README.md`), licenses bundled by style exports, the editorial
+(including `outputs/cvl/README.md`), licenses bundled by style exports, the editorial
 rubric of the review smoke test and the downstream-sync guard, so those paths
 keep the Rust job.
 
@@ -79,20 +79,20 @@ workspace-wide check):
 | Invariant | Enforced by |
 |---|---|
 | Harvard and opted-in contracts keep the frozen station, Summary, compact-delta and AIDA budgets | workspace-wide frozen-contract check |
-| No style vendors measurement code | workspace-wide ownership scan of `cvl/` |
+| No style vendors measurement code | workspace-wide ownership scan of `outputs/cvl/` |
 | Manifest, slots, leaf inventory and referenced files | workspace-wide manifest and style checks |
 | Every leaf compiles at every preset and passes its measurement gates; tracked outputs exist and match | document checks of the selected styles |
 | Letter metrics carry the contract's fill bounds | measurement of the selected styles |
 | A build never reads the other document's tree | document checks of the selected styles |
 | Resolved customization copies and portable bundles (`portable_bundle`, Cluster) reproduce the build | document checks of the selected styles |
-| The interview station plan fits the station protocol and the entry sources | Harvard CV document checks; `interview/stations.toml` selects them |
+| The interview station plan fits the station protocol and the entry sources | Harvard CV document checks; `inputs/interviews/stations.toml` selects them |
 
 So a pull request that touches only one style's files, or one shared family,
 runs the scoped document job and lint, not the Rust job. A removed or renamed
-style, an unreferenced family and any other `cvl/` path still select
+style, an unreferenced family and any other `outputs/cvl/` path still select
 everything. A false skip is worse than a slow run, so an unclassified path
 selects everything; extend the explicit no-op rows only after checking that no
-Rust test or document reads the path, and add a Rust-test read of `cvl/` only
+Rust test or document reads the path, and add a Rust-test read of `outputs/cvl/` only
 with its selector row. Update `.agent/tests/test_ci_changes.sh` with the rule.
 
 Jobs gated on the selection fail open: when `changes` fails, the Rust and

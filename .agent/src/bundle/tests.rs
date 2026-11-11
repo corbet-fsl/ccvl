@@ -32,8 +32,8 @@ fn bundles_exclude_showcase_records_and_unsupported_inputs() {
                 || path.ends_with("wording.toml")
                 || path.contains("/preview/"))
     );
-    assert!(!bundle.files.contains_key("cvl/profile.toml"));
-    assert!(bundle.files.contains_key("cvl/cv/grid/layout.typ"));
+    assert!(!bundle.files.contains_key("inputs/profile.toml"));
+    assert!(bundle.files.contains_key("outputs/cvl/cv/grid/layout.typ"));
     // Engine Typst travels as the embedded package, not as project files.
     assert_eq!(&bundle.packages, crate::engine_package::packages());
     assert!(
@@ -47,7 +47,7 @@ fn bundles_exclude_showcase_records_and_unsupported_inputs() {
     bad.engine_api += 1;
     assert!(bad.validate().is_err());
     // A style embedding candidate source files cannot become a reusable bundle.
-    let contract = workspace.path("cvl/cv/ledger/contract.toml");
+    let contract = workspace.path("outputs/cvl/cv/ledger/contract.toml");
     let text = fs::read_to_string(&contract).unwrap();
     fs::write(
         &contract,
@@ -68,13 +68,15 @@ fn portable_bundles_render_resolved_content_with_an_explicit_summary_allowance()
     fs::create_dir_all(workspace.path(".agent/cache")).unwrap();
     let scratch = tempfile::tempdir_in(workspace.path(".agent/cache")).unwrap();
     let record_path = scratch.path().join("application.toml");
-    let profile_path = workspace.path("cvl/profile.toml");
+    let profile_path = workspace.path("inputs/profile.toml");
     let substyle = "wide";
     let language = "en";
     let locale = format!("{language}-ch");
     let mut record = crate::content::read_record(
         &workspace,
-        workspace.path(format!("cvl/cv/grid/{substyle}/{language}/ch/content.toml")),
+        workspace.path(format!(
+            "outputs/cvl/cv/grid/{substyle}/{language}/ch/content.toml"
+        )),
     )
     .unwrap();
     record["cv"]["allow_thin"] = json!(true);
@@ -90,7 +92,7 @@ fn portable_bundles_render_resolved_content_with_an_explicit_summary_allowance()
         None,
     )
     .unwrap();
-    let profile = workspace.read_toml_value("cvl/profile.toml").unwrap();
+    let profile = workspace.read_toml_value("inputs/profile.toml").unwrap();
     let project = bundle.with_record(record, profile).unwrap();
     let renderer = StyleRenderer::new(&project.bundle).unwrap();
     let portable_document = renderer.compile(&project).unwrap();

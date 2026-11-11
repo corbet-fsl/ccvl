@@ -1,6 +1,6 @@
 # Independent document styles
 
-Each `cvl/cv/<style>/` and `cvl/cl/<style>/` directory declares its own
+Each `outputs/cvl/cv/<style>/` and `outputs/cvl/cl/<style>/` directory declares its own
 `style.toml`. Style names and substyle names are lowercase letters, digits,
 hyphens or underscores. A substyle name is scoped to its parent style.
 
@@ -62,7 +62,7 @@ Each document offers a fixed grid of style and substyle positions. The
 workspace manifest declares it once per document:
 
 ```json
-"cv": {"root": "cvl/cv", "default_style": "harvard", "slots": {"styles": 4, "substyles": 5}}
+"cv": {"root": "outputs/cvl/cv", "default_style": "harvard", "slots": {"styles": 4, "substyles": 5}}
 ```
 
 `check` requires exactly that many style directories per document and exactly
@@ -114,14 +114,14 @@ pagination. Substyles without overrides retain their original spacing path.
 `cv.justify_bullets` is optional and defaults to false. The justified summary
 has its own existing paragraph settings and is unaffected by that switch.
 These are style-owned settings, not engine-wide requirements. See
-[Harvard D+](../../cvl/cv/harvard/d-plus/README.md) and the
-[cluster CV](../../cvl/cv/cluster/README.md).
+[Harvard D+](../../outputs/cvl/cv/harvard/d-plus/README.md) and the
+[cluster CV](../../outputs/cvl/cv/cluster/README.md).
 
 Substyles can share wording for the same document, style, language and country.
 Each style owns its source, even when two styles happen to contain equal text.
 
 ```text
-cvl/cv/harvard/
+outputs/cvl/cv/harvard/
 ├── content/en/ch/wording.toml       # shared [cv] wording
 ├── standard/en/ch/content.toml     # reference and local record metadata
 └── compact/en/ch/content.toml      # reference and explicit [cv] exceptions
@@ -342,8 +342,8 @@ grouped first page followed by the unchanged Harvard D+ pages 2–4. Harvard and
 `timeline` substyle that is a copy of D+ until its design is defined. Modern is
 a scaffold with `standard` and `timeline` substyles, and Onepager a one-page
 scaffold with `standard`; neither design is defined yet. The remaining style
-positions are empty slots: `cvl/cl/slot-2` to `slot-4`.
-All designed styles support German and English Swiss locales on portrait A4. See [the gallery](../../cvl/README.md) for PDFs,
+positions are empty slots: `outputs/cvl/cl/slot-2` to `slot-4`.
+All designed styles support German and English Swiss locales on portrait A4. See [the gallery](../../outputs/cvl/README.md) for PDFs,
 [the defaults audit](typst-defaults.md) for settings and deliberate `auto`
 choices, and [ccvl-style](../skills/ccvl-style/SKILL.md) for style creation.
 

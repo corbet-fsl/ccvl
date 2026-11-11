@@ -4,7 +4,7 @@
 //! derivation, the retired ruler contract, or a vendored copy of the shared
 //! program. Product rules, counsel, `wrap-exact`, and document checks stay
 //! local by design and are not flagged. The engine sources are scanned by a
-//! unit test; `check` scans the document styles under `cvl/`.
+//! unit test; `check` scans the document styles under `outputs/cvl/`.
 
 use std::path::{Path, PathBuf};
 

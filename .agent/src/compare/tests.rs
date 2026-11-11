@@ -411,7 +411,7 @@ fn style_items_render_fresh_into_the_comparison_cache() {
     for (substyle, locale) in [("primary", "en/ch"), ("compact", "de/ch")] {
         assert!(
             !workspace
-                .path(format!("cvl/cv/ledger/{substyle}/{locale}/pdf"))
+                .path(format!("outputs/cvl/cv/ledger/{substyle}/{locale}/pdf"))
                 .exists()
         );
     }
@@ -441,9 +441,11 @@ fn style_items_render_fresh_into_the_comparison_cache() {
 #[test]
 fn records_variant_directories_and_pdfs_compare_with_their_own_options() {
     let (_fixture, workspace) = crate::test_support::fixture_workspace();
-    let mut record =
-        crate::content::read_record(&workspace, "cvl/cv/ledger/primary/en/ch/content.toml")
-            .unwrap();
+    let mut record = crate::content::read_record(
+        &workspace,
+        "outputs/cvl/cv/ledger/primary/en/ch/content.toml",
+    )
+    .unwrap();
     let job = record["job"].as_object_mut().unwrap();
     job.retain(|key, _| {
         ["id", "title", "organization", "location", "cl_recipient"].contains(&key.as_str())
@@ -544,11 +546,11 @@ fn invalid_items_fail_before_rendering_with_actionable_messages() {
             "drafts/cv.toml@en-ch: no such file or directory",
         ),
         (
-            &["ledger/primary", "cvl/profile.toml"],
-            "cvl/profile.toml: options.language is missing",
+            &["ledger/primary", "inputs/profile.toml"],
+            "inputs/profile.toml: options.language is missing",
         ),
         (
-            &["ledger/primary", "cvl"],
+            &["ledger/primary", "outputs/cvl"],
             "the directory has no application.toml",
         ),
     ] {
@@ -582,7 +584,7 @@ fn invalid_items_fail_before_rendering_with_actionable_messages() {
     let record = workspace.path("drafts/application.toml");
     fs::create_dir_all(record.parent().unwrap()).unwrap();
     fs::copy(
-        workspace.path("cvl/cv/ledger/compact/en/ch/content.toml"),
+        workspace.path("outputs/cvl/cv/ledger/compact/en/ch/content.toml"),
         &record,
     )
     .unwrap();
@@ -596,9 +598,11 @@ fn invalid_items_fail_before_rendering_with_actionable_messages() {
 #[test]
 fn record_items_reject_a_locale_override() {
     let (_fixture, workspace) = crate::test_support::fixture_workspace();
-    let record =
-        crate::content::read_record(&workspace, "cvl/cv/ledger/compact/en/ch/content.toml")
-            .unwrap();
+    let record = crate::content::read_record(
+        &workspace,
+        "outputs/cvl/cv/ledger/compact/en/ch/content.toml",
+    )
+    .unwrap();
     let path = workspace.path("drafts/application.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, toml::to_string(&record).unwrap()).unwrap();

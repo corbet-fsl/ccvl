@@ -2,7 +2,7 @@
 
 This directory contains neutral profile, application, measurement and explicit-settings
 adapters. Each style chooses which helpers to import. Document geometry and
-presentation code live under `cvl/<document>/<style>/`.
+presentation code live under `outputs/cvl/<document>/<style>/`.
 
 ## The engine package
 
@@ -32,7 +32,7 @@ own source, where absolute paths resolve in the workspace:
 #let (profile, localized-profile) = load-profile(profile-path, read: read-project)
 ```
 
-Style code below `cvl/` imports its own family modules by relative paths.
+Style code below `outputs/cvl/` imports its own family modules by relative paths.
 Only entry points (`typst/cv.typ`, `typst/cl.typ`) use absolute workspace
 paths, because their opportunity copies compile at another location.
 
@@ -45,15 +45,15 @@ record's document selection or the locale default. Its `paper-settings` helper
 validates and merges adapter layers with the selected preset. Renderers use
 the resolved label when printing a paper name.
 
-The shipped Harvard styles share helpers in `cvl/shared/harvard/` and keep their
+The shipped Harvard styles share helpers in `outputs/cvl/shared/harvard/` and keep their
 CV and letter renderers in their own `src/` folders. Harvard's application
-adapter lives in `cvl/shared/harvard/application.typ`, because its summary and
+adapter lives in `outputs/cvl/shared/harvard/application.typ`, because its summary and
 paragraph rules are specific to that style.
 
 The engine supplies the selected record, profile, locale, page count, strings and
 substyle configuration as inputs. A style may also declare defaults and extra
 fonts. See [../docs/styles.md](../docs/styles.md) for the complete interface and
-[../../cvl/README.md](../../cvl/README.md) for the shipped folder structure.
+[../../cvl/README.md](../../outputs/cvl/README.md) for the shipped folder structure.
 
 Harvard's `standard`/`compact` CVs share a contract; `compact` changes vertical
 spacing. Its `left-rule`/`frame` letters share a contract; `frame` changes the
