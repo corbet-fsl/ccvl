@@ -1,7 +1,9 @@
 # Independent document styles
 
-Each `outputs/cvl/cv/<style>/` and `outputs/cvl/cl/<style>/` directory declares its own
-`style.toml`. Style names and substyle names are lowercase letters, digits,
+Each style directory below a document root declares its own `style.toml`:
+`outputs/cvl/cv/<style>/`, `outputs/cvl/cl/<style>/`, or
+`outputs/<document>/<style>/` for the other output documents (flyers, web,
+videos, presentations and portfolios). Style names and substyle names are lowercase letters, digits,
 hyphens or underscores. A substyle name is scoped to its parent style.
 
 ```toml
@@ -31,7 +33,9 @@ label = "US Letter"
 paper = "us-letter"
 ```
 
-The workspace manifest names the document roots and their `default_style`.
+The `documents` table of the workspace manifest names every document, its
+root and its `default_style`; a document's key is also its folder's key in
+`workspace_groups.outputs`.
 The engine discovers every style directory under each root. For every designed
 substyle and locale it expects:
 
@@ -40,7 +44,7 @@ substyle and locale it expects:
 <substyle>/<language>/<country>/content.toml
 <substyle>/<language>/<country>/strings.toml
 <substyle>/<language>/<country>/layout.toml   # optional engine input
-<substyle>/<language>/<country>/typst/cv.typ   # cl.typ for letters
+<substyle>/<language>/<country>/typst/cv.typ   # <document>.typ, e.g. cl.typ
 ```
 
 The contents of `substyle.toml` and `strings.toml` belong to the style.
@@ -52,7 +56,11 @@ Omit this field for an independent renderer with its own settings schema.
 
 `content.toml` keeps the application envelope (options and job metadata) and
 the selected document's style-owned `[cv]` or `[cl]` fields. The record's
-document selection must match its directory. A style may share code between
+document selection must match its directory. Other output documents keep a
+smaller record without the application envelope: the language, optional
+`pages`, their own `<document>_style`, `_substyle` and `_paper` options and a
+`[<document>]` table (see [the data model](data-model.md#output-document-records)).
+A style may share code between
 its substyles in any internal arrangement. Neither a shared renderer nor
 `src/` is mandatory.
 
@@ -67,7 +75,7 @@ workspace manifest declares it once per document:
 
 `check` requires exactly that many style directories per document and exactly
 that many `substyles` entries per style. ccvl ships 4 styles × 5 substyles for
-CVs and for letters; a fork can declare another grid in the same place.
+every document; a fork can declare another grid in the same place.
 
 A position without a design yet is an empty slot. A designed style lists its
 empty substyle slots in `empty_substyles`. Each is named `slot-<n>`, where `n`
@@ -92,7 +100,7 @@ one fails with an explicit message such as
 The first entry of `substyles` is the style's default substyle. The name
 `default` is reserved for selections: as a style it means the manifest's
 `default_style`; as a substyle it means the selected style's first substyle.
-It works for `--style`/`--substyle` on `build-cv`, `build-cl`, `watch-cv`,
+It works for `--style`/`--substyle` on `build-output`, `build-cv`, `build-cl`, `watch-cv`,
 `watch-cl`, `explain-style` and `export-style`, and for the record options
 `cv_style`, `cv_substyle`, `cl_style` and `cl_substyle`. No real style or
 substyle may be named `default`. An omitted selection resolves the same way.
@@ -251,7 +259,7 @@ A letter contract's `line_fill` is also what its renderer must emit: `cl-body`
 and `cl-highlight` metrics carrying other fill bounds fail.
 The engine always checks the requested page count, valid positive page geometry,
 PDF integrity, embedded fonts with Unicode maps and a usable text layer. For
-every leaf, `check` also requires that the build reads nothing in the other
+every leaf, `check` also requires that the build reads nothing in any other
 document's tree and that the resolved copy `build-opportunity` emits compiles
 without CLI inputs to the same PDF, so give every `sys.inputs` value a literal
 default. The copy sits at another location, so an entry point imports its
@@ -265,14 +273,20 @@ workspace font files; provide their redistribution licenses when publishing.
 ```sh
 bash ./ccvl build-cv en-ch 4 --style harvard --substyle compact
 bash ./ccvl build-cl en-ch --style harvard --substyle frame
+bash ./ccvl build-output presentations de-ch --style scaffold
 ```
+
+`build-output <document> <locale>` builds one leaf of any declared document,
+including `cv` and `cl`. A CV numbers its outputs by preset (`cv-4.pdf`);
+every other document names its default preset after itself (`cl.pdf`,
+`flyers.pdf`) and numbers the others.
 
 An individual build resolves its selected style and extra fonts. A broken
 unrelated style does not prevent that build. `check`, `public-check` and full
 document enumeration continue to inspect the complete workspace.
 
 While iterating on one style, limit document work with a repeatable
-`--style <cv|cl>/<style>` filter on `check`, `public-check` and `measure`:
+`--style <document>/<style>` filter on `check`, `public-check` and `measure`:
 
 ```sh
 bash ./ccvl check --style cv/modern
@@ -343,7 +357,12 @@ grouped first page followed by the unchanged Harvard D+ pages 2–4. Harvard and
 a scaffold with `standard` and `timeline` substyles, and Onepager a one-page
 scaffold with `standard`; neither design is defined yet. The remaining style
 positions are empty slots: `outputs/cvl/cl/slot-2` to `slot-4`.
-All designed styles support German and English Swiss locales on portrait A4. See [the gallery](../../outputs/cvl/README.md) for PDFs,
+Flyers, web, videos, presentations and portfolios each ship a `scaffold`
+style with a `standard` substyle that prints only the approved profile name
+and contact line, on portrait A4 for flyers and portfolios and on a 16:9
+landscape page for the others; their style slots 2 to 4 are empty and no
+design is defined for them yet.
+All designed styles support German and English Swiss locales; the CV and letter styles use portrait A4. See [the gallery](../../outputs/cvl/README.md) for PDFs,
 [the defaults audit](typst-defaults.md) for settings and deliberate `auto`
 choices, and [ccvl-style](../skills/ccvl-style/SKILL.md) for style creation.
 

@@ -8,13 +8,15 @@ working record.
 |---|---|---|---|
 | `inputs/interviews/` | candidate | imports, rich profile, journal, evidence, preferences, conflicts, station allocation | tailored application copy |
 | `outputs/cvl/` | candidate document | approved general CV/CL sources, public render profile, generated showcase | raw evidence or one vacancy's tailoring |
+| `outputs/<document>/` | candidate output | approved flyer, web, video, presentation or portfolio sources and outputs | raw evidence or one vacancy's tailoring |
 | `opportunities/` | organisation key + position key | posting, company/role research, tailored CV/CL, preparation, submission, outcome | duplicated general profile or a separate market map |
 
 ## Workspace paths
 
 The `workspace_groups` table of `ccvl.json` is the single source of truth for
 where workspace data lives: `inputs` (profile, interviews, station plan,
-assets), `outputs` (the CV and cover-letter documents) and `opportunities`.
+assets), `outputs` (the CV and cover-letter documents and one folder per other
+output document) and `opportunities`.
 The build embeds every entry as a constant named after its group and key
 (`INPUTS_PROFILE`, `OUTPUTS_CV`, ...), so code refers to a path by its role and
 never by a literal. Moving a folder is a manifest edit plus the move itself;
@@ -57,6 +59,17 @@ document, style and locale. Its owner is
 each leaf's `content.toml` keeps its metadata, source reference and explicit
 wording overrides. Different styles keep independent wording. See
 [Styles](styles.md) for the merge rules.
+
+## Output document records
+
+The `documents` table of `ccvl.json` names every document; its key also names
+the document's folder in `workspace_groups.outputs`. A leaf of a document
+other than the CV and the cover letter keeps a small record:
+`schema_version`, `revision`, `options.language`, an optional
+`options.pages`, the document's own `<document>_style`, `<document>_substyle`
+and optional `<document>_paper`, and a `[<document>]` content table governed by
+the style's `content_fields`. It has no job, recipient or application envelope,
+and opportunity records cannot select these documents.
 
 ## Opportunity identity
 

@@ -5,7 +5,8 @@ ccvl separates mechanism from three user-owned data domains:
 ```text
 .agent/                                  product mechanism
 inputs/                                  profile, interviews, assets and library
-outputs/cvl/                             approved general document sources
+outputs/cvl/                             approved general CV and cover-letter sources
+outputs/<document>/                      other approved output documents
 opportunities/<organisation>/<position>/ one concrete job and its documents
 ```
 
@@ -64,6 +65,18 @@ Records select `cv_style`/`cl_style` and `cv_substyle`/`cl_substyle` under
 `options`; workspace and style metadata declare the defaults. See
 [styles.md](styles.md) for the interface and [../../cvl/README.md](../../outputs/cvl/README.md)
 for the shipped tree.
+
+## `outputs/<document>/`: other output documents
+
+Flyers, web pages, videos, presentations and portfolios each own a folder
+with the same document → style → substyle → language → country hierarchy and
+slot grid. `ccvl.json` declares every document in its `documents` table; the
+key is the document name and names its folder in `workspace_groups.outputs`.
+The CV and the cover letter keep their opportunity records, page presets and
+measured contracts. Other documents take the generic path: a small record per
+leaf, the selected style's pages and papers, and the same rendering,
+reproducibility and PDF checks. Their shipped `scaffold` styles print only the
+approved profile header.
 
 ## `opportunities/`: keyed job packages
 

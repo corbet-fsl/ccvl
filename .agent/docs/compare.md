@@ -8,7 +8,7 @@ build. Comparisons are review material: they live in `.agent/cache/` and are
 never committed.
 
 ```sh
-bash ./ccvl compare [--doc cv|cl] [--locale <locale>] [--pages <preset>]
+bash ./ccvl compare [--doc <document>] [--locale <locale>] [--pages <preset>]
                     [--only <pages>] [--layout interleaved|sheet] [--name <name>]
                     [--png] [--metrics] [--json] <item> <item> [<item>...]
 ```

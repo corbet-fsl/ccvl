@@ -27,6 +27,7 @@ The product has four domains:
 .agent/                                  implementation and agent workflows
 inputs/                                  profile, interviews, assets and library
 outputs/cvl/                             approved general CV and cover letter
+outputs/<document>/                      flyers, web, videos, presentations, portfolios
 opportunities/<organisation>/<position>/ one concrete job and its documents
 ```
 
@@ -44,6 +45,8 @@ Included are:
   approved Harvard stations into finance, technology and consulting sections,
   followed by the unchanged Harvard pages 2–4;
 - [a rendered gallery and full folder overview](outputs/cvl/README.md);
+- [flyer, web, video, presentation and portfolio scaffolds](outputs/README.md)
+  on the same style grid, printing only the profile header until designed;
 - one validated `application.toml` per concrete opportunity;
 - a shared Rust and Typst engine with bundled fonts and reproducible PDF
   output;
@@ -78,6 +81,9 @@ The shipped Harvard CV substyles are `d-plus` (the default), `standard`, `compac
 cover-letter substyles are `frame` (the default) and `left-rule`. `bash ./ccvl list-styles` shows every
 style, substyle and empty slot. Use `build-cv en-ch 4 --style harvard --substyle compact` or
 `build-cl en-ch --style harvard --substyle frame` with your platform launcher.
+Other output documents land in
+`outputs/<document>/<style>/<substyle>/<language>/<region>/pdf/<document>.pdf`;
+`build-output <document> <locale>` builds any one, for example `build-output flyers en-ch`.
 `compare harvard/d-plus cluster/d-plus harvard/compact` renders any variants into one
 side by side review PDF; see [.agent/docs/compare.md](.agent/docs/compare.md).
 Other styles own their layouts and page presets; see [.agent/docs/styles.md](.agent/docs/styles.md).

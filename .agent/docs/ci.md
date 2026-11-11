@@ -52,10 +52,10 @@ everything. It outputs `rust`, `documents` and `styles`.
 |---|---|---|
 | `.github/workflows/ci.yml`, `.agent/scripts/ci-changes.sh` | yes | all |
 | `.agent/src/**`, `.agent/core/**`, `.agent/build.rs`, `.agent/typst/**`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `ccvl.json` | yes | all |
-| `outputs/cvl/cv/<style>/**`, `outputs/cvl/cl/<style>/**` | no | `<doc>/<style>`; when that style no longer exists, the Rust job and all |
-| `outputs/cvl/shared/<family>/**` | no | same-named styles and styles whose files reference `shared/<family>/`; when none, the Rust job and all |
+| `outputs/cvl/cv/<style>/**`, `outputs/cvl/cl/<style>/**`, `outputs/<document>/<style>/**` | no | `<document>/<style>`; when that style no longer exists, the Rust job and all |
+| `outputs/cvl/shared/<family>/**` | no | same-named CV and letter styles and any style under `outputs/` whose files reference `shared/<family>/`; when none, the Rust job and all |
 | `inputs/profile.toml`, `inputs/assets/**` | no | all |
-| other `outputs/cvl/**` | yes | all |
+| other `outputs/cvl/**`, other `outputs/**` | yes | all |
 | `outputs/cvl/README.md` | yes | none |
 | `inputs/interviews/stations.toml` | yes | CV styles whose `contract.toml` declares `[layout_contract…]` |
 | `.agent/skills/**`, `.agent/scaffolds/**`, `.agent/schemas/**`, `.agent/tests/fixtures/**`, `.agent/tests/skill-cases.json`, `.agent/docs/editorial.md`, `inputs/interviews/**`, `opportunities/**`, `REUSE.toml`, `LICENSES/**`, `.crow/downstream-sync.yaml`, `.crow/release-archive.yaml`, `.agent/release-platforms.txt`, `.agent/tests/*.rs`, and the Rust job's `ci-check.sh`, `release-ci.sh`, `rust-toolchain.sh`, `release-evidence.sh`, `publish-release.sh`, `memory-admission.sh`, `downstream-sync.sh` | yes | none |

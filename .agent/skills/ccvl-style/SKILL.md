@@ -41,7 +41,9 @@ change the requested page count automatically to make another paper size fit.
 
 A style owns the visual system: page geometry, fonts, composition and content
 fields. A substyle is a variation within that style. Create
-`outputs/cvl/<cv|cl>/<style>/<substyle>/<language>/<country>/`; never put a substyle
+`<document root>/<style>/<substyle>/<language>/<country>/`, where the root is
+`outputs/cvl/<cv|cl>` or `outputs/<document>` for flyers, web, videos,
+presentations and portfolios (see `ccvl.json` `documents`); never put a substyle
 beside its parent style. Independent styles need not import Harvard or use
 `src/`. Share code only where it actually belongs to the same design.
 
@@ -49,7 +51,7 @@ Each document has a fixed grid of style and substyle positions, declared as
 `slots` in `ccvl.json`. A new design fills an empty slot instead of adding a
 position. For a substyle, rename its `slot-N` entry in `substyles` to the real
 name, remove it from `empty_substyles` and add its directory and leaves. For a
-style, replace the lowest-numbered `outputs/cvl/<cv|cl>/slot-N/` directory with the
+style, replace the lowest-numbered `<document root>/slot-N/` directory with the
 new style; list its undesigned positions as `slot-N` by position in both
 `substyles` and `empty_substyles`. Never name a style or substyle `default`;
 that name selects the workspace default.
@@ -63,7 +65,7 @@ that name selects the workspace default.
   existing workspace defaults and substyle order unless the user asks to
   change them.
 - Provide each leaf's `content.toml`, `strings.toml`, `layout.toml` and
-  `typst/<cv|cl>.typ`, plus each substyle's configuration. Keep chrome in
+  `typst/<document>.typ`, plus each substyle's configuration. Keep chrome in
   strings and language/region/direction in layout. Keep named paper presets and
   their locale defaults in the style definition.
 - Share wording only between substyles of the same document/style/locale.
@@ -76,14 +78,14 @@ that name selects the workspace default.
   project reader defined in style code, so direct Typst compilation resolves
   the same content as the CLI.
 - Import engine helpers from `@local/ccvl:1.0.0` and the style's own modules by
-  relative paths; only `typst/<cv|cl>.typ` entry points use absolute workspace
+  relative paths; only `typst/<document>.typ` entry points use absolute workspace
   paths. Follow the Typst imports section of the styles guide.
 - Put explicit page, text, paragraph and block decisions in style-owned
   defaults. The optional `apply-document-settings` adapter applies those
   values; it does not choose a design. Declare `settings_adapter = "document-v1"`
   when using it; the engine and direct Typst adapter share one validation schema.
   Use `paragraph.leading_em` as the single line-spacing authority, and
-  `explain-style <cv|cl> <locale> --style <id> --substyle <id>` to inspect merged
+  `explain-style <document> <locale> --style <id> --substyle <id>` to inspect merged
   inputs and their sources. Independent renderers keep their own schema.
   Retain `auto` only as a deliberate,
   documented algorithm choice. Set spacing/insets/shape strokes explicitly
