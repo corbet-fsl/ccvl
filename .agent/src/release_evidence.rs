@@ -17,7 +17,7 @@ use crate::archive::{
     self, Env, Kind, absolute, command_text, dumps, file_sha256, sha256_hex, unsafe_member_path,
 };
 
-const REPOSITORY: &str = "corbet-libs/ccvl";
+const REPOSITORY: &str = "corbet-fsl/ccvl";
 
 /// Release platform names and the Rust host triple each requires.
 pub const PLATFORMS: [(&str, &str); 6] = [
@@ -234,7 +234,7 @@ fn source(root: &Path, env: &Env) -> Result<(Identity, SourceFiles)> {
         .first_nonempty(&["CI_REPO", "GITHUB_REPOSITORY"])
         .unwrap_or_default();
     if repository != REPOSITORY {
-        return fail("Release work requires the public corbet-libs/ccvl repository.");
+        return fail("Release work requires the public corbet-fsl/ccvl repository.");
     }
     let commit = env
         .first_nonempty(&["CI_COMMIT_SHA", "GITHUB_SHA"])

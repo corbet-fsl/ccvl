@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 
 const BIN: &str = env!("CARGO_BIN_EXE_ccvl");
-const UPSTREAM_URL: &str = "https://forge.example.invalid/corbet-libs/ccvl.git";
+const UPSTREAM_URL: &str = "https://forge.example.invalid/corbet-fsl/ccvl.git";
 const CREDENTIALS: [&str; 10] = [
     "GH_TOKEN",
     "GITHUB_TOKEN",
@@ -46,7 +46,7 @@ const FAKE_CURL: &str = r#"#!/usr/bin/env bash
 last="${*: -1}"
 name="${last##*/}"
 [[ $1 == -q ]] || exit 98
-[[ $last == "https://forge.example.invalid/corbet-libs/ccvl/releases/download/runtime-$TEST_RUNTIME_ID/$name" ]] || exit 97
+[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/runtime-$TEST_RUNTIME_ID/$name" ]] || exit 97
 printf 'download:%s\n' "$name" >> "$TEST_TRACE"
 [[ -z ${TEST_RUNTIME_UNAVAILABLE:-} ]] || exit 22
 output=
@@ -313,7 +313,7 @@ fn public_hosted_and_nonmanual_execution_are_refused_before_download() {
     for environment in [
         ("CI", "true"),
         ("CI_REPO_PRIVATE", "false"),
-        ("CI_REPO", "corbet-libs/ccvl"),
+        ("CI_REPO", "corbet-fsl/ccvl"),
         ("GITHUB_ACTIONS", "true"),
         ("CI_PIPELINE_EVENT", "push"),
     ] {

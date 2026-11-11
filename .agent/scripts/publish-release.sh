@@ -11,7 +11,7 @@ dist="$(cd "${1:?Missing verified release directory}" && pwd)"
 identity="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist")"
 read -r sha runtime_id <<<"$identity"
 repository="${CI_REPO:-${GITHUB_REPOSITORY:-}}"
-[[ "$repository" == corbet-libs/ccvl && "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
+[[ "$repository" == corbet-fsl/ccvl && "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
 [[ -n ${GH_TOKEN:-${GITHUB_TOKEN:-}} ]] || { echo 'A publication credential is required.' >&2; exit 2; }
 platform_policy="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" platforms)"
 mapfile -t platforms <<<"$platform_policy"

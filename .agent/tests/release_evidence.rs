@@ -120,7 +120,7 @@ impl Release {
         )
         .unwrap();
         let env = vec![
-            ("CI_REPO".to_owned(), "corbet-libs/ccvl".to_owned()),
+            ("CI_REPO".to_owned(), "corbet-fsl/ccvl".to_owned()),
             ("CI_COMMIT_SHA".to_owned(), COMMIT.to_owned()),
             ("CI_PIPELINE_NUMBER".to_owned(), "123".to_owned()),
             ("SOURCE_ARCHIVE".to_owned(), archive.display().to_string()),
@@ -958,7 +958,7 @@ impl ArchiveExecutor {
         )
         .unwrap();
         let env = [
-            ("CI_REPO", "corbet-libs/ccvl".to_owned()),
+            ("CI_REPO", "corbet-fsl/ccvl".to_owned()),
             ("SOURCE_ARCHIVE", archive.display().to_string()),
             ("SOURCE_SHA256", file_hash(&archive)),
             ("CCVL_RELEASE_DIR", dist.display().to_string()),

@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 use crate::archive::{self, Env, Kind, dumps, sha256_hex, unsafe_member_path};
 
-const PUBLIC_REPO: &str = "corbet-libs/ccvl";
+const PUBLIC_REPO: &str = "corbet-fsl/ccvl";
 const ASSET: &str = "ccvl-linux-x86_64";
 const CREDENTIALS: [&str; 9] = [
     "GH_TOKEN",
