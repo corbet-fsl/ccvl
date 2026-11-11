@@ -1,4 +1,4 @@
-# Onepager CV family: a one-page CV, currently an empty scaffold.
+# Onepager CV family: one A4 page with an optional photo beside the summary.
 id = "onepager"
 api = 1
 settings_adapter = "document-v1"

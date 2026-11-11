@@ -1,1 +1,7 @@
 locale = "de-ch"
+document_title = "Lebenslauf"
+summary = "Kurzprofil"
+experience = "Berufserfahrung"
+education = "Ausbildung"
+projects = "Eigenständige Projekte"
+skills = "Kernkompetenzen"

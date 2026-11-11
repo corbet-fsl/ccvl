@@ -1,4 +1,4 @@
-# Onepager style defaults. Scaffold only: adapter baseline copied from Modern; the design is not yet defined.
+# Onepager defaults: D+ typography, A4 margins and the one-page design.
 id = "onepager"
 api = 1
 
@@ -51,7 +51,7 @@ cost_widow_percent = 100
 cost_orphan_percent = 100
 
 [paragraph]
-leading_em = 0.7
+leading_em = 0.75
 spacing_pt = 0
 justify = false
 linebreaks = "auto"
@@ -68,3 +68,52 @@ align = "left"
 above_pt = 0
 below_pt = 0
 breakable = true
+
+[accents]
+link = "#1e3a5f"
+highlight_background = "#f8fafc"
+
+[header]
+after_pt = 8.0
+
+# One-page design: header, photo frame, sections and spacing.
+[one_pager]
+name_size_pt = 15.75
+name_color = "#CC0000"
+headline_size_pt = 10.5
+headline_gap_pt = 6.0
+project_link_size_pt = 9.03
+contact_size_pt = 9.03
+contact_gap_pt = 6.0
+contact_separator_gap_pt = 6.0
+# Classic 3:4 application-photo ratio (4.5 × 6 cm; width / height).
+portrait_ratio = 0.75
+portrait_gap_mm = 5.0
+summary_before_pt = 12.0
+summary_lines = 6
+section_size_pt = 12
+section_color = "#CC0000"
+heading_size_pt = 11
+heading_weight = 500
+role_size_pt = 10
+secondary_color = "#555555"
+section_before_pt = 11.0
+section_after_pt = 8.8
+heading_shift_pt = 0.6
+rule_gap_pt = 4.41
+rule_width_pt = 0.35
+rule_color = "#CC0000"
+entry_gap_pt = 12.1
+education_gap_pt = 11.0
+group_after_pt = 8.8
+subentry_gap_pt = 13.2
+subentry_inset_mm = 2.0
+role_gap_pt = 6.05
+bullet_gap_pt = 8.8
+skill_gap_pt = 11.0
+bullet_indent_pt = 10.5
+station_size_pt = 10.5
+station_label_weight = 700
+station_bullet_gap_pt = 6.05
+bullet_list_gap_pt = 6.05
+group_title_color = "#CC0000"

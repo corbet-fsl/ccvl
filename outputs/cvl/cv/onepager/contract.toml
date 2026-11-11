@@ -1,8 +1,59 @@
-content_fields = []
+# Line counts are upper bounds: a leaf may leave any section empty.
+content_fields = ["headline", "location", "languages", "summary", "allow_thin", "experience", "experience_groups", "education", "projects", "skills", "portrait_path"]
+# A leaf may name a personal application photo (`portrait_path`), an external
+# document input. The portable renderer accepts records and profiles but has no
+# candidate-binary asset input, so this style ships no portable bundle.
+# Workspace builds and resolved customization copies remain fully checked.
+portable_bundle = false
 
 [pdf]
 version = "1.7"
 tagged = true
 font_pattern = "^[A-Z]{6}\\+Archivo-(Bold|Italic|Medium|Regular)$"
-required_profile_fields = ["email", "phone_label"]
+required_profile_fields = ["name", "email", "phone_label"]
 minimum_text_chars = 20
+
+[[metric_rules]]
+kind = "one-pager-headline"
+minimum = 0
+maximum = 1
+
+[[metric_rules]]
+kind = "cv-summary"
+minimum = 0
+maximum = 6
+
+[[metric_rules]]
+kind = "one-pager-section"
+minimum = 0
+maximum = 4
+
+[[metric_rules]]
+kind = "one-pager-heading"
+minimum = 0
+maximum = 9
+
+[[metric_rules]]
+kind = "one-pager-role"
+minimum = 0
+maximum = 6
+
+[[metric_rules]]
+kind = "one-pager-bullet"
+minimum = 0
+maximum = 7
+
+[[metric_rules]]
+kind = "one-pager-skill"
+minimum = 0
+maximum = 4
+
+[[metric_rules]]
+kind = "one-pager-period"
+minimum = 0
+maximum = 3
+
+[[metric_rules]]
+kind = "one-pager-group"
+minimum = 0
+maximum = 3

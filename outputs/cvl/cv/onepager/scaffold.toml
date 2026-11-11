@@ -1,1 +1,11 @@
-# Scaffold only: no document fields defined yet.
+# Blank, explicit inputs; never copy the personal showcase into a new profile.
+headline = ""
+location = ""
+summary = ""
+portrait_path = ""
+allow_thin = false
+experience = []
+experience_groups = []
+education = []
+projects = []
+skills = []

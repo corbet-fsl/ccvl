@@ -1,2 +1,2 @@
-# Shared CV wording for onepager. Scaffold only: no fields defined yet.
+# Shared CV wording for onepager. Empty in the public showcase: the header shows the profile; a workspace fills the fields listed in scaffold.toml.
 [cv]

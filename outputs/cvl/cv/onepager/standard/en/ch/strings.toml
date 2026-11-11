@@ -1,1 +1,7 @@
 locale = "en-ch"
+document_title = "Curriculum Vitae"
+summary = "Profile"
+experience = "Professional experience"
+education = "Education"
+projects = "Independent projects"
+skills = "Core competencies"

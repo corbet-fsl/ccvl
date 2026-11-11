@@ -1,17 +1,19 @@
-# Onepager CV style
+# Onepager
 
-**Scaffold only.** The design of the one-page CV has not been defined yet. The
-folders and files exist so the engine discovers, builds and checks the style;
-the renderer prints only the approved profile header.
+One A4 page in Archivo with D+ typography. The header has two columns: name,
+headline, two contact rows and the summary on the left; an optional
+application photo on the right in the classic 3:4 ratio, spanning exactly from
+the top of the name to the baseline of the last summary line. Below follow
+optional sections, each between two fine red rules: core competencies (rows
+with a bold label), experience (groups with a title, an
+"organisations | period" line and stations with an "organisation, place |
+role" heading and one bullet), education and independent projects.
 
-| Path | State |
-| --- | --- |
-| `style.toml` | `de-ch` / `en-ch`, portrait A4, one page, substyle `standard` (default); `slot-2` to `slot-5` are empty slots |
-| `contract.toml`, `scaffold.toml` | No content fields yet |
-| `content/<language>/ch/wording.toml` | Empty `[cv]` table |
-| `standard/substyle.toml` | No settings yet |
-| `layout.typ` | Placeholder renderer: profile header only |
-| `../../shared/onepager/defaults.toml` | `document-v1` adapter baseline copied from Modern |
-
-Fonts, paper, content fields and how Onepager differs from Modern (also one
-page) are open decisions.
+Every field is optional; content a leaf leaves empty is not rendered. The
+public showcase leaves are empty, so they print the profile header only. The
+fields are listed in [`scaffold.toml`](scaffold.toml); the design settings live
+in [`../../shared/onepager/defaults.toml`](../../shared/onepager/defaults.toml)
+under `[one_pager]`, and the line-count bounds in [`contract.toml`](contract.toml).
+The summary uses exactly `summary_lines` lines; `allow_thin` admits lines
+below 95 % fill. The page never shrinks type: content that does not fit fails
+the one-page check.
