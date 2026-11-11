@@ -268,6 +268,6 @@ mod tests {
         ] {
             assert!(validate_path(path).is_err(), "{path}");
         }
-        validate_path("cvl/cl/example/layout.typ").unwrap();
+        validate_path("outputs/cvl/cl/example/layout.typ").unwrap();
     }
 }
