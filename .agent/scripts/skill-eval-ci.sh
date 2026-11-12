@@ -5,10 +5,9 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 fail() { printf '%s\n' "$1" >&2; exit 2; }
-[[ ${CI_REPO:-} == corbet-fsl/ccvl && ${CI_COMMIT_BRANCH:-} == main &&
-   ${CI_REPO_DEFAULT_BRANCH:-} == main ]] || fail 'Skill evaluation requires public ccvl main.'
+[[ ${FORGEJO_ACTIONS:-} == true && ${GITHUB_REPOSITORY:-} == corbet-fsl/ccvl &&
+   ${GITHUB_REF_NAME:-} == main ]] || fail 'Skill evaluation requires public ccvl main on Forgejo.'
 [[ ${CI_COMMIT_SHA:-} =~ ^[0-9a-f]{40}$ ]] || fail 'Missing verified source commit.'
-[[ ${SOURCE_SHA256:-} =~ ^[0-9a-f]{64}$ ]] || fail 'Missing verified source archive digest.'
 [[ -n ${CARGO_TARGET_DIR:-} && ${CCID_TARGET_LOCK_HELD:-} == "$CARGO_TARGET_DIR" ]] ||
   fail 'Run skill evaluation through the verified ccid adapter and its target lock.'
 
@@ -17,6 +16,8 @@ evidence="$CARGO_TARGET_DIR/ccvl-skill-eval/$CI_COMMIT_SHA"
 case "${1:-}" in
   build)
     [[ -z ${GROQ_API_KEY:-} ]] || fail 'The skill evaluator build must not receive GROQ_API_KEY.'
+    # Repository code runs in the build: it never sees where the key lives either.
+    unset CCVL_GROQ_API_KEY_FILE
     # shellcheck source=.agent/scripts/rust-toolchain.sh
     source .agent/scripts/rust-toolchain.sh
     ccvl_select_rust_toolchain
@@ -33,13 +34,18 @@ case "${1:-}" in
       fail 'The evaluator runtime changed after its build.'
     report_dir="$(mktemp -d "$evidence/run.XXXXXXXX")"
     {
-      printf 'source_commit=%s\nsource_archive_sha256=%s\nmodel=%s\n' \
-        "$CI_COMMIT_SHA" "$SOURCE_SHA256" openai/gpt-oss-20b
+      printf 'source_commit=%s\nmodel=%s\n' "$CI_COMMIT_SHA" openai/gpt-oss-20b
       cat "$evidence/binary.sha256" "$evidence/runtime-id"
       sha256sum Cargo.lock .agent/tests/skill-cases.json
     } > "$report_dir/identity.txt"
+    # The runner provides the key as a credential file; only this stage reads it.
+    if [[ -z ${GROQ_API_KEY:-} && -r ${CCVL_GROQ_API_KEY_FILE:-/nonexistent} ]]; then
+      GROQ_API_KEY="$(cat "$CCVL_GROQ_API_KEY_FILE")"
+      export GROQ_API_KEY
+    fi
+    unset CCVL_GROQ_API_KEY_FILE
     if [[ -z ${GROQ_API_KEY:-} ]]; then
-      printf '%s\n' 'Crow repository secret ccvl_groq_api_key is required; no provider call can run.' >&2
+      printf '%s\n' 'The runner credential CCVL_GROQ_API_KEY_FILE (a Groq API key file) is required; no provider call can run.' >&2
     fi
     # Fixed repository inputs only; never accept private cases or a response file.
     # The CLI checks its runtime against this extracted source before evaluation.

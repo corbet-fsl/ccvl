@@ -49,10 +49,9 @@ EOF
 chmod +x "$scratch/bin/rustc" "$scratch/bin/cargo" "$scratch/fake-ccvl"
 export FAKE_BINARY="$scratch/fake-ccvl" FAKE_CARGO_LOG="$scratch/cargo.log" FAKE_ARGUMENTS="$scratch/arguments"
 export CARGO_TARGET_DIR="$scratch/target" CCID_TARGET_LOCK_HELD="$scratch/target"
-export CI_REPO=corbet-fsl/ccvl CI_COMMIT_BRANCH=main CI_REPO_DEFAULT_BRANCH=main
+export FORGEJO_ACTIONS=true GITHUB_REPOSITORY=corbet-fsl/ccvl GITHUB_REF_NAME=main
 export CI_COMMIT_SHA=0123456789012345678901234567890123456789
-export SOURCE_SHA256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-unset RUST_TOOLCHAIN RUSTUP_TOOLCHAIN GROQ_API_KEY
+unset RUST_TOOLCHAIN RUSTUP_TOOLCHAIN GROQ_API_KEY CCVL_GROQ_API_KEY_FILE
 
 run() {
   PATH="$scratch/bin" "$bash_command" "$scratch/repo/.agent/scripts/skill-eval-ci.sh" "$1" > "$scratch/output" 2>&1
@@ -68,8 +67,9 @@ expect_status() {
 }
 
 # Neither private source nor an unlocked target can build or evaluate.
-CI_REPO=corbet-labs/applications expect_status 2 build
-SOURCE_SHA256=missing expect_status 2 build
+GITHUB_REPOSITORY=corbet-labs/applications expect_status 2 build
+GITHUB_REF_NAME=feature expect_status 2 build
+CI_COMMIT_SHA=missing expect_status 2 build
 CCID_TARGET_LOCK_HELD=wrong expect_status 2 build
 GROQ_API_KEY=fixture-secret expect_status 2 build
 [[ ! -f "$FAKE_CARGO_LOG" ]]
@@ -80,8 +80,12 @@ cp "$FAKE_CARGO_LOG" "$scratch/cargo-before-evaluation.log"
 
 # Missing credentials and provider failures remain failures with retained reports.
 expect_status 2 evaluate
-grep -Fq 'ccvl_groq_api_key is required' "$scratch/output"
+grep -Fq 'CCVL_GROQ_API_KEY_FILE (a Groq API key file) is required' "$scratch/output"
 grep -Fq '"fixture_exit":2' "$scratch/output"
+# The runner's credential file serves the evaluation, and the build never reads it.
+printf 'file-secret\n' > "$scratch/groq-key"
+CCVL_GROQ_API_KEY_FILE="$scratch/groq-key" expect_status 0 evaluate
+if grep -Fq 'file-secret' "$scratch/output"; then echo 'Credential file content appeared in output.' >&2; exit 1; fi
 export GROQ_API_KEY=fixture-secret
 FAKE_EVAL_STATUS=75 expect_status 75 evaluate
 grep -Fq '"fixture_exit":75' "$scratch/output"
@@ -94,7 +98,7 @@ grep -Fq "source_commit=$CI_COMMIT_SHA" "$scratch/output"
 if grep -Fq "$GROQ_API_KEY" "$scratch/output"; then echo 'Credential appeared in output.' >&2; exit 1; fi
 cmp "$FAKE_CARGO_LOG" "$scratch/cargo-before-evaluation.log"
 
-# A different build between the two Crow steps fails closed before provider work.
+# A different build between the two ccid steps fails closed before provider work.
 printf '\n# replaced binary\n' >> "$CARGO_TARGET_DIR/debug/ccvl"
 expect_status 1 evaluate
 printf 'Skill evaluation keeps credentials out of builds, enforces source/target identity, and preserves failed reports.\n'
