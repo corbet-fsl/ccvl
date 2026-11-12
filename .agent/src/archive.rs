@@ -106,6 +106,33 @@ pub fn sha256_hex(data: &[u8]) -> String {
     format!("{:x}", Sha256::digest(data))
 }
 
+/// The SHA-256 object id and size a Git LFS pointer file names. Any other
+/// content, including a malformed pointer, is not one.
+#[must_use]
+pub fn lfs_pointer(data: &[u8]) -> Option<(String, u64)> {
+    if data.len() > 1024 {
+        return None;
+    }
+    let mut lines = std::str::from_utf8(data).ok()?.lines();
+    if lines.next()? != "version https://git-lfs.github.com/spec/v1" {
+        return None;
+    }
+    let (mut oid, mut size) = (None, None);
+    for line in lines {
+        if let Some(value) = line.strip_prefix("oid sha256:") {
+            oid = Some(value.to_owned());
+        } else if let Some(value) = line.strip_prefix("size ") {
+            size = value.parse().ok();
+        }
+    }
+    let oid = oid?;
+    let hex = oid.len() == 64
+        && oid
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    hex.then_some((oid, size?))
+}
+
 pub fn file_sha256(path: &Path) -> Result<String> {
     let mut stream =
         fs::File::open(path).with_context(|| format!("cannot read {}", path.display()))?;
@@ -464,6 +491,35 @@ pub fn dumps(value: &Value, indent: Option<usize>) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn lfs_pointers_are_recognised_exactly() {
+        let oid = "ab".repeat(32);
+        let pointer =
+            format!("version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize 12\n");
+        assert_eq!(lfs_pointer(pointer.as_bytes()), Some((oid.clone(), 12)));
+        for broken in [
+            String::new(),
+            "version https://example.invalid/spec/v1\n".to_owned(),
+            format!(
+                "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize 12\n",
+                "AB".repeat(32)
+            ),
+            format!(
+                "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize 12\n",
+                "ab".repeat(31)
+            ),
+            format!("version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\n"),
+            format!("version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize x\n"),
+            format!(
+                "version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize 1\n{}",
+                "x".repeat(2000)
+            ),
+        ] {
+            assert_eq!(lfs_pointer(broken.as_bytes()), None, "{broken:?}");
+        }
+        assert_eq!(lfs_pointer(&[0xff, 0xfe]), None);
+    }
+
     use super::*;
     use serde_json::json;
 

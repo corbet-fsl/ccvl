@@ -18,7 +18,7 @@ use anyhow::{Context, Error, Result};
 use regex::Regex;
 use serde_json::{Value, json};
 
-use crate::archive::{self, Env, Kind, dumps, sha256_hex, unsafe_member_path};
+use crate::archive::{self, Env, Kind, dumps, lfs_pointer, sha256_hex, unsafe_member_path};
 
 const PUBLIC_REPO: &str = "corbet-fsl/ccvl";
 const ASSET: &str = "ccvl-linux-x86_64";
@@ -210,7 +210,9 @@ impl Runner {
 }
 
 /// Path, executable bit and checksum of every regular file of a source archive.
-type Inventory = std::collections::BTreeMap<String, (u32, String)>;
+/// Per file: executable bits, the archive's content digest and, for a Git LFS
+/// pointer, the object id the pointer names.
+type Inventory = std::collections::BTreeMap<String, (u32, String, Option<String>)>;
 
 fn source_files(data: &[u8], commit: &str) -> Result<Inventory> {
     let archive = archive::read(data)?;
@@ -231,7 +233,11 @@ fn source_files(data: &[u8], commit: &str) -> Result<Inventory> {
             entry.kind == Kind::File && !files.contains_key(&entry.name),
             "Private checks require unique regular source files.",
         )?;
-        files.insert(entry.name, (entry.mode & 0o111, sha256_hex(&entry.data)));
+        let object = lfs_pointer(&entry.data).map(|(oid, _)| oid);
+        files.insert(
+            entry.name,
+            (entry.mode & 0o111, sha256_hex(&entry.data), object),
+        );
     }
     Ok(files)
 }
@@ -390,13 +396,19 @@ fn check(root: &Path, env: &Env) -> Result<Value> {
     )?;
     let files = source_files(&committed, commit)?;
     // Check the actual extraction too, not merely the committed tree.
-    for (name, (mode, checksum)) in &files {
+    for (name, (mode, checksum, object)) in &files {
         let path = root.join(name);
         let metadata = fs::symlink_metadata(&path)?;
+        let digest = if metadata.is_file() {
+            sha256_hex(&fs::read(&path)?)
+        } else {
+            String::new()
+        };
+        // A committed LFS pointer is satisfied by the object it names.
         require(
             metadata.is_file()
                 && executable_bits(&path)? == *mode
-                && sha256_hex(&fs::read(&path)?) == *checksum,
+                && (digest == *checksum || object.as_deref() == Some(digest.as_str())),
             "Extracted source differs from its archive.",
         )?;
     }

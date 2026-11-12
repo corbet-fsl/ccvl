@@ -20,6 +20,7 @@ use tempfile::TempDir;
 
 const BIN: &str = env!("CARGO_BIN_EXE_ccvl");
 const COMMIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const LFS_FILE: &str = "inputs/assets/lfs.bin";
 
 fn repository() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -112,10 +113,21 @@ impl Release {
                 fs::read(repository().join(".agent/scripts").join(name)).unwrap(),
             ));
         }
+        // The archive holds the committed LFS pointer; the checkout holds its object.
+        let object = b"LFS OBJECT BYTES\n".to_vec();
+        files.push((
+            LFS_FILE.into(),
+            format!(
+                "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n",
+                sha256_hex(&object),
+                object.len()
+            )
+            .into_bytes(),
+        ));
         for (name, payload) in &files {
             let path = root.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(&path, payload).unwrap();
+            fs::write(&path, if name == LFS_FILE { &object } else { payload }).unwrap();
             fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
         }
         let archive = temp.path().join("source.tar");
@@ -476,6 +488,20 @@ fn source_archive_or_worktree_mutation_refused() {
         "archive checksum",
     );
     fs::write(release.root.join("Cargo.lock"), "changed lock").unwrap();
+    assert_refused(&release.run(&["source"], &[]), "Source input changed");
+}
+
+#[test]
+fn an_lfs_object_must_be_the_one_its_pointer_names() {
+    let release = Release::new();
+    // The object is accepted (the fixture already holds it); other bytes of the
+    // same size are not, and neither are the pointer's own bytes.
+    fs::write(release.root.join(LFS_FILE), b"LFS OBJECT BYTES!").unwrap();
+    assert_refused(
+        &release.run(&["source"], &[]),
+        "Source input changed: inputs/assets/lfs.bin",
+    );
+    fs::write(release.root.join(LFS_FILE), b"other bytes....\n").unwrap();
     assert_refused(&release.run(&["source"], &[]), "Source input changed");
 }
 

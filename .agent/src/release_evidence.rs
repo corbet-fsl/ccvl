@@ -14,7 +14,8 @@ use clap::Subcommand;
 use serde_json::{Map, Value, json};
 
 use crate::archive::{
-    self, Env, Kind, absolute, command_text, dumps, file_sha256, sha256_hex, unsafe_member_path,
+    self, Env, Kind, absolute, command_text, dumps, file_sha256, lfs_pointer, sha256_hex,
+    unsafe_member_path,
 };
 
 const REPOSITORY: &str = "corbet-fsl/ccvl";
@@ -376,13 +377,23 @@ fn source(root: &Path, env: &Env) -> Result<(Identity, SourceFiles)> {
                 return fail(format!("Source executable mode changed: {}", member.name));
             }
         }
-        if file_sha256(&path)? != sha256_hex(&member.data) {
+        let actual = file_sha256(&path)?;
+        let size = metadata.as_ref().map(fs::Metadata::len);
+        // An archive made without the LFS filter holds the committed pointer; the
+        // checkout then holds the exact object that pointer names.
+        let payload = if actual == sha256_hex(&member.data) {
+            member.data
+        } else if lfs_pointer(&member.data)
+            .is_some_and(|(oid, bytes)| oid == actual && size == Some(bytes))
+        {
+            fs::read(&path).with_context(|| format!("cannot read {}", path.display()))?
+        } else {
             return fail(format!("Source input changed: {}", member.name));
-        }
+        };
         files.insert(
             member.name,
             SourceFile {
-                payload: member.data,
+                payload,
                 mode: member.mode,
             },
         );
