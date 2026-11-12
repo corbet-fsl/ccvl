@@ -88,7 +88,7 @@ enum Command {
         #[command(subcommand)]
         command: crate::release_evidence::Command,
     },
-    /// Maintainer: check a private downstream on Crow with its published runtime.
+    /// Maintainer: check a private downstream on a Forgejo runner with its published runtime.
     #[command(hide = true)]
     PrivateCheck,
     /// Verify the self-contained binary and workspace.

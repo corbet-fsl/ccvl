@@ -1,5 +1,6 @@
-//! Offline private-route guards with real Git archives and fixture runtimes.
-//! They drive the real `ccvl private-check` command inside an extracted tree.
+//! Offline private-route guards with real Git repositories and fixture runtimes.
+//! They drive the real `ccvl private-check` command inside a shallow checkout,
+//! the way a Forgejo job leaves it.
 #![cfg(all(unix, target_os = "linux", target_arch = "x86_64"))]
 
 use std::collections::BTreeMap;
@@ -14,10 +15,10 @@ use tempfile::TempDir;
 
 const BIN: &str = env!("CARGO_BIN_EXE_ccvl");
 const UPSTREAM_URL: &str = "https://forge.example.invalid/corbet-fsl/ccvl.git";
-const CREDENTIALS: [&str; 10] = [
+const TOKEN: &str = "fixture-job-token";
+/// Publication credentials: each one alone must stop the stage.
+const CREDENTIALS: [&str; 8] = [
     "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "GITHUB_ACTIONS",
     "DOWNSTREAM_PUSH_KEY",
     "CARGO_REGISTRY_TOKEN",
     "CARGO_REGISTRIES_CRATES_IO_TOKEN",
@@ -30,11 +31,12 @@ const CREDENTIALS: [&str; 10] = [
 const FAKE_RUNTIME: &str = r#"#!/usr/bin/env bash
 command="$1"
 printf '%s\n' "$command" >> "$TEST_TRACE"
+[[ -z ${GITHUB_TOKEN:-}${CCID_FORGE_TOKEN:-}${FORGEJO_TOKEN:-}${CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE:-} ]] || exit 97
 case "$command" in
   runtime-id)
     if [[ -n ${TEST_WRONG_RUNTIME:-} ]]; then printf '%064d\n' 0; else printf '%s\n' "$TEST_RUNTIME_ID"; fi ;;
   downstream-check)
-    [[ "${*:2}" == "--policy ccvl-downstream.json --upstream-ref $UPSTREAM_COMMIT" ]] || exit 98
+    [[ "${*:2}" == "--policy ccvl-downstream.json --upstream-ref $EXPECTED_UPSTREAM" ]] || exit 98
     if [[ -n ${TEST_OWNERSHIP_FAILURE:-} ]]; then echo PRIVATE_SENTINEL >&2; exit 1; fi ;;
   check)
     if [[ -n ${TEST_DOCUMENT_FAILURE:-} ]]; then echo PRIVATE_SENTINEL >&2; exit 1; fi ;;
@@ -46,13 +48,23 @@ const FAKE_CURL: &str = r#"#!/usr/bin/env bash
 last="${*: -1}"
 name="${last##*/}"
 [[ $1 == -q ]] || exit 98
-[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/runtime-$TEST_RUNTIME_ID/$name" ]] || exit 97
-printf 'download:%s\n' "$name" >> "$TEST_TRACE"
-[[ -z ${TEST_RUNTIME_UNAVAILABLE:-} ]] || exit 22
+[[ "$*" != *"$TEST_TOKEN"* ]] || exit 96
 output=
 for ((index = 1; index < $#; index++)); do
   if [[ ${!index} == --output ]]; then next=$((index + 1)); output=${!next}; fi
 done
+if [[ $last == "https://forge.example.invalid/api/v1/repos/fixture/private-downstream" ]]; then
+  config="$(cat)"
+  [[ $config == "header = \"Authorization: token $TEST_TOKEN\""* ]] || exit 95
+  printf 'api\n' >> "$TEST_TRACE"
+  private=true
+  [[ -z ${TEST_PUBLIC:-} ]] || private=false
+  printf '{"private": %s, "full_name": "fixture/private-downstream"}' "$private" > "$output"
+  exit 0
+fi
+[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/runtime-$TEST_RUNTIME_ID/$name" ]] || exit 97
+printf 'download:%s\n' "$name" >> "$TEST_TRACE"
+[[ -z ${TEST_RUNTIME_UNAVAILABLE:-} ]] || exit 22
 cp "$TEST_ASSETS/$name" "$output"
 "#;
 
@@ -70,10 +82,10 @@ fn executable(path: &Path, content: &str) {
 }
 
 struct Downstream {
-    temp: TempDir,
+    _temp: TempDir,
     repo: PathBuf,
+    /// The shallow checkout a Forgejo job leaves behind.
     extracted: PathBuf,
-    archive: PathBuf,
     assets: PathBuf,
     trace: PathBuf,
     commit: String,
@@ -84,10 +96,10 @@ struct Downstream {
 }
 
 impl Downstream {
-    fn git(&self, args: &[&str]) -> Vec<u8> {
+    fn git_in(&self, directory: &Path, args: &[&str]) -> Vec<u8> {
         let output = Command::new("git")
             .args(args)
-            .current_dir(&self.repo)
+            .current_dir(directory)
             .env_clear()
             .env("PATH", std::env::var("PATH").unwrap_or_default())
             .envs(self.git_environment.iter().copied())
@@ -101,7 +113,15 @@ impl Downstream {
         output.stdout
     }
 
+    fn git(&self, args: &[&str]) -> Vec<u8> {
+        self.git_in(&self.repo, args)
+    }
+
     fn new() -> Self {
+        Self::with_policy(None)
+    }
+
+    fn with_policy(policy: Option<&str>) -> Self {
         let temp = tempfile::Builder::new()
             .prefix("ccvl-private-test-")
             .tempdir()
@@ -118,10 +138,9 @@ impl Downstream {
             ("GIT_COMMITTER_EMAIL", "fixture@example.invalid"),
         ];
         let mut downstream = Self {
-            temp,
+            _temp: temp,
             repo,
             extracted: base.join("extracted"),
-            archive: base.join("source.tar"),
             assets: base.join("published"),
             trace: base.join("trace"),
             commit: String::new(),
@@ -149,33 +168,44 @@ impl Downstream {
         downstream.upstream = downstream.rev_parse();
         downstream.write(
             "ccvl-downstream.json",
-            &json!({
-                "schema_version": 1,
-                "upstream": {"remote": "upstream", "url": UPSTREAM_URL, "branch": "main"},
-                "allowed_paths": ["ccvl-downstream.json", "inputs/interviews/"],
-            })
-            .to_string(),
+            &policy.map_or_else(
+                || {
+                    json!({
+                        "schema_version": 1,
+                        "upstream": {"remote": "upstream", "url": UPSTREAM_URL, "branch": "main"},
+                        "allowed_paths": ["ccvl-downstream.json", "inputs/interviews/"],
+                    })
+                    .to_string()
+                },
+                str::to_owned,
+            ),
         );
         downstream.write("inputs/interviews/profile.md", "PRIVATE_SENTINEL\n");
         downstream.git(&["add", "."]);
         downstream.git(&["commit", "--quiet", "-m", "private fixture"]);
         downstream.commit = downstream.rev_parse();
-        let commit = downstream.commit.clone();
-        downstream.git(&["update-ref", "refs/heads/source", &commit]);
-        let bundle = base.join("source.bundle");
+        // The public repository as the forge serves it: only the public commit.
+        let public = base.join("public.git");
+        fs::create_dir_all(&public).unwrap();
+        downstream.git_in(
+            &public,
+            &["init", "--quiet", "--bare", "--initial-branch=main"],
+        );
+        let upstream = downstream.upstream.clone();
         downstream.git(&[
-            "bundle",
-            "create",
-            bundle.to_str().unwrap(),
-            "refs/heads/source",
+            "push",
+            "--quiet",
+            public.to_str().unwrap(),
+            &format!("{upstream}:refs/heads/main"),
         ]);
-        fs::write(&downstream.archive, downstream.git(&["archive", &commit])).unwrap();
-        fs::create_dir_all(&downstream.extracted).unwrap();
-        let status = Command::new("tar")
-            .arg("-xf")
-            .arg(&downstream.archive)
-            .arg("-C")
+        // A Forgejo job fetches the exact commit with depth 1.
+        let url = format!("file://{}", downstream.repo.display());
+        let status = Command::new("git")
+            .args(["clone", "--quiet", "--depth", "1", &url])
             .arg(&downstream.extracted)
+            .env_clear()
+            .env("PATH", std::env::var("PATH").unwrap())
+            .envs(downstream.git_environment.iter().copied())
             .status()
             .unwrap();
         assert!(status.success());
@@ -211,13 +241,30 @@ impl Downstream {
         let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap());
         for (key, value) in [
             ("PATH", path),
-            ("CI", "crow".to_owned()),
-            ("CCVL_UPSTREAM_URL", UPSTREAM_URL.to_owned()),
-            ("CI_REPO", "fixture/private-downstream".to_owned()),
-            ("CI_REPO_PRIVATE", "true".to_owned()),
-            ("CI_PIPELINE_EVENT", "manual".to_owned()),
+            // What a Forgejo runner exports; FORGEJO_ACTIONS is the discriminator (present in forgejo-runner 13.1.0).
+            ("CI", "true".to_owned()),
+            ("GITHUB_ACTIONS", "true".to_owned()),
+            ("FORGEJO_ACTIONS", "true".to_owned()),
+            ("GITHUB_EVENT_NAME", "workflow_dispatch".to_owned()),
+            ("GITHUB_REPOSITORY", "fixture/private-downstream".to_owned()),
+            (
+                "GITHUB_SERVER_URL",
+                "https://forge.example.invalid".to_owned(),
+            ),
+            (
+                "GITHUB_API_URL",
+                "https://forge.example.invalid/api/v1".to_owned(),
+            ),
+            ("CCID_FORGE_TOKEN", TOKEN.to_owned()),
+            ("GITHUB_TOKEN", TOKEN.to_owned()),
+            ("FORGEJO_TOKEN", TOKEN.to_owned()),
+            ("ACTIONS_RUNTIME_TOKEN", "runtime-token".to_owned()),
+            (
+                "CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE",
+                "/nonexistent/downstream-tokens".to_owned(),
+            ),
             ("CI_COMMIT_SHA", downstream.commit.clone()),
-            ("UPSTREAM_COMMIT", downstream.upstream.clone()),
+            ("CCVL_UPSTREAM_FETCH_URL", public.display().to_string()),
             (
                 "CARGO_TARGET_DIR",
                 base.join("target").display().to_string(),
@@ -226,10 +273,7 @@ impl Downstream {
                 "CCID_TARGET_LOCK_HELD",
                 base.join("target").display().to_string(),
             ),
-            ("SOURCE_ARCHIVE", downstream.archive.display().to_string()),
-            ("SOURCE_SHA256", file_hash(&downstream.archive)),
-            ("DOWNSTREAM_SOURCE_BUNDLE", bundle.display().to_string()),
-            ("DOWNSTREAM_SOURCE_SHA256", file_hash(&bundle)),
+            ("TEST_TOKEN", TOKEN.to_owned()),
             ("TEST_RUNTIME_ID", downstream.fingerprint.clone()),
             ("TEST_TRACE", downstream.trace.display().to_string()),
             ("TEST_ASSETS", downstream.assets.display().to_string()),
@@ -255,6 +299,8 @@ impl Downstream {
     fn invoke(&self, success: bool, changes: &[(&str, &str)]) -> (Output, Vec<String>) {
         fs::write(&self.trace, "").unwrap();
         let mut env = self.env.clone();
+        // The fake runtime checks the arguments it is given against this value.
+        env.insert("EXPECTED_UPSTREAM".to_owned(), self.upstream.clone());
         for (key, value) in changes {
             env.insert((*key).to_owned(), (*value).to_owned());
         }
@@ -272,6 +318,7 @@ impl Downstream {
         );
         assert_eq!(output.status.success(), success, "{combined}");
         assert!(!combined.contains("PRIVATE_SENTINEL"), "{combined}");
+        assert!(!combined.contains(TOKEN), "{combined}");
         assert_eq!(self.rev_parse(), self.commit);
         assert_eq!(self.git(&["status", "--porcelain"]), [] as [u8; 0]);
         let trace = fs::read_to_string(&self.trace)
@@ -290,6 +337,17 @@ fn stderr(output: &Output) -> String {
 #[test]
 fn exact_private_commit_runs_both_gates_without_changing_source() {
     let fixture = Downstream::new();
+    // A Forgejo job leaves a depth-1 checkout; the check completes it itself
+    // and derives the upstream commit it already contains.
+    assert_eq!(
+        String::from_utf8(fixture.git_in(
+            &fixture.extracted,
+            &["rev-parse", "--is-shallow-repository"]
+        ))
+        .unwrap()
+        .trim(),
+        "true"
+    );
     let (output, trace) = fixture.invoke(true, &[]);
     let receipt: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(receipt["source_commit"], fixture.commit.as_str());
@@ -297,8 +355,11 @@ fn exact_private_commit_runs_both_gates_without_changing_source() {
     assert_eq!(receipt["checks"], json!(["downstream-check", "check"]));
     assert_eq!(receipt["merged"], false);
     assert_eq!(receipt["pushed"], false);
+    assert_eq!(receipt["private"], true);
     assert_eq!(receipt["runtime_id"], fixture.fingerprint.as_str());
     assert_eq!(receipt["repository"], "fixture/private-downstream");
+    // The privacy answer comes before anything else leaves the machine.
+    assert_eq!(trace[0], "api");
     assert_eq!(
         trace[trace.len() - 3..],
         ["runtime-id", "downstream-check", "check"]
@@ -309,27 +370,44 @@ fn exact_private_commit_runs_both_gates_without_changing_source() {
 }
 
 #[test]
-fn public_hosted_and_nonmanual_execution_are_refused_before_download() {
+fn an_explicit_upstream_commit_needs_no_public_fetch() {
+    let fixture = Downstream::new();
+    let upstream = fixture.upstream.clone();
+    let (output, _) = fixture.invoke(
+        true,
+        &[
+            ("UPSTREAM_COMMIT", &upstream),
+            ("CCVL_UPSTREAM_FETCH_URL", "/nonexistent/public.git"),
+        ],
+    );
+    let receipt: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["upstream_commit"], upstream.as_str());
+}
+
+#[test]
+fn public_hosted_manual_and_nonprivate_execution_are_refused_before_download() {
     let fixture = Downstream::new();
     for environment in [
-        ("CI", "true"),
-        ("CI_REPO_PRIVATE", "false"),
-        ("CI_REPO", "corbet-fsl/ccvl"),
-        ("GITHUB_ACTIONS", "true"),
-        ("CI_PIPELINE_EVENT", "push"),
+        ("FORGEJO_ACTIONS", ""),
+        ("RUNNER_ENVIRONMENT", "github-hosted"),
+        ("GITHUB_REPOSITORY", "corbet-fsl/ccvl"),
+        ("GITHUB_REPOSITORY", ""),
+        ("GITHUB_EVENT_NAME", "push"),
+        ("GITHUB_EVENT_NAME", "pull_request"),
     ] {
         let (_, trace) = fixture.invoke(false, &[environment]);
         assert!(trace.is_empty(), "{environment:?}");
     }
+    // The forge says the repository is public: refused, after the one question.
+    let (output, trace) = fixture.invoke(false, &[("TEST_PUBLIC", "1")]);
+    assert_eq!(trace, ["api"]);
+    assert!(stderr(&output).contains("require a private repository on a Forgejo runner"));
 }
 
 #[test]
-fn publication_credentials_are_refused_without_disclosure() {
+fn publication_credentials_and_foreign_tokens_are_refused_without_disclosure() {
     let fixture = Downstream::new();
-    for key in CREDENTIALS
-        .into_iter()
-        .filter(|key| *key != "GITHUB_ACTIONS")
-    {
+    for key in CREDENTIALS {
         let (output, trace) = fixture.invoke(false, &[(key, "PRIVATE_SENTINEL")]);
         assert!(trace.is_empty(), "{key}");
         assert!(
@@ -338,14 +416,33 @@ fn publication_credentials_are_refused_without_disclosure() {
             stderr(&output)
         );
     }
+    // The job token is welcome; any other value under its names is a credential.
+    for key in ["GITHUB_TOKEN", "FORGEJO_TOKEN", "CCID_FORGE_TOKEN"] {
+        let (output, trace) = fixture.invoke(false, &[(key, "another-credential-value")]);
+        assert!(trace.is_empty(), "{key}");
+        assert!(
+            stderr(&output).contains("must be the only token present"),
+            "{key}: {}",
+            stderr(&output)
+        );
+    }
+    let (_, trace) = fixture.invoke(
+        false,
+        &[
+            ("CCID_FORGE_TOKEN", ""),
+            ("FORGEJO_TOKEN", ""),
+            ("GITHUB_TOKEN", ""),
+        ],
+    );
+    assert_eq!(trace, Vec::<String>::new());
 }
 
 #[test]
-fn archive_checksum_and_extracted_source_changes_are_refused() {
+fn another_commit_and_changed_checkout_are_refused() {
     let fixture = Downstream::new();
-    let (output, trace) = fixture.invoke(false, &[("SOURCE_SHA256", &"0".repeat(64))]);
+    let (output, trace) = fixture.invoke(false, &[("CI_COMMIT_SHA", &fixture.upstream)]);
     assert_eq!(trace, [] as [std::string::String; 0]);
-    assert!(stderr(&output).contains("Source archive checksum mismatch."));
+    assert!(stderr(&output).contains("not the requested private commit"));
     fs::write(
         fixture.extracted.join("inputs/interviews/profile.md"),
         "changed private source",
@@ -357,34 +454,10 @@ fn archive_checksum_and_extracted_source_changes_are_refused() {
 }
 
 #[test]
-fn archive_and_bundle_tree_disagreement_is_refused() {
+fn nonancestor_upstream_is_refused() {
     let fixture = Downstream::new();
-    let mut bytes = fs::read(&fixture.archive).unwrap();
-    let original = b"PRIVATE_SENTINEL\n";
-    let position = bytes
-        .windows(original.len())
-        .position(|window| window == original)
-        .unwrap();
-    bytes[position..position + original.len()].copy_from_slice(b"ALTERED_TRANSPORT");
-    fs::write(&fixture.archive, &bytes).unwrap();
-    fs::write(
-        fixture.extracted.join("inputs/interviews/profile.md"),
-        "ALTERED_TRANSPORT",
-    )
-    .unwrap();
-    let (output, trace) = fixture.invoke(false, &[("SOURCE_SHA256", &sha256_hex(&bytes))]);
-    assert_eq!(trace, [] as [std::string::String; 0]);
-    assert!(stderr(&output).contains("Source archive differs from the committed Git bundle tree."));
-}
-
-#[test]
-fn wrong_bundle_and_nonancestor_upstream_are_refused() {
-    let fixture = Downstream::new();
-    let (output, trace) = fixture.invoke(false, &[("DOWNSTREAM_SOURCE_SHA256", &"0".repeat(64))]);
-    assert_eq!(trace, [] as [std::string::String; 0]);
-    assert!(stderr(&output).contains("Git bundle checksum mismatch."));
     let (output, trace) = fixture.invoke(false, &[("UPSTREAM_COMMIT", &"0".repeat(40))]);
-    assert_eq!(trace, [] as [std::string::String; 0]);
+    assert_eq!(trace, ["api"]);
     assert!(stderr(&output).contains("Upstream ancestry failed"));
 }
 
@@ -440,41 +513,12 @@ fn ownership_and_document_failures_do_not_report_success_or_private_text() {
 
 #[test]
 fn malformed_policy_reports_only_a_fixed_message() {
-    let fixture = Downstream::new();
-    // A policy that is not JSON can never be echoed into a log: build a second
-    // private commit whose policy carries a sentinel and bundle it.
-    fixture.write("ccvl-downstream.json", "PRIVATE_SENTINEL is not json");
-    fixture.git(&["add", "."]);
-    fixture.git(&["commit", "--quiet", "-m", "broken policy"]);
-    let commit = fixture.rev_parse();
-    fixture.git(&["update-ref", "refs/heads/source", &commit]);
-    let bundle = fixture.temp.path().join("broken.bundle");
-    fixture.git(&[
-        "bundle",
-        "create",
-        bundle.to_str().unwrap(),
-        "refs/heads/source",
-    ]);
-    let archive = fixture.git(&["archive", &commit]);
-    let archive_path = fixture.temp.path().join("broken.tar");
-    fs::write(&archive_path, &archive).unwrap();
-    fs::write(
-        fixture.extracted.join("ccvl-downstream.json"),
-        "PRIVATE_SENTINEL is not json",
-    )
-    .unwrap();
-    let broken = [
-        ("CI_COMMIT_SHA", commit.as_str()),
-        ("SOURCE_ARCHIVE", archive_path.to_str().unwrap()),
-        ("SOURCE_SHA256", &sha256_hex(&archive)),
-        ("DOWNSTREAM_SOURCE_BUNDLE", bundle.to_str().unwrap()),
-        ("DOWNSTREAM_SOURCE_SHA256", &file_hash(&bundle)),
-    ];
+    // A policy that is not JSON can never be echoed into a log.
+    let fixture = Downstream::with_policy(Some("PRIVATE_SENTINEL is not json"));
     let output = Command::new(BIN)
         .arg("private-check")
         .env_clear()
         .envs(fixture.env.clone())
-        .envs(broken.iter().copied())
         .current_dir(&fixture.extracted)
         .output()
         .unwrap();
