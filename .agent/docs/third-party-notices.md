@@ -17,4 +17,6 @@ The binary also links the correspondence libraries cletter, cnice, cdate and
 cink, licensed LGPL-3.0-only WITH LGPL-3.0-linking-exception, as locked crates.
 Those crates embed the Typst packages behind letter openings, closings, dates
 and signatures; ccvl registers them in memory and keeps no copy of their
-sources in this repository.
+sources in this repository. Their license texts are reproduced in
+`.agent/docs/third-party/LGPL-3.0-only.txt` and
+`.agent/docs/third-party/LGPL-3.0-linking-exception.txt`, mirroring `LICENSES/`.

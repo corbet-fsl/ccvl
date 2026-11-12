@@ -70,6 +70,18 @@ precedence = "override"
 SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
 SPDX-License-Identifier = "CC-BY-4.0"
 
+# Verbatim license-text copies for the linked LGPL crates (mirrors the
+# fonts/OFL-1.1.txt precedent beside LICENSES/OFL-1.1.txt). This block must
+# stay after the .agent/docs/** block above so it wins for these two files.
+[[annotations]]
+path = [
+  ".agent/docs/third-party/LGPL-3.0-only.txt",
+  ".agent/docs/third-party/LGPL-3.0-linking-exception.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc."
+SPDX-License-Identifier = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
+
 [[annotations]]
 path = ["outputs/**/pdf/*.pdf", "outputs/**/preview/*.png"]
 precedence = "override"
