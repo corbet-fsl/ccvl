@@ -844,6 +844,8 @@ struct ForgeState {
     releases: Vec<ForgeRelease>,
     tags: BTreeMap<String, String>,
     list_error: bool,
+    /// Uploads the forge accepts the whole body of and then resets, before storing it.
+    drop_uploads: usize,
     requests: Vec<String>,
 }
 
@@ -918,6 +920,10 @@ fn serve(state: Forge) -> u16 {
             } else {
                 (401, b"{}".to_vec())
             };
+            if status == 0 {
+                // A reset: the connection closes without an answer.
+                continue;
+            }
             let header = format!(
                 "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
                 payload.len()
@@ -999,6 +1005,10 @@ fn respond(
             };
             match (method, pieces.next()) {
                 ("POST", Some("assets")) => {
+                    if state.drop_uploads > 0 {
+                        state.drop_uploads -= 1;
+                        return (0, Vec::new());
+                    }
                     let name = query.strip_prefix("name=").unwrap().to_owned();
                     let release = &mut state.releases[index];
                     assert!(
@@ -1072,6 +1082,7 @@ impl<'a> Publisher<'a> {
                 .env("GITHUB_SERVER_URL", &server)
                 .env("CCID_FORGE_TOKEN", FORGE_TOKEN)
                 .env("GITHUB_TOKEN", FORGE_TOKEN)
+                .env("CCVL_UPLOAD_RETRY_DELAY", "0")
                 .env("CCVL_RELEASE_EVIDENCE_BIN", BIN)
                 .envs(changes.iter().copied())
                 .current_dir(&self.release.root)
@@ -1166,6 +1177,38 @@ fn publication_makes_complete_drafts_and_repeat_is_immutable() {
         text(&result)
     );
     assert_eq!(publisher.uploads(), first_uploads);
+}
+
+#[test]
+fn an_interrupted_upload_is_retried_and_never_duplicated() {
+    let release = Release::new();
+    let publisher = Publisher::new(&release);
+    publisher.state(|state| state.drop_uploads = 3);
+    let result = publisher.publish();
+    assert!(result.status.success(), "{}", text(&result));
+    // Thirty files, plus the three attempts the forge reset.
+    assert_eq!(publisher.uploads(), 33);
+    publisher.state(|state| {
+        assert_eq!(state.releases.len(), 2);
+        let stored: usize = state
+            .releases
+            .iter()
+            .map(|release| release.assets.len())
+            .sum();
+        assert_eq!(stored, 30);
+    });
+    // The forge never recovers: the publisher gives up with a clear message.
+    let other = Release::new();
+    let failing = Publisher::new(&other);
+    failing.state(|state| state.drop_uploads = 1000);
+    let result = failing.publish();
+    assert!(!result.status.success());
+    assert!(
+        text(&result).contains("(attempt 4 of 4)"),
+        "{}",
+        text(&result)
+    );
+    assert_eq!(failing.uploads(), 4, "one asset, four attempts");
 }
 
 #[test]

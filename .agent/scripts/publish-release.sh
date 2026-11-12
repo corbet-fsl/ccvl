@@ -114,6 +114,27 @@ verify_existing() {
   done <<<"$actual"
 }
 
+# upload_asset RELEASE_ID TAG FILE: one upload. A reset or timeout (the home uplink is
+# slow and the forge sits behind a proxy) stores nothing, or stores the whole file;
+# so look at the release before every retry and never upload a name twice.
+upload_asset() {
+  local id="$1" tag="$2" path="$3" name attempt
+  name="$(basename "$path")"
+  for attempt in 1 2 3 4; do
+    if call POST "$api/repos/$repository/releases/$id/assets?name=$name" \
+      -H 'Content-Type: application/octet-stream' --data-binary "@$path"; then
+      return 0
+    fi
+    release_state "$tag" || return 2
+    if jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" >/dev/null; then
+      return 0
+    fi
+    echo "Upload of $name failed (attempt $attempt of 4)." >&2
+    ((attempt == 4)) || sleep $((attempt * ${CCVL_UPLOAD_RETRY_DELAY:-20}))
+  done
+  return 2
+}
+
 # publish TAG TITLE KIND FILE...: create or complete the draft, leave it a draft.
 publish() {
   local tag="$1" title="$2" kind="$3" status=0 path name prerelease=false
@@ -138,8 +159,7 @@ publish() {
     name="$(basename "$path")"
     if ! jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" >/dev/null; then
       [[ $(jq -r '.draft' "$scratch/release.json") == true ]] || { echo "Published release $tag is incomplete." >&2; return 2; }
-      call POST "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")/assets?name=$name" \
-        -H 'Content-Type: application/octet-stream' --data-binary "@$path"
+      upload_asset "$(jq -r '.id' "$scratch/release.json")" "$tag" "$path"
     fi
   done
   release_state "$tag"
