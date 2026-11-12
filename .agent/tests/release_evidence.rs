@@ -1025,8 +1025,15 @@ fn respond(
                 ("PATCH", None) => {
                     let request: Value = serde_json::from_slice(body).unwrap();
                     let release = &mut state.releases[index];
-                    release.draft = request["draft"].as_bool().unwrap();
-                    release.prerelease = request["prerelease"].as_bool().unwrap();
+                    if let Some(draft) = request["draft"].as_bool() {
+                        release.draft = draft;
+                    }
+                    if let Some(prerelease) = request["prerelease"].as_bool() {
+                        release.prerelease = prerelease;
+                    }
+                    if let Some(target) = request["target_commitish"].as_str() {
+                        target.clone_into(&mut release.target);
+                    }
                     let (tag, target) = (release.tag.clone(), release.target.clone());
                     let answer = release_json(release, port);
                     if !state.releases[index].draft {
@@ -1209,6 +1216,33 @@ fn an_interrupted_upload_is_retried_and_never_duplicated() {
         text(&result)
     );
     assert_eq!(failing.uploads(), 4, "one asset, four attempts");
+}
+
+#[test]
+fn a_runtime_draft_of_an_interrupted_earlier_commit_follows_the_new_commit() {
+    let release = Release::new();
+    let publisher = Publisher::new(&release);
+    assert!(publisher.publish().status.success());
+    let runtime = publisher.runtime_tag();
+    let workspace = Publisher::workspace_tag();
+    let stale = "b".repeat(40);
+    publisher.state(|state| release_mut(state, &runtime).target = stale.clone());
+    let result = publisher.publish();
+    assert!(result.status.success(), "{}", text(&result));
+    publisher.state(|state| {
+        assert_eq!(release_mut(state, &runtime).target, COMMIT);
+        assert_eq!(release_mut(state, &runtime).assets.len(), 13);
+    });
+    // The workspace draft is bound to its own commit and is never retargeted.
+    publisher.state(|state| release_mut(state, &workspace).target = stale.clone());
+    let result = publisher.publish();
+    assert!(!result.status.success());
+    assert!(
+        text(&result).contains("targets a different source commit"),
+        "{}",
+        text(&result)
+    );
+    assert_eq!(publisher.uploads(), 30, "nothing is uploaded twice");
 }
 
 #[test]

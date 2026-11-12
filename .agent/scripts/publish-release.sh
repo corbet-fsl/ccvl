@@ -150,6 +150,13 @@ publish() {
   elif [[ $status != 0 ]]; then
     return "$status"
   fi
+  if [[ "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == true && $(jq -r '.target_commitish' "$scratch/release.json") != "$sha" ]]; then
+    # The draft of an interrupted run on an earlier commit with the same runtime
+    # identity: it has no tag yet, so it follows this commit.
+    call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
+      --data "$(jq -cn --arg sha "$sha" '{target_commitish: $sha}')"
+    release_state "$tag"
+  fi
   [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" || ( "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == false ) ]] || {
     echo "Release $tag targets a different source commit." >&2; return 2
   }
