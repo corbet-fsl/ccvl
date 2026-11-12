@@ -19,13 +19,13 @@ toolchains=${CI_TOOLCHAIN_ROOT:-$cache_root/ccid-cached/toolchains}
 mkdir -p "$state" "$toolchains"
 exec 9>"$state/lock"
 flock -w "${CI_TIMEOUT:-2700}" 9
-mkdir -p "$state/moon-cache/hashes" "$state/moon-cache/outputs" "$state/moon-home"
-# The documents publication-review gate fails on any in-tree symlink outside
-# .git/.cache/.agent/cache/target, so the moon cache here uses ordinary
-# directories instead of persistent-state symlinks. Tradeoff: local metadata
-# reuse is per-run only; the ccid remote result cache and shared tool/target
-# state still persist across runs.
-mkdir -p .moon/cache/hashes .moon/cache/outputs
+mkdir -p "$state/moon-home"
+# .moon/cache/hashes and .moon/cache/outputs are NOT created here: `ccid cached`
+# links both to the shared result store (CCID_RESULT_CACHE/moon/) itself and
+# refuses to use a job whose directories are anything else ("Moon artifact
+# cache belongs to a different coordinator"), which ran every check uncached
+# and recorded no verdict. The publication-review gate (.agent/src/public.rs,
+# validate_boundary) allows exactly those two links.
 # Tool installation is an explicit part of this job, in persistent CI storage.
 # Pinned nixpkgs b7c2ada (narHash-pinned): actionlint 1.7.12 matches ci.yml
 # exactly; shellcheck/reuse provide lint gates via existing-tool-path;
@@ -75,6 +75,14 @@ file --version
 qpdf --version
 pdfinfo -v 2>&1 | head -n 2
 jq --version
+# Cached checks get the declared environment only, never the runner's credentials
+# (cmnp: "Credentials and arbitrary inherited variables are not handed to
+# cacheable work"). The runner's CC/CXX name the compile-cache wrapper
+# (sccache-corbet), which in that environment starts an sccache server without a
+# signing credential and fails every C compile of a build script (ring, psm).
+# Plain compilers keep the cached checks independent of it; Rust compiles keep
+# the kache cache, whose remote lives in a file the declared environment names.
+export CC=cc CXX=c++
 "$CCID_BIN" cached --repo "$PWD" --check "$CHECKS"
 IFS=, read -r -a selected_checks <<< "$CHECKS"
 for check in "${selected_checks[@]}"; do test -s ".ccid/results/$check.jsonl"; done

@@ -10,6 +10,7 @@ use crate::workspace::Workspace;
 
 const EXCLUDED_ROOTS: &[&str] = &[
     ".cache",
+    ".ccid",
     ".git",
     ".moon",
     "applications",
@@ -105,6 +106,13 @@ fn is_python_artifact(path: &Path) -> bool {
             .is_some_and(|name| matches!(name, "pyproject.toml" | "uv.lock" | ".python-version"))
 }
 
+/// The two links of CI's result cache: ccid's moon executor points exactly these directories of
+/// the gitignored `.moon` tree at its shared result store, and refuses a job whose directories
+/// are anything else ("Moon artifact cache belongs to a different coordinator"), which runs
+/// every check uncached. They are tool state, never reviewed source; every other symlink in
+/// the tree, `.moon` included, still needs a manual publication review.
+const CI_RESULT_CACHE_LINKS: [&str; 2] = [".moon/cache/hashes", ".moon/cache/outputs"];
+
 pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
     for root in [
         "applications",
@@ -143,6 +151,9 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
             || relative.starts_with(".cache")
             || relative.starts_with(".agent/cache")
             || relative.starts_with("target")
+            || CI_RESULT_CACHE_LINKS
+                .iter()
+                .any(|link| relative.as_path() == Path::new(link))
         {
             continue;
         }
@@ -446,6 +457,61 @@ mod tests {
             error.contains("private interview or opportunity data"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn ci_tool_state_is_outside_the_public_scan() {
+        // ccid writes its receipts and metrics into the checkout (gitignored `.ccid/`), after
+        // the first check and before the next one; they are tool output, not reviewed source.
+        let directory = tempdir().unwrap();
+        fs::write(directory.path().join("ccvl.json"), "{}\n").unwrap();
+        let workspace = Workspace::at(directory.path()).unwrap();
+        for relative in [".ccid/cache-metrics.json", ".moon/cache/runReport.json"] {
+            let path = workspace.path(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "{}").unwrap();
+        }
+        validate_repository(&workspace).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_the_ci_result_cache_links_may_be_symlinks() {
+        use std::os::unix::fs::symlink;
+        let directory = tempdir().unwrap();
+        let store = tempdir().unwrap();
+        fs::write(directory.path().join("ccvl.json"), "{}\n").unwrap();
+        let workspace = Workspace::at(directory.path()).unwrap();
+        // The roots the boundary scan reads at its end must exist.
+        for root in [
+            crate::layout::OUTPUTS_ROOT,
+            crate::layout::INPUTS_ASSETS,
+            ".agent/typst",
+        ] {
+            fs::create_dir_all(workspace.path(root)).unwrap();
+        }
+        fs::create_dir_all(workspace.path(".moon/cache")).unwrap();
+        for name in ["hashes", "outputs"] {
+            let target = store.path().join(name);
+            fs::create_dir_all(&target).unwrap();
+            symlink(&target, workspace.path(format!(".moon/cache/{name}"))).unwrap();
+        }
+        validate_boundary(&workspace).unwrap();
+
+        // The exemption is exactly those two paths: a third link in the same directory, or a
+        // link anywhere else, is still refused.
+        for relative in [".moon/cache/states", ".moon/hashes", "docs"] {
+            let path = workspace.path(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            symlink(store.path(), &path).unwrap();
+            let error = validate_boundary(&workspace).unwrap_err().to_string();
+            assert!(
+                error.contains("symlink requires manual publication review")
+                    && error.contains(relative),
+                "{relative}: {error}"
+            );
+            fs::remove_file(path).unwrap();
+        }
     }
 
     #[test]
