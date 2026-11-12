@@ -29,6 +29,16 @@ done
 # shellcheck source=.agent/scripts/rust-toolchain.sh
 source .agent/scripts/rust-toolchain.sh
 ccvl_select_rust_toolchain
+# The target's standard library belongs to the selected toolchain. The release
+# job provisions it; a toolchain that still lacks it gets it from its own rustup.
+sysroot="$("${CCVL_RUSTC_COMMAND[@]}" --print sysroot)"
+if [[ ! -d $sysroot/lib/rustlib/$triple/lib ]]; then
+  if [[ ${CCVL_RUSTC_COMMAND[0]##*/} == rustup && ${CCVL_RUSTC_COMMAND[1]} == run ]]; then
+    "${CCVL_RUSTC_COMMAND[0]}" target add "$triple" --toolchain "${CCVL_RUSTC_COMMAND[2]}"
+  else
+    echo "The Rust toolchain has no $triple standard library and cannot add one." >&2; exit 2
+  fi
+fi
 "${CCVL_CARGO_COMMAND[@]}" zigbuild --locked --release \
   --config .cargo/release-profile.toml --target "$zig_target"
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$triple/release/$exe"
