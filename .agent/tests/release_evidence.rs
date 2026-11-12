@@ -1070,6 +1070,9 @@ fn respond(
                     if let Some(target) = request["target_commitish"].as_str() {
                         target.clone_into(&mut release.target);
                     }
+                    if let Some(notes) = request["body"].as_str() {
+                        notes.clone_into(&mut release.body);
+                    }
                     let (tag, target) = (release.tag.clone(), release.target.clone());
                     let answer = release_json(release, port);
                     if !state.releases[index].draft {
@@ -1334,6 +1337,7 @@ fn a_runtime_draft_of_an_interrupted_earlier_commit_follows_the_new_commit() {
     assert!(result.status.success(), "{}", text(&result));
     publisher.state(|state| {
         assert_eq!(release_mut(state, &runtime).target, COMMIT);
+        assert!(release_mut(state, &runtime).body.contains(COMMIT));
         assert_eq!(release_mut(state, &runtime).assets.len(), 13);
     });
     // The workspace draft is bound to its own commit and is never retargeted.

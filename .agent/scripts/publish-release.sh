@@ -195,7 +195,7 @@ publish() {
     # The draft of an interrupted run on an earlier commit with the same runtime
     # identity: it has no tag yet, so it follows this commit.
     call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
-      --data "$(jq -cn --arg sha "$sha" '{target_commitish: $sha}')"
+      --data "$(jq -cn --arg sha "$sha" --arg notes "$notes" '{target_commitish: $sha, body: $notes}')"
     release_state "$tag"
   fi
   [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" || ( "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == false ) ]] || {
