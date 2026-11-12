@@ -47,13 +47,12 @@ for check in "$@"; do
       # shellcheck source=.agent/scripts/existing-tool-path.sh
       source .agent/scripts/existing-tool-path.sh
       ccvl_use_existing_lint_tools
-      # The two legacy private workflows deliberately keep their jobs disabled.
+      # The GitHub workflows are the mirror's pull-request checks; the sync one stays disabled.
       actionlint -ignore '^constant expression "false" in condition\. remove the if: section$' \
         -shellcheck shellcheck .github/workflows/*.yml
       shellcheck .agent/scripts/*.sh .agent/tests/*.sh ccvl
       reuse lint
       bash .agent/tests/test_bootstrap.sh
-      bash .agent/tests/test_ci_changes.sh
       bash .agent/tests/test_ci_toolchain.sh
       bash .agent/tests/test_downstream_sync.sh
       bash .agent/tests/test_skill_eval_ci.sh
@@ -81,8 +80,8 @@ for check in "$@"; do
       "$ccvl_optimized_binary" public-check ${filters[@]+"${filters[@]}"}
       ;;
     downstream-check)
-      # Private downstream route: the ccvl runtime built from the verified
-      # source checks the staged private tree against its published runtime.
+      # Private downstream route: the ccvl runtime built from the checked-out
+      # private commit checks that tree against its published runtime.
       ccvl_select_rust_toolchain >&2
       "${CCVL_CARGO_COMMAND[@]}" run --locked --quiet --bin ccvl -- private-check
       ;;
@@ -95,6 +94,6 @@ for check in "$@"; do
     release-*)
       bash .agent/scripts/release-ci.sh "${check#release-}"
       ;;
-    *) echo "Unknown check: $check (rust lint documents styles downstream-check skill-eval-build skill-eval)" >&2; exit 2 ;;
+    *) echo "Unknown check: $check (rust lint documents styles downstream-check skill-eval-build skill-eval release-*)" >&2; exit 2 ;;
   esac
 done

@@ -233,14 +233,15 @@ mod tests {
     }
 
     #[test]
-    fn private_downstream_sync_is_manual_and_gated() {
+    fn private_downstream_sync_is_gated() {
         let workspace = repository();
-        let workflow = fs::read_to_string(workspace.path(".crow/downstream-sync.yaml")).unwrap();
-        assert!(workflow.contains("event: manual"));
-        assert!(workflow.contains("branch: main"));
-        assert!(!workflow.contains("event: cron"));
-        assert!(!workflow.contains("event: push"));
-        assert!(workflow.contains("bash .agent/scripts/downstream-sync.sh \"$CI_COMMIT_SHA\""));
+        // No CI route runs the sync (it waits for a key-placement decision), and
+        // no scheduled or push trigger may be added for it either.
+        assert!(
+            !workspace
+                .path(".forgejo/workflows/downstream-sync.yml")
+                .exists()
+        );
         let command =
             fs::read_to_string(workspace.path(".agent/scripts/downstream-sync.sh")).unwrap();
         assert!(command.contains("\"${CCVL_CARGO_COMMAND[@]}\" build --locked"));

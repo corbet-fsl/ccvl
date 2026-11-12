@@ -1,9 +1,10 @@
 name: Skill evaluation
 
-# Secret-bearing model evaluation belongs on a trusted internal worker.
-# Keep the provider implementation as a reference; use the manual Crow skill-eval workflow.
+# Secret-bearing model evaluation belongs on a trusted internal worker: the manual
+# skill-eval workflow on Forgejo. This reference implementation stays disabled; it
+# is only ever evaluated for pull requests to the mirror, never for our pushes.
 on:
-  workflow_dispatch:
+  pull_request:
 
 permissions:
   contents: read

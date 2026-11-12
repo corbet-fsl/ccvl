@@ -1,7 +1,10 @@
 name: CI
 
+# Checks for pull requests to the GitHub mirror, on GitHub's free compute. The
+# source of truth, the release builds and publication run on Forgejo; a push to
+# this mirror never starts anything here.
 on:
-  workflow_dispatch:
+  pull_request:
 permissions:
   contents: read
 
@@ -10,51 +13,12 @@ env:
   RUST_TOOLCHAIN: stable
 
 concurrency:
-  # Scheduled cache refreshes never queue against main pushes or releases.
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'schedule' && 'schedule' || github.ref }}
-  # Main includes publication, which must finish atomically.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  binaries:
-    # Compiled bundles and publication are explicit release actions; every released platform and shared gate remains required.
-    if: >-
-      ${{ (github.repository == 'corbet-libs/ccvl') && (github.event_name == 'workflow_dispatch') }}
-    uses: ./.github/workflows/binaries.yml
-
-  changes:
-    name: Select checks for changed paths
-    if: github.repository == 'corbet-libs/ccvl'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      rust: ${{ steps.select.outputs.rust }}
-      documents: ${{ steps.select.outputs.documents }}
-      styles: ${{ steps.select.outputs.styles }}
-    steps:
-      - name: Check out source with history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Map changed paths to checks
-        id: select
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          PUSH_AFTER_SHA: ${{ github.sha }}
-        run: bash .agent/scripts/ci-changes.sh github
-
   rust-native:
     name: Native Rust compiler and document contracts
-    needs: [changes]
-    # Fail open: a failed or missing selection runs the job. Releases and
-    # scheduled runs always select it.
-    if: >-
-      ${{ !cancelled() && github.repository == 'corbet-libs/ccvl' &&
-      (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -83,27 +47,14 @@ jobs:
 
       - name: Check formatting, Clippy and locked tests
         env:
-          CCVL_RELEASE_DIR: ${{ runner.temp }}/release-gates
           # Hosted runners have 4 vCPUs and 16 GB; the script's defaults stay
           # conservative for unbudgeted workers. Step-level, so cache keys keep.
           CARGO_BUILD_JOBS: "4"
           RUST_TEST_THREADS: "4"
-        run: bash .agent/scripts/release-ci.sh rust
-
-      - name: Retain exact Rust gate evidence
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
-        with:
-          name: ccvl-gate-rust
-          path: ${{ runner.temp }}/release-gates/gate-rust.json
-          if-no-files-found: error
-          retention-days: 3
+        run: bash .agent/scripts/ci-check.sh rust
 
   documents:
     name: Scoped document checks
-    needs: [changes]
-    if: >-
-      ${{ !cancelled() && github.repository == 'corbet-libs/ccvl' &&
-      (needs.changes.result != 'success' || needs.changes.outputs.documents == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -129,19 +80,12 @@ jobs:
 
       - name: Check workspace data and the selected styles' documents
         env:
-          SELECTED_STYLES: ${{ needs.changes.outputs.styles }}
           CARGO_BUILD_JOBS: "4"
-        run: |
-          # An empty selection (failed detection) or "all" checks every style.
-          if [[ -n "$SELECTED_STYLES" && "$SELECTED_STYLES" != all ]]; then
-            export CCVL_CHECK_STYLES="$SELECTED_STYLES"
-          fi
-          bash .agent/scripts/ci-check.sh styles
+        run: bash .agent/scripts/ci-check.sh styles
 
   lint:
     # Always runs: it is quick, parallel, and REUSE must see every new file.
     name: Workflow, shell, and license checks
-    if: github.repository == 'corbet-libs/ccvl'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -172,179 +116,12 @@ jobs:
             -shellcheck shellcheck .github/workflows/*.yml
           shellcheck .agent/scripts/*.sh .agent/tests/*.sh ccvl
 
-      - name: Verify bootstrap, change selection and existing compiler selection
+      - name: Verify bootstrap, downstream sync and existing compiler selection
         run: |
           bash .agent/tests/test_bootstrap.sh
-          bash .agent/tests/test_ci_changes.sh
           bash .agent/tests/test_ci_toolchain.sh
           bash .agent/tests/test_downstream_sync.sh
           bash .agent/tests/test_skill_eval_ci.sh
 
       - name: Check REUSE licensing
         uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
-
-      - name: Install current stable Rust
-        run: |
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
-          rustup run "$RUST_TOOLCHAIN" rustc --version
-
-      - name: Reuse compiled test dependencies
-        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
-        with:
-          shared-key: tests-linux-x86_64
-          cache-bin: false
-          cache-on-failure: true
-          save-if: false
-
-      - name: Record exact lint gate evidence
-        env:
-          CARGO_BUILD_JOBS: "4"
-        run: |
-          source .agent/scripts/release-evidence.sh
-          ccvl_prepare_release_evidence
-          "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" gate lint --output "$RUNNER_TEMP/release-gates"
-
-      - name: Retain exact lint gate evidence
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
-        with:
-          name: ccvl-gate-lint
-          path: ${{ runner.temp }}/release-gates/gate-lint.json
-          if-no-files-found: error
-          retention-days: 3
-
-  verify:
-    name: Linux release and independent PDF verification
-    # Compiled bundles and publication are explicit release actions; every released platform and shared gate remains required.
-    if: >-
-      ${{ (github.repository == 'corbet-libs/ccvl') && (github.event_name == 'workflow_dispatch') }}
-    needs: [binaries]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Download the tested Linux release package
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ccvl-linux-x86_64
-          path: ${{ runner.temp }}/binary
-
-      - name: Install independent PDF tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes file poppler-utils qpdf jq
-
-      - name: Install current stable Rust
-        run: |
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
-          rustup run "$RUST_TOOLCHAIN" rustc --version
-
-      - name: Reuse compiled test dependencies
-        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
-        with:
-          shared-key: tests-linux-x86_64
-          cache-bin: false
-          cache-on-failure: true
-          save-if: false
-
-      - name: Run Linux-specific independent PDF checks
-        env:
-          CCVL_RELEASE_DIR: ${{ runner.temp }}/binary
-          CARGO_BUILD_JOBS: "4"
-        run: bash .agent/scripts/release-ci.sh linux-deep
-
-      - name: Retain Linux verification evidence
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
-        with:
-          name: ccvl-gate-linux-deep
-          path: ${{ runner.temp }}/binary/gate-linux-deep.json
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Record tool versions
-        if: always()
-        run: |
-          {
-            echo "## Native runtime and independent verification"
-            echo
-            echo '```text'
-            bash ./ccvl doctor
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  archive:
-    name: Run the precompiled bundle without Git or Rust
-    # Compiled bundles and publication are explicit release actions; every released platform and shared gate remains required.
-    if: >-
-      ${{ (github.repository == 'corbet-libs/ccvl') && (github.event_name == 'workflow_dispatch') }}
-    needs: [binaries]
-    runs-on: ubuntu-24.04
-    container: ubuntu:24.04
-    timeout-minutes: 10
-    steps:
-      - name: Download the current Linux bundle
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: ccvl-linux-x86_64
-          path: /tmp/ccvl-dist
-
-      - name: Verify the complete user download
-        shell: bash
-        run: |
-          cd /tmp/ccvl-dist
-          sha256sum --check ccvl-linux-x86_64.tar.gz.sha256
-          tar -xOf ccvl-linux-x86_64.tar.gz .agent/scripts/check-release-archive.sh > /tmp/check-release-archive.sh
-          bash /tmp/check-release-archive.sh /tmp/ccvl-dist
-
-      - name: Retain minimal archive verification evidence
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
-        with:
-          name: ccvl-gate-archive
-          path: /tmp/ccvl-dist/gate-archive.json
-          if-no-files-found: error
-          retention-days: 3
-
-  release:
-    name: Publish every verified release platform
-    needs: [binaries, rust-native, lint, verify, archive]
-    # Compiled bundles and publication are explicit release actions; every released platform and shared gate remains required.
-    if: >-
-      ${{ (github.repository == 'corbet-libs/ccvl' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request') && (github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    steps:
-      - name: Check out the exact source for publication
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - name: Download the verified packages from this run
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          pattern: ccvl-*
-          path: ${{ runner.temp }}/release
-          merge-multiple: true
-
-      - name: Install current stable Rust
-        run: |
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
-          rustup run "$RUST_TOOLCHAIN" rustc --version
-
-      - name: Reuse compiled test dependencies
-        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c
-        with:
-          shared-key: tests-linux-x86_64
-          cache-bin: false
-          cache-on-failure: true
-          save-if: false
-
-      - name: Publish the complete matching runtime
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CARGO_BUILD_JOBS: "4"
-        run: bash .agent/scripts/publish-release.sh "$RUNNER_TEMP/release"

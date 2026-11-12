@@ -94,10 +94,10 @@ document suite before its own public check. The archive job continues to
 exercise the complete user setup path.
 
 The same tested files become release assets; publication never rebuilds or
-fetches an older rolling binary. Both GHA and Crow publication require every
-explicitly released native target and all four shared gates. Unavailable GHA
-does not prevent Crow delivery, and missing artifacts never silently reduce
-the released platform set. Validation also runs ShellCheck, Actionlint,
+fetches an older rolling binary. Forgejo publication requires the evidence of
+every explicitly released platform (tested, built or pending, as its plan
+allows) and all four shared gates. GitHub's availability never gates delivery,
+and missing artifacts never silently reduce the released platform set. Validation also runs ShellCheck, Actionlint,
 and REUSE. See [Releases](releases.md) for cache and identity details.
 
 The same line contract is available directly with `bash ./ccvl measure` or

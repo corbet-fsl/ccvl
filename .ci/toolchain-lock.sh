@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared-first toolchain lock for Crow cached runners.
+# Shared-first toolchain lock for cached Forgejo runners.
 #
 # Protocol: SHARED first. Probe readiness under shared; take EXCLUSIVE only
 # when something is actually missing; recheck after upgrade; provision;
@@ -89,11 +89,11 @@ tc_nightly_ready() {
   return 0
 }
 
-# Actual Crow output is `llvm-tools-<target>` (e.g.
+# Actual rustup output is `llvm-tools-<target>` (e.g.
 # llvm-tools-x86_64-unknown-linux-gnu); older toolchains report
 # `llvm-tools-preview[-<target>]`. Accept exactly those two shapes — a loose
 # `^llvm-tools` prefix would bless arbitrary component names, and the old
-# `^llvm-tools-preview` probe fails on current Crow even after a good install.
+# `^llvm-tools-preview` probe fails on current rustup even after a good install.
 # Bare `llvm-tools` alone is rejected: installed components always carry a
 # target suffix (or the legacy preview name).
 _tc_has_llvm_tools() { # <component-list>

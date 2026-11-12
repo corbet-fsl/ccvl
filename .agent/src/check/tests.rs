@@ -28,7 +28,7 @@ fn checked_artifacts_reject_existing_directories_and_failed_checks_publish_nothi
 fn manifest_accepts_ci_metadata_and_rejects_legacy_roots() {
     let (temporary, workspace) = crate::test_support::fixture_workspace();
     validate_manifest(&workspace).unwrap();
-    for relative in [".ci/ccid.toml", ".crow/ccid.yaml"] {
+    for relative in [".ci/ccid.toml", ".ci/jobs.json"] {
         let path = temporary.path().join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, "CI metadata fixture").unwrap();

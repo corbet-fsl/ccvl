@@ -156,10 +156,7 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
             continue;
         }
         ensure!(
-            [
-                ".agent", ".ci", ".crow", ".git", ".github", "LICENSES", "target"
-            ]
-            .contains(&name.as_ref())
+            [".agent", ".ci", ".git", ".github", "LICENSES", "target"].contains(&name.as_ref())
                 || crate::layout::data_roots().contains(name.as_ref()),
             "unexpected top-level directory: {name}"
         );
