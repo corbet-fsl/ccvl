@@ -865,6 +865,8 @@ struct ForgeRelease {
 type Forge = Arc<Mutex<ForgeState>>;
 
 const FORGE_TOKEN: &str = "fixture-job-token";
+/// The runner's read-only credential: it can read the assets of a draft, which the job token can not.
+const READ_TOKEN: &str = "fixture-read-token";
 
 fn release_json(release: &ForgeRelease, port: u16) -> Value {
     json!({
@@ -876,6 +878,7 @@ fn release_json(release: &ForgeRelease, port: u16) -> Value {
         "body": release.body,
         "assets": release.assets.iter().map(|(id, name, bytes)| json!({
             "id": id,
+            "uuid": id.to_string(),
             "name": name,
             "size": bytes.len(),
             "browser_download_url": format!("https://forge.example.invalid:{port}/attachments/{id}"),
@@ -895,7 +898,7 @@ fn serve(state: Forge) -> u16 {
                 continue;
             }
             let mut length = 0usize;
-            let mut authorised = false;
+            let mut role = Role::None;
             loop {
                 let mut line = String::new();
                 reader.read_line(&mut line).unwrap();
@@ -907,7 +910,9 @@ fn serve(state: Forge) -> u16 {
                     length = value.trim().parse().unwrap();
                 }
                 if lower.trim() == format!("authorization: token {FORGE_TOKEN}") {
-                    authorised = true;
+                    role = Role::Job;
+                } else if lower.trim() == format!("authorization: token {READ_TOKEN}") {
+                    role = Role::Reader;
                 }
             }
             let mut body = vec![0; length];
@@ -918,10 +923,10 @@ fn serve(state: Forge) -> u16 {
             let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
             let mut state = state.lock().unwrap();
             state.requests.push(format!("{method} {path}"));
-            let (status, payload): (u16, Vec<u8>) = if authorised {
-                respond(&mut state, port, &method, path, query, &body)
-            } else {
-                (401, b"{}".to_vec())
+            let (status, payload): (u16, Vec<u8>) = match role {
+                Role::None => (401, b"{}".to_vec()),
+                Role::Reader if method != "GET" => (403, b"{}".to_vec()),
+                _ => respond(&mut state, port, role, &method, path, query, &body),
             };
             if status == 0 {
                 // A reset: the connection closes without an answer.
@@ -938,9 +943,17 @@ fn serve(state: Forge) -> u16 {
     port
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Role {
+    None,
+    Job,
+    Reader,
+}
+
 fn respond(
     state: &mut ForgeState,
     port: u16,
+    role: Role,
     method: &str,
     path: &str,
     query: &str,
@@ -950,9 +963,11 @@ fn respond(
     let base = "/api/v1/repos/corbet-fsl/ccvl";
     if let Some(id) = path.strip_prefix("/attachments/") {
         let id: u64 = id.parse().unwrap();
+        // The assets of a draft are for the read credential alone.
         return state
             .releases
             .iter()
+            .filter(|release| !release.draft || role == Role::Reader)
             .flat_map(|release| &release.assets)
             .find(|(asset, _, _)| *asset == id)
             .map_or((404, b"{}".to_vec()), |(_, _, bytes)| (200, bytes.clone()));
@@ -1073,6 +1088,7 @@ struct Publisher<'a> {
     release: &'a Release,
     forge: Forge,
     port: u16,
+    read_token_file: PathBuf,
 }
 
 impl<'a> Publisher<'a> {
@@ -1088,10 +1104,13 @@ impl<'a> Publisher<'a> {
             ..ForgeState::default()
         }));
         let port = serve(Arc::clone(&forge));
+        let read_token_file = release.temp.path().join("read-token");
+        fs::write(&read_token_file, format!("{READ_TOKEN}\n")).unwrap();
         Self {
             release,
             forge,
             port,
+            read_token_file,
         }
     }
 
@@ -1111,6 +1130,7 @@ impl<'a> Publisher<'a> {
                 .env("CCID_FORGE_TOKEN", FORGE_TOKEN)
                 .env("GITHUB_TOKEN", FORGE_TOKEN)
                 .env("CCVL_UPLOAD_RETRY_DELAY", "0")
+                .env("CCVL_FORGE_READ_TOKEN_FILE", &self.read_token_file)
                 .env("CCVL_RELEASE_EVIDENCE_BIN", BIN)
                 .envs(changes.iter().copied())
                 .current_dir(&self.release.root)
@@ -1238,6 +1258,20 @@ fn an_interrupted_upload_is_retried_and_never_duplicated() {
         text(&result)
     );
     assert_eq!(failing.uploads(), 4, "one asset, four attempts");
+}
+
+#[test]
+fn without_the_read_credential_a_draft_can_not_be_verified() {
+    let release = Release::new();
+    let publisher = Publisher::new(&release);
+    fs::remove_file(&publisher.read_token_file).unwrap();
+    let result = publisher.publish();
+    assert!(!result.status.success());
+    assert!(
+        text(&result).contains("The forge answered 404 reading the asset"),
+        "{}",
+        text(&result)
+    );
 }
 
 #[test]

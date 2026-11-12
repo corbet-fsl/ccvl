@@ -27,6 +27,19 @@ trap 'rm -rf -- "$scratch"' EXIT
 # The token reaches curl through a configuration file, never through arguments.
 printf 'header = "Authorization: token %s"\n' "$token" > "$scratch/auth"
 chmod 0600 "$scratch/auth"
+# The job token writes releases but is not allowed to read the assets of a draft back.
+# The runner's read-only credential is; it is used for reading and for nothing else.
+read_file="${CCVL_FORGE_READ_TOKEN_FILE:-${CREDENTIALS_DIRECTORY:+$CREDENTIALS_DIRECTORY/forgejo-ci-read}}"
+reads=("$scratch/auth")
+if [[ -n $read_file && -r $read_file ]]; then
+  read_token="$(tr -d '\n' < "$read_file")"
+  if [[ "$read_token" =~ ^[A-Za-z0-9_.-]{8,}$ ]]; then
+    printf 'header = "Authorization: token %s"\n' "$read_token" > "$scratch/read-auth"
+    chmod 0600 "$scratch/read-auth"
+    reads=("$scratch/read-auth" "$scratch/auth")
+  fi
+  unset read_token
+fi
 
 if [[ $mode == draft ]]; then
   dist="$(cd "${1:?Missing verified release directory}" && pwd)"
@@ -91,11 +104,16 @@ validate_tag() {
   }
 }
 
+# fetch_asset NAME DESTINATION: the bytes of one asset of the release in release.json.
 fetch_asset() {
-  local name="$1" destination="$2" path code
+  local name="$1" destination="$2" path auth code=000
   path="$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .browser_download_url | sub("^https?://[^/]+"; "")' "$scratch/release.json")" || return 2
-  code="$(curl -q --silent --show-error --max-time 600 -K "$scratch/auth" -o "$destination" -w '%{http_code}' "$server$path")" || return 2
-  [[ "$code" == 200 ]]
+  for auth in "${reads[@]}"; do
+    code="$(curl -q --silent --show-error --max-time 600 -K "$auth" -o "$destination" -w '%{http_code}' "$server$path")" || code=000
+    [[ "$code" == 200 ]] && return 0
+  done
+  echo "The forge answered $code reading the asset $name (the job token can not read the assets of a draft; the runner's read credential can)." >&2
+  return 1
 }
 
 # Every asset already on the release must be one of ours with exactly our bytes.
