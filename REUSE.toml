@@ -24,6 +24,7 @@ path = [
   ".crow/repository-jobs.yaml",
   ".prototools",
   ".github/workflows/**",
+  ".forgejo/workflows/**",
   ".gitattributes",
   ".gitignore",
   "AGENTS.md",
