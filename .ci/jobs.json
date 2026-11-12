@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "e5f649168d98ca5fd40230130dae2b53b08120168ee3e93cab1722a98f0d2e21",
+  "manifest_sha256": "691aae034e9685188cdf672d06371b54452e80e7c6b02b7f1efc7a85fa10ee80",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -14,7 +14,7 @@
       "command": [
         "ccid:run-declared-checks"
       ],
-      "runs_on": "heavy",
+      "runs_on": "linux",
       "events": [
         "manual"
       ],
@@ -31,7 +31,7 @@
       "command": [
         "ccid:run-declared-checks"
       ],
-      "runs_on": "heavy",
+      "runs_on": "linux",
       "events": [
         "manual"
       ],
@@ -51,7 +51,7 @@
         "bash",
         ".ci/run-cached.sh"
       ],
-      "runs_on": "heavy",
+      "runs_on": "linux",
       "events": [
         "manual"
       ],

@@ -90,7 +90,7 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package
 render_schema = 2
 [jobs.verify]
 scheduler = "forgejo"
-runs_on = "heavy"
+runs_on = "linux"
 checks = ["rust", "documents", "lint", "styles"]
 workflow = "ci"
 command = ["bash", ".ci/run-cached.sh"]
@@ -98,7 +98,7 @@ events = ["manual"]
 
 [jobs.downstream-check]
 scheduler = "forgejo"
-runs_on = "heavy"
+runs_on = "linux"
 checks = ["downstream-check"]
 command = ["ccid:run-declared-checks"]
 workflow = "downstream-check"
@@ -106,7 +106,7 @@ events = ["manual"]
 
 [jobs.skill-eval]
 scheduler = "forgejo"
-runs_on = "heavy"
+runs_on = "linux"
 checks = ["skill-eval-build", "skill-eval"]
 command = ["ccid:run-declared-checks"]
 workflow = "skill-eval"
