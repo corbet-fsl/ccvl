@@ -841,11 +841,14 @@ fn a_run_identity_is_required_for_new_evidence() {
 struct ForgeState {
     head: String,
     next: u64,
+    next_asset: u64,
     releases: Vec<ForgeRelease>,
     tags: BTreeMap<String, String>,
     list_error: bool,
     /// Uploads the forge accepts the whole body of and then resets, before storing it.
     drop_uploads: usize,
+    /// Uploads of which the forge stores half the body and then resets.
+    truncate_uploads: usize,
     requests: Vec<String>,
 }
 
@@ -1010,6 +1013,18 @@ fn respond(
                         return (0, Vec::new());
                     }
                     let name = query.strip_prefix("name=").unwrap().to_owned();
+                    if state.truncate_uploads > 0 {
+                        state.truncate_uploads -= 1;
+                        state.next_asset += 1;
+                        let asset = 1000 + state.next_asset;
+                        let release = &mut state.releases[index];
+                        release
+                            .assets
+                            .push((asset, name, body[..body.len() / 2].to_vec()));
+                        return (0, Vec::new());
+                    }
+                    state.next_asset += 1;
+                    let asset = 1000 + state.next_asset;
                     let release = &mut state.releases[index];
                     assert!(
                         release
@@ -1018,9 +1033,15 @@ fn respond(
                             .all(|(_, existing, _)| *existing != name),
                         "{name} uploaded twice"
                     );
-                    let asset = 1000 + release.id * 100 + release.assets.len() as u64;
                     release.assets.push((asset, name, body.to_vec()));
                     (201, b"{}".to_vec())
+                }
+                ("DELETE", Some("assets")) => {
+                    let asset: u64 = pieces.next().unwrap().parse().unwrap();
+                    state.releases[index]
+                        .assets
+                        .retain(|(existing, _, _)| *existing != asset);
+                    (204, Vec::new())
                 }
                 ("PATCH", None) => {
                     let request: Value = serde_json::from_slice(body).unwrap();
@@ -1174,7 +1195,8 @@ fn publication_makes_complete_drafts_and_repeat_is_immutable() {
     assert_eq!(publisher.uploads(), first_uploads);
     let tag = publisher.runtime_tag();
     publisher.state(|state| {
-        release_mut(state, &tag).assets[0].2 = b"different published bytes".to_vec();
+        // Other bytes of the right size: a size mismatch would be a truncated upload.
+        release_mut(state, &tag).assets[0].2[0] ^= 1;
     });
     let result = publisher.publish();
     assert!(!result.status.success());
@@ -1216,6 +1238,53 @@ fn an_interrupted_upload_is_retried_and_never_duplicated() {
         text(&result)
     );
     assert_eq!(failing.uploads(), 4, "one asset, four attempts");
+}
+
+#[test]
+fn a_truncated_draft_asset_is_removed_and_uploaded_again() {
+    let release = Release::new();
+    let publisher = Publisher::new(&release);
+    publisher.state(|state| state.truncate_uploads = 2);
+    let result = publisher.publish();
+    assert!(result.status.success(), "{}", text(&result));
+    assert_eq!(publisher.uploads(), 32);
+    let removed = publisher
+        .requests()
+        .iter()
+        .filter(|request| request.starts_with("DELETE"))
+        .count();
+    assert_eq!(removed, 2, "only the two truncated stubs are deleted");
+    // A leftover from an earlier run is cleaned the same way, before anything else.
+    let other = Release::new();
+    let resumed = Publisher::new(&other);
+    assert!(resumed.publish().status.success());
+    let runtime = resumed.runtime_tag();
+    resumed.state(|state| {
+        let draft = release_mut(state, &runtime);
+        let asset = draft
+            .assets
+            .iter_mut()
+            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+            .unwrap();
+        asset.2.truncate(3);
+    });
+    let result = resumed.publish();
+    assert!(result.status.success(), "{}", text(&result));
+    assert!(text(&result).contains("Removing the truncated draft asset ccvl-linux-x86_64"));
+    // Right size, other bytes: refused, never replaced.
+    resumed.state(|state| {
+        let draft = release_mut(state, &runtime);
+        let asset = draft
+            .assets
+            .iter_mut()
+            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+            .unwrap();
+        let last = asset.2.len() - 1;
+        asset.2[last] ^= 1;
+    });
+    let result = resumed.publish();
+    assert!(!result.status.success());
+    assert!(text(&result).contains("differs"), "{}", text(&result));
 }
 
 #[test]

@@ -114,9 +114,31 @@ verify_existing() {
   done <<<"$actual"
 }
 
+# drop_truncated TAG FILE...: the forge keeps the part of an interrupted upload it
+# received. On a DRAFT, an asset whose size differs from our file of that name can
+# serve nobody, so it is removed; an asset of the right size is never touched
+# (differing bytes are refused by verify_existing, never replaced).
+drop_truncated() {
+  local tag="$1" path name held id size
+  shift
+  [[ $(jq -r '.draft' "$scratch/release.json") == true ]] || return 0
+  for path in "$@"; do
+    name="$(basename "$path")"
+    held="$(jq -r --arg name "$name" '[.assets[] | select(.name == $name)][0] | if . == null then "" else "\(.id) \(.size)" end' "$scratch/release.json")"
+    [[ -n $held ]] || continue
+    read -r id size <<<"$held"
+    if [[ $size != "$(stat -c %s "$path")" ]]; then
+      echo "Removing the truncated draft asset $name ($size of $(stat -c %s "$path") bytes)." >&2
+      call DELETE "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")/assets/$id" || return 2
+    fi
+  done
+  release_state "$tag"
+}
+
 # upload_asset RELEASE_ID TAG FILE: one upload. A reset or timeout (the home uplink is
-# slow and the forge sits behind a proxy) stores nothing, or stores the whole file;
-# so look at the release before every retry and never upload a name twice.
+# slow and the forge sits behind a proxy) stores nothing, a truncated file, or the
+# whole file, and the forge may finish storing it after the client gave up; so wait,
+# look at the release before every retry and never upload a name twice.
 upload_asset() {
   local id="$1" tag="$2" path="$3" name attempt
   name="$(basename "$path")"
@@ -125,12 +147,13 @@ upload_asset() {
       -H 'Content-Type: application/octet-stream' --data-binary "@$path"; then
       return 0
     fi
+    echo "Upload of $name failed (attempt $attempt of 4)." >&2
+    ((attempt == 4)) || sleep $((attempt * ${CCVL_UPLOAD_RETRY_DELAY:-20}))
     release_state "$tag" || return 2
+    drop_truncated "$tag" "$path" || return 2
     if jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" >/dev/null; then
       return 0
     fi
-    echo "Upload of $name failed (attempt $attempt of 4)." >&2
-    ((attempt == 4)) || sleep $((attempt * ${CCVL_UPLOAD_RETRY_DELAY:-20}))
   done
   return 2
 }
@@ -161,6 +184,7 @@ publish() {
     echo "Release $tag targets a different source commit." >&2; return 2
   }
   validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" "$(jq -r '.draft' "$scratch/release.json")"
+  drop_truncated "$tag" "$@"
   verify_existing "$@"
   for path in "$@"; do
     name="$(basename "$path")"
