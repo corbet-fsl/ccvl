@@ -298,6 +298,9 @@ done
 cp "$fetch_fixtures/\${url##*/}" "\$out"
 EOF
 chmod 0755 "$fetch_bin/curl"
+# An explicit release base: the download cases must not depend on the checkout's
+# origin remote (CI checks a staged source tree that has none).
+export CCVL_RELEASE_BASE=https://releases.invalid/ccvl/runtime-test-fingerprint
 fetch_plan="$(
   CCVL_BOOTSTRAP_PROBE_PATH="$fetch_bin" \
   CCVL_BOOTSTRAP_CACHE_ROOT="$fetch_cache" \
