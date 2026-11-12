@@ -46,38 +46,47 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "skill-eval"]]
 
 [checks.release-rust]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-rust"]]
 
 [checks.release-lint]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-lint"]]
 
 [checks.release-native]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-native"]]
 
 [checks.release-linux-deep]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-linux-deep"]]
 
 [checks.release-cross]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-cross"]]
 
 [checks.release-archive]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-archive"]]
 
 [checks.release-check]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-check"]]
 
 [checks.release-publish]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-publish"]]
 
 [checks.release-promote]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-promote"]]
 
 [checks.core-package]
@@ -124,6 +133,7 @@ command = ["ccid:run-declared-checks"]
 workflow = "skill-eval"
 events = ["manual"]
 
+# Release stages never use a result cache (cache = false): each run proves its own commit.
 # One run builds, verifies and drafts the release of the exact main commit; the
 # stages run in this order on one runner and are never reused from a cache.
 [jobs.release]
