@@ -60,8 +60,6 @@ rustc -vV
 cargo --version
 zig version
 cargo-zigbuild --version
-IFS=, read -r -a selected_checks <<< "$CHECKS"
-for check in "${selected_checks[@]}"; do
-  printf '== %s\n' "$check"
-  bash .agent/scripts/ci-check.sh "$check"
-done
+# ccid runs the declared checks in order under the verified Cargo target lock
+# (CARGO_TARGET_DIR with CCID_TARGET_LOCK_HELD) that the release stages require.
+exec "$CCID_BIN" check --repo "$PWD" --check "$CHECKS"
