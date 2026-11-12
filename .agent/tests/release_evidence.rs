@@ -82,6 +82,7 @@ impl Release {
                 b"[toolchain]\nchannel=\"stable\"\n".to_vec(),
             ),
             (".agent/build.rs".into(), b"fn main() {}\n".to_vec()),
+            ("ccvl.json".into(), b"{}\n".to_vec()),
             (".agent/src/main.rs".into(), b"fn main() {}\n".to_vec()),
             (
                 ".agent/core/Cargo.toml".into(),

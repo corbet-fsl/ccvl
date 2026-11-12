@@ -313,6 +313,7 @@ fn source(root: &Path, env: &Env) -> Result<(Identity, SourceFiles)> {
         "Cargo.lock",
         "rust-toolchain.toml",
         ".agent/build.rs",
+        "ccvl.json",
     ];
     if !required
         .iter()

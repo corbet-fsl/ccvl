@@ -137,6 +137,7 @@ impl Downstream {
             "Cargo.lock",
             "rust-toolchain.toml",
             ".agent/build.rs",
+            "ccvl.json",
             ".agent/src/main.rs",
             ".agent/core/src/lib.rs",
             ".agent/typst/lib.typ",
