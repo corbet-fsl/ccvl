@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "691aae034e9685188cdf672d06371b54452e80e7c6b02b7f1efc7a85fa10ee80",
+  "manifest_sha256": "0ae6f568002ed1c87645a91a619a8423c372f63ed7b87f1965a778df2959f2bb",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -13,6 +13,47 @@
       "workflow": "downstream-check",
       "command": [
         "ccid:run-declared-checks"
+      ],
+      "runs_on": "linux",
+      "events": [
+        "manual"
+      ],
+      "archive_inputs": true
+    },
+    "release": {
+      "job": "release",
+      "scheduler": "forgejo",
+      "checks": [
+        "release-rust",
+        "release-lint",
+        "release-native",
+        "release-cross",
+        "release-linux-deep",
+        "release-archive",
+        "release-check",
+        "release-publish"
+      ],
+      "workflow": "release",
+      "command": [
+        "bash",
+        ".ci/run-release.sh"
+      ],
+      "runs_on": "linux",
+      "events": [
+        "manual"
+      ],
+      "archive_inputs": true
+    },
+    "release-promote": {
+      "job": "release-promote",
+      "scheduler": "forgejo",
+      "checks": [
+        "release-promote"
+      ],
+      "workflow": "release-promote",
+      "command": [
+        "bash",
+        ".ci/run-release.sh"
       ],
       "runs_on": "linux",
       "events": [

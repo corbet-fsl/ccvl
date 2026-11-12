@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Publish complete, source-bound native results; retries never replace asset bytes.
+# Publish complete, source-bound results as Forgejo releases; retries never replace asset bytes.
+#
+#   publish-release.sh DIR              create or complete the DRAFT releases of this commit
+#   publish-release.sh --promote [DIR]  make the verified drafts public, then copy them downstream
+#
+# The drafts hold every built platform; promoting is a separate, explicit run.
 set +x
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -7,14 +12,184 @@ cd "$repo_root"
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
 ccvl_prepare_release_evidence
-dist="$(cd "${1:?Missing verified release directory}" && pwd)"
-identity="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist")"
-read -r sha runtime_id <<<"$identity"
-repository="${CI_REPO:-${GITHUB_REPOSITORY:-}}"
-[[ "$repository" == corbet-fsl/ccvl && "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
-[[ -n ${GH_TOKEN:-${GITHUB_TOKEN:-}} ]] || { echo 'A publication credential is required.' >&2; exit 2; }
-platform_policy="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" platforms)"
-mapfile -t platforms <<<"$platform_policy"
+mode=draft
+if [[ ${1:-} == --promote ]]; then mode=promote; shift; fi
+repository="${GITHUB_REPOSITORY:-}"
+server="${GITHUB_SERVER_URL:-}"
+server="${server%/}"
+api="${GITHUB_API_URL:-$server/api/v1}"
+token="${CCID_FORGE_TOKEN:-${FORGEJO_TOKEN:-${GITHUB_TOKEN:-}}}"
+# The loopback form exists for the offline publisher fixtures only.
+[[ "$repository" == corbet-fsl/ccvl ]] && [[ "$server" == https://* || "$server" == http://127.0.0.1:* ]] || exit 2
+[[ "$token" =~ ^[A-Za-z0-9_.-]{8,}$ ]] || { echo 'The Forgejo job token is required.' >&2; exit 2; }
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/ccvl-publication.XXXXXXXX")"
+trap 'rm -rf -- "$scratch"' EXIT
+# The token reaches curl through a configuration file, never through arguments.
+printf 'header = "Authorization: token %s"\n' "$token" > "$scratch/auth"
+chmod 0600 "$scratch/auth"
+
+if [[ $mode == draft ]]; then
+  dist="$(cd "${1:?Missing verified release directory}" && pwd)"
+  identity="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist")"
+  read -r sha runtime_id <<<"$identity"
+else
+  # The drafts of this commit are the evidence; they are fetched and re-checked below.
+  dist="$scratch/verified"
+  mkdir -p "$dist"
+  sha="${CI_COMMIT_SHA:-}"
+  runtime_id="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" source | jq -er '.runtime_id')"
+fi
+[[ "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
+
+# call METHOD URL [curl arguments]: the body lands in $scratch/response.
+# Returns 0 for 2xx, 4 for a definite 404, 2 for anything else (network, auth, rate limit).
+call() {
+  local method="$1" url="$2" code
+  shift 2
+  code="$(curl -q --silent --show-error --max-time 600 -K "$scratch/auth" -X "$method" \
+    -o "$scratch/response" -w '%{http_code}' "$@" "$url")" || { echo "Request failed: $method ${url#"$api"}" >&2; return 2; }
+  case "$code" in
+    2??) return 0 ;;
+    404) return 4 ;;
+    *) echo "The forge answered $code to $method ${url#"$api"}" >&2; return 2 ;;
+  esac
+}
+is_current() {
+  call GET "$api/repos/$repository/branches/main" || return 2
+  [[ $(jq -r '.commit.id' "$scratch/response") == "$sha" ]]
+}
+is_current || { printf 'Source %s is no longer main; publication refused.\n' "$sha" >&2; exit 2; }
+
+# Leaves the one release carrying the tag in release.json. Only a definite absence
+# (4) permits creation; a lookup that can not be completed stops everything.
+release_state() {
+  local tag="$1" page
+  for page in $(seq 1 20); do
+    call GET "$api/repos/$repository/releases?limit=50&page=$page" || return 2
+    jq -e 'type == "array"' "$scratch/response" >/dev/null || return 2
+    if jq -e --arg tag "$tag" 'any(.[]; .tag_name == $tag)' "$scratch/response" >/dev/null; then
+      jq -e --arg tag "$tag" '[.[] | select(.tag_name == $tag)] | length == 1' "$scratch/response" >/dev/null || return 2
+      jq -ce --arg tag "$tag" '.[] | select(.tag_name == $tag)' "$scratch/response" > "$scratch/release.json"
+      jq -e '(.id | type == "number" and . > 0) and (.draft | type == "boolean") and (.assets | type == "array")' "$scratch/release.json" >/dev/null || return 2
+      return 0
+    fi
+    jq -e 'length == 0' "$scratch/response" >/dev/null && return 4
+  done
+  echo "Too many releases to scan for $tag." >&2
+  return 2
+}
+
+# A published release's tag is immutable: it must name the exact source commit.
+validate_tag() {
+  local tag="$1" expected="$2" draft="$3" status=0
+  [[ "$expected" =~ ^[0-9a-f]{40}$ ]] || { echo "Release $tag has no exact target commit." >&2; return 2; }
+  call GET "$api/repos/$repository/tags/$tag" || status=$?
+  if [[ $status == 4 && "$draft" == true ]]; then return 0; fi
+  [[ $status == 0 ]] || { echo "Release $tag has no verifiable immutable tag." >&2; return 2; }
+  [[ $(jq -r '.commit.sha' "$scratch/response") == "$expected" ]] || {
+    echo "Existing tag $tag targets a different source commit." >&2; return 2
+  }
+}
+
+fetch_asset() {
+  local name="$1" destination="$2" path code
+  path="$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .browser_download_url | sub("^https?://[^/]+"; "")' "$scratch/release.json")" || return 2
+  code="$(curl -q --silent --show-error --max-time 600 -K "$scratch/auth" -o "$destination" -w '%{http_code}' "$server$path")" || return 2
+  [[ "$code" == 200 ]]
+}
+
+# Every asset already on the release must be one of ours with exactly our bytes.
+verify_existing() {
+  local path name expected actual downloaded
+  expected="$(for path in "$@"; do basename "$path"; done | LC_ALL=C sort)"
+  actual="$(jq -r '.assets[].name' "$scratch/release.json" | LC_ALL=C sort)"
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    grep -Fxq "$name" <<<"$expected" || { echo "Unexpected immutable asset: $name" >&2; return 2; }
+    downloaded="$scratch/download-$name"
+    [[ -e "$downloaded" ]] || fetch_asset "$name" "$downloaded" || { echo "Cannot read release asset: $name" >&2; return 2; }
+    [[ $(sha256sum "$downloaded" | cut -d ' ' -f 1) == "$(sha256sum "$dist/$name" | cut -d ' ' -f 1)" ]] || {
+      echo "Existing release asset differs: $name. No overwrite attempted." >&2; return 2
+    }
+  done <<<"$actual"
+}
+
+# publish TAG TITLE KIND FILE...: create or complete the draft, leave it a draft.
+publish() {
+  local tag="$1" title="$2" kind="$3" status=0 path name prerelease=false
+  shift 3
+  [[ "$kind" == runtime ]] && prerelease=true
+  release_state "$tag" || status=$?
+  if [[ $status == 4 ]]; then
+    validate_tag "$tag" "$sha" true
+    call POST "$api/repos/$repository/releases" -H 'Content-Type: application/json' --data "$(jq -cn \
+      --arg tag "$tag" --arg sha "$sha" --arg title "$title" --arg notes "$notes" --argjson prerelease "$prerelease" \
+      '{tag_name: $tag, target_commitish: $sha, name: $title, body: $notes, draft: true, prerelease: $prerelease}')"
+    release_state "$tag"
+  elif [[ $status != 0 ]]; then
+    return "$status"
+  fi
+  [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" || ( "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == false ) ]] || {
+    echo "Release $tag targets a different source commit." >&2; return 2
+  }
+  validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" "$(jq -r '.draft' "$scratch/release.json")"
+  verify_existing "$@"
+  for path in "$@"; do
+    name="$(basename "$path")"
+    if ! jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" >/dev/null; then
+      [[ $(jq -r '.draft' "$scratch/release.json") == true ]] || { echo "Published release $tag is incomplete." >&2; return 2; }
+      call POST "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")/assets?name=$name" \
+        -H 'Content-Type: application/octet-stream' --data-binary "@$path"
+    fi
+  done
+  release_state "$tag"
+  verify_existing "$@"
+  [[ $(jq -r '.assets | length' "$scratch/release.json") == "$#" ]] || return 2
+}
+
+# make_public TAG KIND: the verified draft becomes a release; the tag appears.
+make_public() {
+  local tag="$1" kind="$2" prerelease=false
+  [[ "$kind" == runtime ]] && prerelease=true
+  release_state "$tag"
+  if [[ $(jq -r '.draft' "$scratch/release.json") == false ]]; then
+    validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" false
+    return 0
+  fi
+  if [[ "$kind" == workspace ]]; then
+    is_current || { echo "Source advanced; leaving $tag as a draft." >&2; return 2; }
+  fi
+  call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
+    --data "$(jq -cn --argjson prerelease "$prerelease" '{draft: false, prerelease: $prerelease}')"
+  release_state "$tag"
+  [[ $(jq -r '.draft' "$scratch/release.json") == false ]]
+  validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" false
+}
+
+runtime_tag="runtime-$runtime_id"
+workspace_tag="build-$sha"
+
+if [[ $mode == promote ]]; then
+  # Fetch both drafts of this commit into one directory and check the whole set again.
+  for tag in "$runtime_tag" "$workspace_tag"; do
+    release_state "$tag" || { echo "No release $tag to promote." >&2; exit 2; }
+    while IFS= read -r name; do
+      fetch_asset "$name" "$dist/$name" || { echo "Cannot read release asset: $name" >&2; exit 2; }
+    done < <(jq -r '.assets[].name' "$scratch/release.json")
+  done
+  "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
+  make_public "$runtime_tag" runtime
+  make_public "$workspace_tag" workspace
+  printf 'Promoted %s and %s.\n' "$runtime_tag" "$workspace_tag"
+  # Downstream copies follow the Forgejo release and can not undo it.
+  bash .agent/scripts/downstream-release.sh "$dist"
+  exit
+fi
+
+# What is released: every platform the release holds a build of, never a pending one.
+mapfile -t platforms < <(jq -r '.platform_states | to_entries[] | select(.value != "pending") | .key' "$dist/manifest.json")
+states="$(jq -r '.platform_states | to_entries | map(.key + " " + (if .value == "built" then "built, not tested" else .value end)) | join("; ")' "$dist/manifest.json")"
+notes="Verified runtime $runtime_id from source $sha. Platforms: $states. Receipts and source/dependency identities are included."
 runtime_files=()
 bundle_files=()
 evidence_files=("$dist/manifest.json" "$dist"/gate-*.json)
@@ -25,131 +200,6 @@ for platform in "${platforms[@]}"; do
   bundle_files+=("$dist/ccvl-$platform.tar.gz" "$dist/ccvl-$platform.tar.gz.sha256")
   evidence_files+=("$dist/ccvl-$platform.receipt.json")
 done
-is_current() {
-  [[ $(gh api "repos/$repository/git/ref/heads/main" --jq '.object.sha') == "$sha" ]]
-}
-is_current || { printf 'Source %s is no longer main; publication refused.\n' "$sha" >&2; exit 2; }
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/ccvl-publication.XXXXXXXX")"
-trap 'rm -rf -- "$scratch"' EXIT
-
-api_object() {
-  local endpoint="$1" destination="$2" status=0
-  gh api --include "$endpoint" > "$scratch/response" 2> "$scratch/error" || status=$?
-  # Only a definite 404 permits creation. Network/auth/rate-limit failures stop.
-  if ((status != 0)); then
-    if head -n 1 "$scratch/response" | grep -Eq '^HTTP/[^ ]+ 404 '; then return 4; fi
-    cat "$scratch/error" >&2
-    return 2
-  fi
-  sed '1,/^\r\{0,1\}$/d' "$scratch/response" > "$destination"
-  jq -e 'type == "object"' "$destination" >/dev/null
-}
-
-release_state() {
-  local tag="$1" status=0 release_id
-  api_object "repos/$repository/releases/tags/$tag" "$scratch/release.json" || status=$?
-  if [[ $status == 4 ]]; then
-    # GitHub's tag endpoint can omit drafts. Resolve their database ID through
-    # GraphQL before deciding that a release does not exist.
-    # GraphQL variables must reach the API literally.
-    # shellcheck disable=SC2016
-    gh api graphql -f query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){databaseId tagName}}}' \
-      -f owner="${repository%/*}" -f name="${repository#*/}" -f tag="$tag" > "$scratch/lookup.json" || return 2
-    jq -e '((.errors // []) | length) == 0 and (.data.repository | type == "object" and has("release"))' "$scratch/lookup.json" >/dev/null || return 2
-    if jq -e '.data.repository.release == null' "$scratch/lookup.json" >/dev/null; then return 4; fi
-    release_id="$(jq -er --arg tag "$tag" '.data.repository.release | select(.tagName == $tag) | .databaseId | select(type == "number" and . > 0 and . == floor)' "$scratch/lookup.json")" || return 2
-    api_object "repos/$repository/releases/$release_id" "$scratch/release.json" || return 2
-    jq -e --arg tag "$tag" --argjson id "$release_id" '.id == $id and .tag_name == $tag' "$scratch/release.json" >/dev/null || return 2
-  elif [[ $status != 0 ]]; then
-    return "$status"
-  fi
-  jq -er '.id and (.draft | type == "boolean")' "$scratch/release.json" >/dev/null
-}
-
-validate_tag() {
-  local tag="$1" expected="$2" draft="$3" status=0 object_type object_sha depth
-  [[ "$expected" =~ ^[0-9a-f]{40}$ ]] || { echo "Release $tag has no exact target commit." >&2; return 2; }
-  api_object "repos/$repository/git/ref/tags/$tag" "$scratch/tag.json" || status=$?
-  if [[ $status == 4 && "$draft" == true ]]; then return 0; fi
-  [[ $status == 0 ]] || { echo "Release $tag has no verifiable immutable tag." >&2; return 2; }
-  for ((depth = 0; depth < 8; depth++)); do
-    object_type="$(jq -r '.object.type' "$scratch/tag.json")"
-    object_sha="$(jq -r '.object.sha' "$scratch/tag.json")"
-    [[ "$object_sha" =~ ^[0-9a-f]{40}$ ]] || return 2
-    if [[ "$object_type" == commit ]]; then
-      [[ "$object_sha" == "$expected" ]] || { echo "Existing tag $tag targets a different source commit." >&2; return 2; }
-      return 0
-    fi
-    [[ "$object_type" == tag ]] || return 2
-    api_object "repos/$repository/git/tags/$object_sha" "$scratch/tag.json" || return "$?"
-  done
-  echo "Cannot resolve the immutable tag $tag." >&2
-  return 2
-}
-
-verify_existing() {
-  local tag="$1"; shift
-  local path name expected_hash downloaded actual expected
-  expected="$(for path in "$@"; do basename "$path"; done | LC_ALL=C sort)"
-  actual="$(jq -r '.assets[].name' "$scratch/release.json" | LC_ALL=C sort)"
-  while IFS= read -r name; do
-    [[ -z "$name" ]] && continue
-    grep -Fxq "$name" <<<"$expected" || { echo "Unexpected immutable asset: $name" >&2; return 2; }
-    path="$dist/$name"
-    expected_hash="$(sha256sum "$path" | cut -d ' ' -f 1)"
-    downloaded="$scratch/download-$name"
-    # Download to a fresh path. Published/draft assets must match exact bytes.
-    if [[ ! -e "$downloaded" ]]; then
-      gh release download "$tag" --repo "$repository" --pattern "$name" --output "$downloaded"
-    fi
-    [[ $(sha256sum "$downloaded" | cut -d ' ' -f 1) == "$expected_hash" ]] || {
-      echo "Existing release asset differs: $name. No overwrite attempted." >&2; return 2;
-    }
-  done <<<"$actual"
-}
-
-publish() {
-  local tag="$1" title="$2" kind="$3" status=0 path name
-  shift 3
-  release_state "$tag" || status=$?
-  if [[ $status == 4 ]]; then
-    validate_tag "$tag" "$sha" true
-    gh release create "$tag" --repo "$repository" --draft --target "$sha" --title "$title" \
-      --notes "Verified runtime $runtime_id from source $sha. Released platforms: ${platforms[*]}. Native checks and all required release gates passed for this scope. Receipts and source/dependency identities are included."
-    release_state "$tag"
-  elif [[ $status != 0 ]]; then
-    return "$status"
-  fi
-  if [[ "$kind" == workspace || $(jq -r '.draft' "$scratch/release.json") == true ]]; then
-    [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" ]] || {
-      echo "Release $tag targets a different source commit." >&2; return 2;
-    }
-  fi
-  validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" "$(jq -r '.draft' "$scratch/release.json")"
-  verify_existing "$tag" "$@"
-  for path in "$@"; do
-    name="$(basename "$path")"
-    if ! jq -e --arg name "$name" '.assets | any(.name == $name)' "$scratch/release.json" >/dev/null; then
-      [[ $(jq -r '.draft' "$scratch/release.json") == true ]] || { echo "Published release $tag is incomplete." >&2; return 2; }
-      gh release upload "$tag" --repo "$repository" "$path"
-    fi
-  done
-  release_state "$tag"
-  verify_existing "$tag" "$@"
-  [[ $(jq -r '.assets | length' "$scratch/release.json") == "$#" ]] || return 2
-  if [[ $(jq -r '.draft' "$scratch/release.json") == false ]]; then return 0; fi
-  if [[ "$kind" == runtime ]]; then
-    gh release edit "$tag" --repo "$repository" --draft=false --prerelease --latest=false
-  elif is_current; then
-    gh release edit "$tag" --repo "$repository" --draft=false --prerelease=false --latest
-  else
-    echo "Source advanced; leaving $tag as a draft." >&2
-    return 2
-  fi
-  release_state "$tag"
-  [[ $(jq -r '.draft' "$scratch/release.json") == false ]]
-  validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" false
-}
-publish "runtime-$runtime_id" "Compiled runtime ${runtime_id:0:12}" runtime "${runtime_files[@]}" "$dist/runtime-manifest.json"
-publish "build-$sha" "ccvl ${sha:0:12}" workspace "${bundle_files[@]}" "${evidence_files[@]}"
-printf 'Published %s native runtime(s) and matching workspace bundle(s) for %s: %s.\n' "${#platforms[@]}" "$sha" "${platforms[*]}"
+publish "$runtime_tag" "Compiled runtime ${runtime_id:0:12}" runtime "${runtime_files[@]}" "$dist/runtime-manifest.json"
+publish "$workspace_tag" "ccvl ${sha:0:12}" workspace "${bundle_files[@]}" "${evidence_files[@]}"
+printf 'Drafted %s platform build(s) and the matching workspace bundle(s) for %s: %s.\n' "${#platforms[@]}" "$sha" "$states"

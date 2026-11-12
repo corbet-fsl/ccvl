@@ -3,10 +3,15 @@
 //! command and the real release scripts against a synthetic source tree.
 #![cfg(unix)]
 
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::{BufRead as _, BufReader, Read as _, Write as _};
+use std::net::TcpListener;
 use std::os::unix::fs::{PermissionsExt as _, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use ccvl::archive::{sha256_hex, write_with_comment};
 use ccvl::release_evidence::{GATES, PLATFORMS};
@@ -23,7 +28,7 @@ fn repository() -> &'static Path {
 fn host_of(platform: &str) -> &'static str {
     PLATFORMS
         .iter()
-        .find(|(name, _)| *name == platform)
+        .find(|(name, _, _)| *name == platform)
         .unwrap()
         .1
 }
@@ -97,7 +102,11 @@ impl Release {
                 fs::read(repository().join(".agent/release-platforms.txt")).unwrap(),
             ),
         ];
-        for name in ["release-evidence.sh", "publish-release.sh"] {
+        for name in [
+            "release-evidence.sh",
+            "publish-release.sh",
+            "downstream-release.sh",
+        ] {
             files.push((
                 format!(".agent/scripts/{name}"),
                 fs::read(repository().join(".agent/scripts").join(name)).unwrap(),
@@ -121,9 +130,10 @@ impl Release {
         )
         .unwrap();
         let env = vec![
-            ("CI_REPO".to_owned(), "corbet-fsl/ccvl".to_owned()),
+            ("FORGEJO_ACTIONS".to_owned(), "true".to_owned()),
+            ("GITHUB_REPOSITORY".to_owned(), "corbet-fsl/ccvl".to_owned()),
             ("CI_COMMIT_SHA".to_owned(), COMMIT.to_owned()),
-            ("CI_PIPELINE_NUMBER".to_owned(), "123".to_owned()),
+            ("GITHUB_RUN_ID".to_owned(), "123".to_owned()),
             ("SOURCE_ARCHIVE".to_owned(), archive.display().to_string()),
             ("SOURCE_SHA256".to_owned(), file_hash(&archive)),
         ];
@@ -188,7 +198,12 @@ impl Release {
 
     fn populate(&self) {
         for platform in release_platforms() {
+            // The macOS build clone does not exist yet: those platforms stay pending.
+            if platform.starts_with("macos-") {
+                continue;
+            }
             let host = host_of(&platform);
+            let native = platform == "linux-x86_64";
             let name = format!(
                 "ccvl-{platform}{}",
                 if platform.starts_with("windows-") {
@@ -216,17 +231,28 @@ impl Release {
             .unwrap();
             let mut receipt = self.identity.clone();
             for (key, value) in [
-                ("kind", json!("native")),
+                ("kind", json!(if native { "native" } else { "cross" })),
                 ("platform", json!(platform)),
                 ("rust_host", json!(host)),
                 ("rustc", json!("rustc 1.97.0 fixture")),
                 ("cargo", json!("cargo 1.97.0 fixture")),
-                ("checks", json!(["public-check", "native-runtime"])),
+                (
+                    "checks",
+                    if native {
+                        json!(["public-check", "native-runtime"])
+                    } else {
+                        json!(["cross-build"])
+                    },
+                ),
                 ("assets", Value::Object(assets)),
-                ("provider", json!("crow")),
+                ("provider", json!("forgejo")),
                 ("run", json!("123")),
             ] {
                 receipt[key] = value;
+            }
+            if !native {
+                receipt["tested"] = json!(false);
+                receipt["tool"] = json!("cargo-zigbuild fixture");
             }
             self.write(&format!("ccvl-{platform}.receipt.json"), &receipt);
         }
@@ -235,7 +261,7 @@ impl Release {
             for (key, value) in [
                 ("kind", json!("gate")),
                 ("gate", json!(gate)),
-                ("provider", json!("crow")),
+                ("provider", json!("forgejo")),
                 ("run", json!("123")),
             ] {
                 receipt[key] = value;
@@ -269,8 +295,21 @@ fn complete_explicit_native_results_and_gates() {
         format!("{COMMIT} {}\n", release.identity_field("runtime_id"))
     );
     let manifest = read_json(&release.output.join("manifest.json"));
-    assert_eq!(manifest["platforms"], json!(["linux-x86_64"]));
-    assert_eq!(manifest["receipts"].as_object().unwrap().len(), 5);
+    assert_eq!(manifest["platforms"], json!(release_platforms()));
+    // Tested where it ran, built (never run) where it could not, pending until
+    // the macOS build clone exists.
+    assert_eq!(
+        manifest["platform_states"],
+        json!({
+            "linux-x86_64": "tested",
+            "linux-aarch64": "built",
+            "windows-x86_64": "built",
+            "windows-arm64": "built",
+            "macos-x86_64": "pending",
+            "macos-arm64": "pending",
+        })
+    );
+    assert_eq!(manifest["receipts"].as_object().unwrap().len(), 8);
     let runtime = read_json(&release.output.join("runtime-manifest.json"));
     assert_eq!(
         runtime["platforms"]
@@ -278,8 +317,15 @@ fn complete_explicit_native_results_and_gates() {
             .unwrap()
             .keys()
             .collect::<Vec<_>>(),
-        ["linux-x86_64"]
+        [
+            "linux-aarch64",
+            "linux-x86_64",
+            "windows-arm64",
+            "windows-x86_64"
+        ]
     );
+    assert_eq!(runtime["platform_states"]["macos-arm64"], "pending");
+    assert_eq!(runtime["platforms"]["linux-aarch64"]["state"], "built");
     // The evidence files are byte stable: a repeat verifies and rewrites nothing.
     assert!(release.check().status.success());
 }
@@ -287,9 +333,59 @@ fn complete_explicit_native_results_and_gates() {
 #[test]
 fn one_platform_absent_never_passes() {
     let release = Release::new();
-    fs::remove_file(release.output.join("ccvl-linux-x86_64.receipt.json")).unwrap();
-    let result = release.check();
-    assert!(!result.status.success(), "{}", text(&result));
+    // Only a platform without an executor yet may be absent (pending).
+    for platform in [
+        "linux-x86_64",
+        "linux-aarch64",
+        "windows-x86_64",
+        "windows-arm64",
+    ] {
+        release.populate();
+        let receipt = release.output.join(format!("ccvl-{platform}.receipt.json"));
+        let kept = fs::read(&receipt).unwrap();
+        fs::remove_file(&receipt).unwrap();
+        let result = release.check();
+        assert!(!result.status.success(), "{platform}: {}", text(&result));
+        fs::write(&receipt, kept).unwrap();
+    }
+}
+
+#[test]
+fn built_platforms_never_claim_tests_and_native_never_hides_a_cross_build() {
+    let release = Release::new();
+    // An ARM64 platform is only ever built: a native receipt for it is refused.
+    release.change("ccvl-linux-aarch64.receipt.json", "kind", "native");
+    assert_refused(&release.check(), "native platform");
+    release.populate();
+    // Linux x86_64 runs here: a cross receipt can not stand in for it.
+    release.change("ccvl-linux-x86_64.receipt.json", "kind", "cross");
+    assert_refused(&release.check(), "native platform");
+    release.populate();
+    // A cross receipt that claims its executable was tested is incomplete.
+    let mut data = read_json(&release.output.join("ccvl-windows-arm64.receipt.json"));
+    data["tested"] = json!(true);
+    release.write("ccvl-windows-arm64.receipt.json", &data);
+    assert_refused(&release.check(), "Incomplete cross-build evidence");
+    release.populate();
+    // x86_64 Windows becomes tested when its executor reports a native receipt.
+    let mut data = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
+    data["kind"] = json!("native");
+    data["checks"] = json!(["public-check", "native-runtime"]);
+    data.as_object_mut().unwrap().remove("tested");
+    data.as_object_mut().unwrap().remove("tool");
+    release.write("ccvl-windows-x86_64.receipt.json", &data);
+    assert!(release.check().status.success());
+    let manifest = read_json(&release.output.join("manifest.json"));
+    assert_eq!(manifest["platform_states"]["windows-x86_64"], "tested");
+}
+
+#[test]
+fn macos_without_an_executor_is_pending_and_with_one_is_checked() {
+    let release = Release::new();
+    assert!(release.check().status.success());
+    // A macOS receipt that exists is validated like any other.
+    release.write("ccvl-macos-arm64.receipt.json", &json!({"kind": "cross"}));
+    assert!(!release.check().status.success());
 }
 
 #[test]
@@ -338,7 +434,7 @@ fn missing_gate_and_wrong_linux_receipt_refused() {
 #[test]
 fn artifact_availability_cannot_expand_release_scope() {
     let release = Release::new();
-    release.write("ccvl-windows-arm64.receipt.json", &json!({}));
+    release.write("ccvl-freebsd-x86_64.receipt.json", &json!({}));
     assert_refused(
         &release.check(),
         "outside the explicit release platform policy",
@@ -398,7 +494,10 @@ fn executable_source_mode_change_refused() {
 fn private_repository_refused() {
     let release = Release::new();
     assert_refused(
-        &release.run(&["source"], &[("CI_REPO", "corbet-labs/applications")]),
+        &release.run(
+            &["source"],
+            &[("GITHUB_REPOSITORY", "corbet-labs/applications")],
+        ),
         "public",
     );
 }
@@ -562,6 +661,41 @@ fn native_packaging_flow_produces_checkable_evidence() {
         &native(&binary, "x86_64-unknown-linux-gnu"),
         "Package already exists",
     );
+    // The platforms nothing here runs are cross-built into the same release;
+    // the macOS pair stays pending until its build clone exists.
+    let foreign = release.temp.path().join("cross-ccvl");
+    fs::write(
+        &foreign,
+        format!("fixture\0{}\0tail", release.identity_field("runtime_id")),
+    )
+    .unwrap();
+    for (platform, host) in [
+        ("linux-aarch64", "aarch64-unknown-linux-gnu"),
+        ("windows-x86_64", "x86_64-pc-windows-gnu"),
+        ("windows-arm64", "aarch64-pc-windows-gnullvm"),
+    ] {
+        let result = release.run(
+            &[
+                "cross",
+                "--platform",
+                platform,
+                "--binary",
+                foreign.to_str().unwrap(),
+                "--host",
+                host,
+                "--rustc",
+                "rustc 1.97.0 fixture",
+                "--cargo",
+                "cargo 1.97.0 fixture",
+                "--tool",
+                "cargo-zigbuild fixture",
+                "--output",
+                dist.to_str().unwrap(),
+            ],
+            &[],
+        );
+        assert!(result.status.success(), "{platform}: {}", text(&result));
+    }
     // Each gate records the exact native package; the whole set then checks.
     let destination = dist.to_str().unwrap();
     for gate in GATES {
@@ -571,9 +705,93 @@ fn native_packaging_flow_produces_checkable_evidence() {
     let result = release.run(&["check", "--output", destination], &[]);
     assert!(result.status.success(), "{}", text(&result));
     let receipt = read_json(&dist.join("ccvl-linux-x86_64.receipt.json"));
-    assert_eq!(receipt["provider"], "crow");
+    assert_eq!(receipt["provider"], "forgejo");
     assert_eq!(receipt["run"], "123");
     assert_eq!(receipt["checks"], json!(["public-check", "native-runtime"]));
+}
+
+#[test]
+fn cross_packaging_records_a_built_receipt_and_refuses_false_claims() {
+    let release = Release::new();
+    let runtime_id = release.identity_field("runtime_id");
+    let binary = release.temp.path().join("cross-ccvl.exe");
+    // A foreign executable can not be run; it embeds the runtime id as a string.
+    fs::write(&binary, format!("MZ-fixture\0{runtime_id}\0tail")).unwrap();
+    let foreign = release.temp.path().join("foreign.exe");
+    fs::write(&foreign, "MZ-fixture without identity").unwrap();
+    let dist = release.temp.path().join("cross-dist");
+    let cross = |platform: &str, binary: &Path, host: &str| {
+        release.run(
+            &[
+                "cross",
+                "--platform",
+                platform,
+                "--binary",
+                binary.to_str().unwrap(),
+                "--host",
+                host,
+                "--rustc",
+                "rustc 1.97.0 fixture",
+                "--cargo",
+                "cargo 1.97.0 fixture",
+                "--tool",
+                "cargo-zigbuild fixture",
+                "--output",
+                dist.to_str().unwrap(),
+            ],
+            &[],
+        )
+    };
+    assert_refused(
+        &cross("windows-x86_64", &foreign, "x86_64-pc-windows-gnu"),
+        "does not embed the verified source identity",
+    );
+    assert_refused(
+        &cross("windows-x86_64", &binary, "x86_64-pc-windows-msvc"),
+        "Rust compiler host does not match",
+    );
+    assert_refused(
+        &cross("linux-x86_64", &binary, "x86_64-unknown-linux-gnu"),
+        "requires native evidence",
+    );
+    let result = cross("windows-x86_64", &binary, "x86_64-pc-windows-gnu");
+    assert!(result.status.success(), "{}", text(&result));
+    for name in [
+        "ccvl-windows-x86_64.exe",
+        "ccvl-windows-x86_64.exe.sha256",
+        "ccvl-windows-x86_64.exe.runtime-id",
+        "ccvl-windows-x86_64.tar.gz",
+        "ccvl-windows-x86_64.tar.gz.sha256",
+        "ccvl-windows-x86_64.receipt.json",
+    ] {
+        assert!(dist.join(name).is_file(), "{name}");
+    }
+    let receipt = read_json(&dist.join("ccvl-windows-x86_64.receipt.json"));
+    assert_eq!(receipt["kind"], "cross");
+    assert_eq!(receipt["checks"], json!(["cross-build"]));
+    assert_eq!(receipt["tested"], false);
+    assert_eq!(receipt["tool"], "cargo-zigbuild fixture");
+    assert_eq!(receipt["provider"], "forgejo");
+    // An ARM64 platform is only ever built: the native command refuses it.
+    let native = release.run(
+        &[
+            "native",
+            "--platform",
+            "windows-arm64",
+            "--binary",
+            binary.to_str().unwrap(),
+            "--host",
+            "aarch64-pc-windows-gnullvm",
+            "--rustc",
+            "rustc 1.97.0 fixture",
+            "--cargo",
+            "cargo 1.97.0 fixture",
+            "--output",
+            dist.to_str().unwrap(),
+        ],
+        &[],
+    );
+    assert_refused(&native, "built only and never run");
 }
 
 #[test]
@@ -586,145 +804,251 @@ fn a_run_identity_is_required_for_new_evidence() {
             "--output",
             release.temp.path().join("gates").to_str().unwrap(),
         ],
-        &[("CI_PIPELINE_NUMBER", "")],
+        &[("GITHUB_RUN_ID", "")],
     );
-    assert_refused(&result, "A CI run identity is required.");
+    assert_refused(&result, "A Forgejo Actions run identity is required.");
 }
 
-const FAKE_GH: &str = r#"#!/usr/bin/env bash
-set -u
-root=$FAKE_GH_ROOT
-mkdir -p "$root"
-printf '%s\n' "$@" | jq -R . | jq -sc . >> "$root/calls"
-http() { printf 'HTTP/2.0 %s\n\n%s\n' "$1" "$2"; }
-if [[ $1 == api ]]; then
-  if [[ $2 == graphql ]]; then
-    if [[ -e $root/lookup-error ]]; then cat "$root/lookup-error"; echo; exit 0; fi
-    tag=
-    for a in "$@"; do [[ $a == tag=* ]] && tag=${a#tag=}; done
-    if [[ -e $root/$tag/state ]]; then
-      id=$(jq .id "$root/$tag/state")
-      found=$(jq -cn --argjson id "$id" --arg tag "$tag" '{databaseId:$id,tagName:$tag}')
-    else
-      found=null
-    fi
-    printf '{"data":{"repository":{"release":%s}}}\n' "$found"
-    exit 0
-  fi
-  target=
-  for a in "${@:2}"; do [[ $a == repos/* ]] && { target=$a; break; }; done
-  case $target in
-    */git/ref/heads/main) echo "$CI_COMMIT_SHA"; exit 0 ;;
-    */git/tags/*)
-      http '200 OK' "$(jq -cn --arg sha "$CI_COMMIT_SHA" '{object:{type:"commit",sha:$sha}}')"
-      exit 0 ;;
-    */git/ref/tags/*)
-      tag=${target##*/tags/}
-      release=$root/$tag
-      if [[ -e $release/state && $(jq .draft "$release/state") == false ]]; then
-        commit=$CI_COMMIT_SHA
-        [[ -e $release/tag_override ]] && commit=$(cat "$release/tag_override")
-        kind=commit
-        [[ -e $release/annotated ]] && kind=tag
-        http '200 OK' "$(jq -cn --arg kind "$kind" --arg sha "$commit" '{object:{type:$kind,sha:$sha}}')"
-        exit 0
-      fi
-      http '404 Not Found' '{}'
-      exit 1 ;;
-    */releases/tags/*)
-      tag=${target##*/tags/}
-      release=$root/$tag
-      if [[ -e $release/state && $(jq .draft "$release/state") == true ]]; then
-        http '404 Not Found' '{}'
-        exit 1
-      fi ;;
-    *)
-      id=${target##*/}
-      release=
-      for d in "$root"/*/; do
-        if [[ -e $d/state && $(jq .id "$d/state") == "$id" ]]; then release=${d%/}; tag=$(basename "$release"); break; fi
-      done
-      [[ -n $release ]] || exit 1 ;;
-  esac
-  if [[ ! -e $release/state ]]; then http '404 Not Found' '{}'; exit 1; fi
-  assets=$(ls "$release/assets" | jq -R . | jq -sc 'map({name:.})')
-  http '200 OK' "$(jq -c --arg tag "$tag" --argjson assets "$assets" '. + {tag_name:$tag, assets:$assets}' "$release/state")"
-  exit 0
-fi
-[[ $1 == release ]] || { echo "Unexpected gh call $*" >&2; exit 1; }
-action=$2
-tag=$3
-release=$root/$tag
-case $action in
-  create)
-    mkdir "$release" "$release/assets" || exit 1
-    id=2
-    [[ $tag == runtime-* ]] && id=1
-    jq -cn --argjson id "$id" --arg commit "$CI_COMMIT_SHA" '{id:$id,draft:true,target_commitish:$commit}' > "$release/state" ;;
-  upload)
-    for a in "$@"; do [[ $a == --clobber ]] && exit 1; done
-    asset=${*: -1}
-    dest=$release/assets/$(basename "$asset")
-    [[ ! -e $dest ]] || { echo 'overwriting upload' >&2; exit 1; }
-    cp "$asset" "$dest" ;;
-  download)
-    while (($#)); do
-      case $1 in
-        --pattern) name=$2; shift ;;
-        --output) dest=$2; shift ;;
-      esac
-      shift
-    done
-    [[ ! -e $dest ]] || exit 1
-    cp "$release/assets/$name" "$dest" ;;
-  edit)
-    jq -c '.draft = false' "$release/state" > "$release/state.next"
-    mv "$release/state.next" "$release/state" ;;
-  *) echo "Unexpected gh call $*" >&2; exit 1 ;;
-esac
-"#;
+/// A Forgejo that keeps its releases in memory: just enough of the API for the
+/// publisher, plus faults a real forge produces.
+#[derive(Default)]
+struct ForgeState {
+    head: String,
+    next: u64,
+    releases: Vec<ForgeRelease>,
+    tags: BTreeMap<String, String>,
+    list_error: bool,
+    requests: Vec<String>,
+}
+
+struct ForgeRelease {
+    id: u64,
+    tag: String,
+    draft: bool,
+    prerelease: bool,
+    target: String,
+    body: String,
+    assets: Vec<(u64, String, Vec<u8>)>,
+}
+
+type Forge = Arc<Mutex<ForgeState>>;
+
+const FORGE_TOKEN: &str = "fixture-job-token";
+
+fn release_json(release: &ForgeRelease, port: u16) -> Value {
+    json!({
+        "id": release.id,
+        "tag_name": release.tag,
+        "draft": release.draft,
+        "prerelease": release.prerelease,
+        "target_commitish": release.target,
+        "body": release.body,
+        "assets": release.assets.iter().map(|(id, name, bytes)| json!({
+            "id": id,
+            "name": name,
+            "size": bytes.len(),
+            "browser_download_url": format!("https://forge.example.invalid:{port}/attachments/{id}"),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn serve(state: Forge) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut request_line = String::new();
+            if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
+                continue;
+            }
+            let mut length = 0usize;
+            let mut authorised = false;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                let lower = line.to_ascii_lowercase();
+                if let Some(value) = lower.strip_prefix("content-length:") {
+                    length = value.trim().parse().unwrap();
+                }
+                if lower.trim() == format!("authorization: token {FORGE_TOKEN}") {
+                    authorised = true;
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let mut parts = request_line.split_whitespace();
+            let method = parts.next().unwrap().to_owned();
+            let target = parts.next().unwrap().to_owned();
+            let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
+            let mut state = state.lock().unwrap();
+            state.requests.push(format!("{method} {path}"));
+            let (status, payload): (u16, Vec<u8>) = if authorised {
+                respond(&mut state, port, &method, path, query, &body)
+            } else {
+                (401, b"{}".to_vec())
+            };
+            let header = format!(
+                "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
+                payload.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&payload);
+        }
+    });
+    port
+}
+
+fn respond(
+    state: &mut ForgeState,
+    port: u16,
+    method: &str,
+    path: &str,
+    query: &str,
+    body: &[u8],
+) -> (u16, Vec<u8>) {
+    let ok = |value: Value| (200, value.to_string().into_bytes());
+    let base = "/api/v1/repos/corbet-fsl/ccvl";
+    if let Some(id) = path.strip_prefix("/attachments/") {
+        let id: u64 = id.parse().unwrap();
+        return state
+            .releases
+            .iter()
+            .flat_map(|release| &release.assets)
+            .find(|(asset, _, _)| *asset == id)
+            .map_or((404, b"{}".to_vec()), |(_, _, bytes)| (200, bytes.clone()));
+    }
+    let Some(rest) = path.strip_prefix(base) else {
+        return (404, b"{}".to_vec());
+    };
+    match (method, rest) {
+        ("GET", "/branches/main") => ok(json!({"commit": {"id": state.head}})),
+        ("GET", "/releases") => {
+            if state.list_error {
+                return (500, b"{}".to_vec());
+            }
+            let page = if query.contains("page=1") {
+                state
+                    .releases
+                    .iter()
+                    .map(|release| release_json(release, port))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            ok(Value::Array(page))
+        }
+        ("POST", "/releases") => {
+            let request: Value = serde_json::from_slice(body).unwrap();
+            assert_eq!(request["draft"], true, "releases are created as drafts");
+            state.next += 1;
+            let release = ForgeRelease {
+                id: state.next,
+                tag: request["tag_name"].as_str().unwrap().to_owned(),
+                draft: true,
+                prerelease: request["prerelease"].as_bool().unwrap(),
+                target: request["target_commitish"].as_str().unwrap().to_owned(),
+                body: request["body"].as_str().unwrap().to_owned(),
+                assets: Vec::new(),
+            };
+            let answer = release_json(&release, port);
+            state.releases.push(release);
+            (201, answer.to_string().into_bytes())
+        }
+        ("GET", tag) if tag.starts_with("/tags/") => state
+            .tags
+            .get(&tag[6..])
+            .map_or((404, b"{}".to_vec()), |commit| {
+                ok(json!({"commit": {"sha": commit}}))
+            }),
+        (_, release) if release.starts_with("/releases/") => {
+            let mut pieces = release["/releases/".len()..].split('/');
+            let id: u64 = pieces.next().unwrap().parse().unwrap();
+            let Some(index) = state.releases.iter().position(|release| release.id == id) else {
+                return (404, b"{}".to_vec());
+            };
+            match (method, pieces.next()) {
+                ("POST", Some("assets")) => {
+                    let name = query.strip_prefix("name=").unwrap().to_owned();
+                    let release = &mut state.releases[index];
+                    assert!(
+                        release
+                            .assets
+                            .iter()
+                            .all(|(_, existing, _)| *existing != name),
+                        "{name} uploaded twice"
+                    );
+                    let asset = 1000 + release.id * 100 + release.assets.len() as u64;
+                    release.assets.push((asset, name, body.to_vec()));
+                    (201, b"{}".to_vec())
+                }
+                ("PATCH", None) => {
+                    let request: Value = serde_json::from_slice(body).unwrap();
+                    let release = &mut state.releases[index];
+                    release.draft = request["draft"].as_bool().unwrap();
+                    release.prerelease = request["prerelease"].as_bool().unwrap();
+                    let (tag, target) = (release.tag.clone(), release.target.clone());
+                    let answer = release_json(release, port);
+                    if !state.releases[index].draft {
+                        state.tags.insert(tag, target);
+                    }
+                    ok(answer)
+                }
+                _ => (404, b"{}".to_vec()),
+            }
+        }
+        _ => (404, b"{}".to_vec()),
+    }
+}
 
 struct Publisher<'a> {
     release: &'a Release,
-    github: PathBuf,
-    bin: PathBuf,
+    forge: Forge,
+    port: u16,
 }
 
 impl<'a> Publisher<'a> {
     fn new(release: &'a Release) -> Self {
-        assert!(
-            Command::new("jq").arg("--version").output().is_ok(),
-            "jq is required for actual publisher guard fixtures"
-        );
-        let bin = release.temp.path().join("bin");
-        fs::create_dir_all(&bin).unwrap();
-        let gh = bin.join("gh");
-        fs::write(&gh, FAKE_GH).unwrap();
-        fs::set_permissions(&gh, fs::Permissions::from_mode(0o755)).unwrap();
+        for tool in ["jq", "curl"] {
+            assert!(
+                Command::new(tool).arg("--version").output().is_ok(),
+                "{tool} is required for actual publisher guard fixtures"
+            );
+        }
+        let forge: Forge = Arc::new(Mutex::new(ForgeState {
+            head: COMMIT.to_owned(),
+            ..ForgeState::default()
+        }));
+        let port = serve(Arc::clone(&forge));
         Self {
             release,
-            github: release.temp.path().join("github"),
-            bin,
+            forge,
+            port,
         }
     }
 
-    fn publish(&self) -> Output {
-        let path = format!(
-            "{}:{}",
-            self.bin.display(),
-            std::env::var("PATH").unwrap_or_default()
-        );
+    fn run(&self, arguments: &[&str], changes: &[(&str, &str)]) -> Output {
+        let server = format!("http://127.0.0.1:{}", self.port);
         for _ in 0..20 {
             let output = Command::new("bash")
                 .arg(self.release.root.join(".agent/scripts/publish-release.sh"))
-                .arg(&self.release.output)
+                .args(arguments)
                 .env_clear()
-                .envs(std::env::vars().filter(|(key, _)| matches!(key.as_str(), "HOME" | "TMPDIR")))
+                .envs(
+                    std::env::vars()
+                        .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
+                )
                 .envs(self.release.env.iter().map(|(key, value)| (key, value)))
-                .env("PATH", &path)
-                .env("GH_TOKEN", "fixture-token")
-                .env("FAKE_GH_ROOT", &self.github)
+                .env("GITHUB_SERVER_URL", &server)
+                .env("CCID_FORGE_TOKEN", FORGE_TOKEN)
+                .env("GITHUB_TOKEN", FORGE_TOKEN)
                 .env("CCVL_RELEASE_EVIDENCE_BIN", BIN)
+                .envs(changes.iter().copied())
+                .current_dir(&self.release.root)
                 .output();
             match output {
                 Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
@@ -736,72 +1060,78 @@ impl<'a> Publisher<'a> {
         panic!("publisher script stayed busy");
     }
 
-    fn calls(&self) -> String {
-        fs::read_to_string(self.github.join("calls")).unwrap_or_default()
+    fn publish(&self) -> Output {
+        self.run(&[self.release.output.to_str().unwrap()], &[])
     }
 
-    fn call_list(&self) -> Vec<Vec<String>> {
-        self.calls()
-            .lines()
-            .map(|line| serde_json::from_str(line).unwrap())
-            .collect()
+    fn promote(&self) -> Output {
+        self.run(&["--promote"], &[("CI_COMMIT_SHA", COMMIT)])
+    }
+
+    fn requests(&self) -> Vec<String> {
+        self.forge.lock().unwrap().requests.clone()
     }
 
     fn uploads(&self) -> usize {
-        self.calls().matches("\"upload\"").count()
+        self.requests()
+            .iter()
+            .filter(|request| request.starts_with("POST") && request.ends_with("/assets"))
+            .count()
     }
 
-    fn runtime_tag(&self) -> PathBuf {
-        self.github.join(format!(
-            "runtime-{}",
-            self.release.identity_field("runtime_id")
-        ))
+    fn state<T>(&self, change: impl FnOnce(&mut ForgeState) -> T) -> T {
+        change(&mut self.forge.lock().unwrap())
+    }
+
+    fn runtime_tag(&self) -> String {
+        format!("runtime-{}", self.release.identity_field("runtime_id"))
+    }
+
+    fn workspace_tag() -> String {
+        format!("build-{COMMIT}")
     }
 }
 
-fn rewrite_state(release: &Path, change: impl FnOnce(&mut Value)) {
-    let path = release.join("state");
-    let mut state = read_json(&path);
-    change(&mut state);
-    fs::write(path, state.to_string()).unwrap();
+fn release_mut<'a>(state: &'a mut ForgeState, tag: &str) -> &'a mut ForgeRelease {
+    state
+        .releases
+        .iter_mut()
+        .find(|release| release.tag == tag)
+        .unwrap()
 }
 
 #[test]
-fn publication_is_complete_and_repeat_is_immutable() {
+fn publication_makes_complete_drafts_and_repeat_is_immutable() {
     let release = Release::new();
     let publisher = Publisher::new(&release);
     let result = publisher.publish();
     assert!(result.status.success(), "{}", text(&result));
+    // Four built platforms: 13 runtime files and 17 bundle and evidence files.
     let first_uploads = publisher.uploads();
-    assert!(first_uploads > 0);
-    let creations: Vec<_> = publisher
-        .call_list()
-        .into_iter()
-        .filter(|call| call[..2] == ["release", "create"])
-        .collect();
-    assert_eq!(creations.len(), 2);
-    for call in creations {
-        let notes = &call[call
-            .iter()
-            .position(|argument| argument == "--notes")
-            .unwrap()
-            + 1];
-        assert!(
-            notes.contains("Released platforms: linux-x86_64."),
-            "{notes}"
-        );
-        assert!(!notes.contains("All six"));
-    }
-    assert_eq!(first_uploads, 12);
-    assert!(publisher.calls().contains("\"graphql\""));
+    assert_eq!(first_uploads, 30);
+    publisher.state(|state| {
+        assert_eq!(state.releases.len(), 2);
+        assert!(state.tags.is_empty(), "drafts create no tag");
+        for release in &state.releases {
+            assert!(release.draft, "{} must stay a draft", release.tag);
+            assert!(
+                release.body.contains("linux-x86_64 tested")
+                    && release.body.contains("linux-aarch64 built, not tested")
+                    && release.body.contains("windows-arm64 built, not tested")
+                    && release.body.contains("macos-arm64 pending"),
+                "{}",
+                release.body
+            );
+        }
+        assert!(state.releases[0].prerelease && !state.releases[1].prerelease);
+    });
     let result = publisher.publish();
     assert!(result.status.success(), "{}", text(&result));
     assert_eq!(publisher.uploads(), first_uploads);
-    fs::write(
-        publisher.runtime_tag().join("assets/ccvl-linux-x86_64"),
-        b"different published bytes",
-    )
-    .unwrap();
+    let tag = publisher.runtime_tag();
+    publisher.state(|state| {
+        release_mut(state, &tag).assets[0].2 = b"different published bytes".to_vec();
+    });
     let result = publisher.publish();
     assert!(!result.status.success());
     assert!(
@@ -813,35 +1143,69 @@ fn publication_is_complete_and_repeat_is_immutable() {
 }
 
 #[test]
-fn unknown_draft_lookup_never_creates_or_uploads() {
+fn promotion_checks_the_drafts_again_and_publishes_them() {
     let release = Release::new();
     let publisher = Publisher::new(&release);
-    fs::create_dir_all(&publisher.github).unwrap();
-    let runtime_tag = format!("runtime-{}", release.identity_field("runtime_id"));
-    let cases = [
-        json!({"errors": [{"message": "fixture lookup unavailable"}]}),
-        json!({"data": {"repository": null}}),
-        json!({"data": {"repository": {}}}),
-        json!({"data": {"repository": {"release": {"databaseId": 1, "tagName": "another-release"}}}}),
-        json!({"data": {"repository": {"release": {"databaseId": null, "tagName": runtime_tag}}}}),
-    ];
-    for response in cases {
-        fs::write(publisher.github.join("lookup-error"), response.to_string()).unwrap();
-        assert!(!publisher.publish().status.success(), "{response}");
-    }
-    let calls = publisher.calls();
-    assert!(!calls.contains("\"create\""));
-    assert!(!calls.contains("\"upload\""));
+    // Nothing to promote before the drafts exist.
+    assert!(!publisher.promote().status.success());
+    assert!(publisher.publish().status.success());
+    let result = publisher.promote();
+    assert!(result.status.success(), "{}", text(&result));
+    let output = text(&result);
+    // No downstream credential exists on this runner: reported, not failed.
+    assert!(
+        output.contains("downstream github: skipped: no upload token"),
+        "{output}"
+    );
+    assert!(
+        output.contains("downstream gitlab: skipped: no upload token"),
+        "{output}"
+    );
+    publisher.state(|state| {
+        assert!(state.releases.iter().all(|release| !release.draft));
+        assert_eq!(state.tags.len(), 2);
+        assert!(state.tags.values().all(|commit| commit == COMMIT));
+    });
+    // A repeat verifies and changes nothing.
+    assert!(publisher.promote().status.success());
+    // A corrupted draft never becomes public.
+    let other = Release::new();
+    let second = Publisher::new(&other);
+    assert!(second.publish().status.success());
+    let tag = second.runtime_tag();
+    second.state(|state| {
+        let asset = release_mut(state, &tag)
+            .assets
+            .iter_mut()
+            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+            .unwrap();
+        asset.2 = b"swapped binary".to_vec();
+    });
+    assert!(!second.promote().status.success());
+    second.state(|state| assert!(state.releases.iter().all(|release| release.draft)));
 }
 
 #[test]
-fn existing_wrong_tag_prevents_further_publication() {
+fn unknown_draft_lookup_never_creates_or_uploads() {
     let release = Release::new();
     let publisher = Publisher::new(&release);
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    let uploads = publisher.uploads();
-    fs::write(publisher.runtime_tag().join("tag_override"), "b".repeat(40)).unwrap();
+    publisher.state(|state| state.list_error = true);
+    assert!(!publisher.publish().status.success());
+    let requests = publisher.requests();
+    assert!(
+        !requests.iter().any(|request| request.starts_with("POST")),
+        "{requests:?}"
+    );
+}
+
+#[test]
+fn existing_wrong_tag_prevents_any_publication() {
+    let release = Release::new();
+    let publisher = Publisher::new(&release);
+    let tag = publisher.runtime_tag();
+    publisher.state(|state| {
+        state.tags.insert(tag, "b".repeat(40));
+    });
     let result = publisher.publish();
     assert!(!result.status.success());
     assert!(
@@ -849,20 +1213,44 @@ fn existing_wrong_tag_prevents_further_publication() {
         "{}",
         text(&result)
     );
-    assert_eq!(publisher.uploads(), uploads);
+    assert_eq!(publisher.uploads(), 0);
 }
 
 #[test]
-fn annotated_tag_is_peeled_and_published_gap_is_not_repaired() {
+fn published_gap_is_not_repaired_and_runtime_may_reuse_earlier_source() {
     let release = Release::new();
     let publisher = Publisher::new(&release);
+    assert!(publisher.publish().status.success());
+    assert!(publisher.promote().status.success());
+    // A matching immutable runtime of an earlier source is reused...
+    let runtime = publisher.runtime_tag();
+    publisher.state(|state| {
+        release_mut(state, &runtime).target = "b".repeat(40);
+        state.tags.insert(runtime.clone(), "b".repeat(40));
+    });
     let result = publisher.publish();
     assert!(result.status.success(), "{}", text(&result));
-    fs::write(publisher.runtime_tag().join("annotated"), "").unwrap();
+    // ...a workspace release of another source is not.
+    let workspace = Publisher::workspace_tag();
+    publisher.state(|state| {
+        release_mut(state, &workspace).target = "b".repeat(40);
+        state.tags.insert(workspace.clone(), "b".repeat(40));
+    });
     let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
+    assert!(!result.status.success());
+    assert!(
+        text(&result).contains("targets a different source commit"),
+        "{}",
+        text(&result)
+    );
+    // A published release missing an asset is incomplete, and nothing repairs it.
+    publisher.state(|state| {
+        let release = release_mut(state, &workspace);
+        release.target = COMMIT.to_owned();
+        release.assets.pop();
+        state.tags.insert(workspace.clone(), COMMIT.to_owned());
+    });
     let uploads = publisher.uploads();
-    fs::remove_file(publisher.runtime_tag().join("assets/ccvl-linux-x86_64")).unwrap();
     let result = publisher.publish();
     assert!(!result.status.success());
     assert!(text(&result).contains("is incomplete"), "{}", text(&result));
@@ -870,127 +1258,142 @@ fn annotated_tag_is_peeled_and_published_gap_is_not_repaired() {
 }
 
 #[test]
-fn runtime_may_reuse_earlier_source_but_workspace_tag_may_not() {
+fn stale_main_and_missing_native_evidence_prevent_any_publication_call() {
     let release = Release::new();
     let publisher = Publisher::new(&release);
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    let runtime = publisher.runtime_tag();
-    rewrite_state(&runtime, |state| {
-        state["target_commitish"] = json!("b".repeat(40));
-    });
-    fs::write(runtime.join("tag_override"), "b".repeat(40)).unwrap();
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    let workspace = publisher.github.join(format!("build-{COMMIT}"));
-    rewrite_state(&workspace, |state| {
-        state["target_commitish"] = json!("b".repeat(40));
-    });
-    fs::write(workspace.join("tag_override"), "b".repeat(40)).unwrap();
+    publisher.state(|state| state.head = "b".repeat(40));
     let result = publisher.publish();
     assert!(!result.status.success());
     assert!(
-        text(&result).contains("targets a different source commit"),
+        text(&result).contains("no longer main"),
         "{}",
         text(&result)
     );
+    assert!(
+        !publisher
+            .requests()
+            .iter()
+            .any(|request| request.starts_with("POST"))
+    );
+    publisher.state(|state| state.head = COMMIT.to_owned());
+    fs::remove_file(release.output.join("ccvl-linux-x86_64.receipt.json")).unwrap();
+    let before = publisher.requests().len();
+    assert!(!publisher.publish().status.success());
+    assert_eq!(publisher.requests().len(), before);
 }
 
 #[test]
-fn missing_native_evidence_prevents_any_publication_call() {
+fn downstream_without_a_token_or_a_route_is_skipped_and_never_fails() {
     let release = Release::new();
-    let publisher = Publisher::new(&release);
-    fs::remove_file(release.output.join("ccvl-linux-x86_64.receipt.json")).unwrap();
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(!publisher.github.join("calls").exists());
+    assert!(release.check().status.success());
+    let script = release.root.join(".agent/scripts/downstream-release.sh");
+    // Targets that nothing listens on: no route from this runner.
+    fs::write(
+        release.root.join(".agent/release-downstreams.json"),
+        json!({
+            "github": {"api": "http://127.0.0.1:1", "uploads": "http://127.0.0.1:1", "repository": "corbet-fsl/ccvl"},
+            "gitlab": {"api": "http://127.0.0.1:1", "project": "corbet-fsl/ccvl"},
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let tokens = release.temp.path().join("tokens.json");
+    fs::write(
+        &tokens,
+        json!({"github": "fixture-github-token", "gitlab": "fixture-gitlab-token"}).to_string(),
+    )
+    .unwrap();
+    for (tokens_file, expected) in [
+        ("", "skipped: no upload token"),
+        (
+            tokens.to_str().unwrap(),
+            "is not reachable from this runner",
+        ),
+    ] {
+        let result = Command::new("bash")
+            .arg(&script)
+            .arg(&release.output)
+            .env_clear()
+            .envs(
+                std::env::vars()
+                    .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
+            )
+            .env("CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE", tokens_file)
+            .current_dir(&release.root)
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{}", text(&result));
+        let combined = text(&result);
+        assert_eq!(combined.matches(expected).count(), 2, "{combined}");
+        assert!(!combined.contains("fixture-github-token"), "{combined}");
+    }
 }
 
-struct ArchiveExecutor {
+/// The archive gate selects its minimal executor; the check itself stays the
+/// verified script of the checkout.
+struct ArchiveGate {
     temp: TempDir,
     dist: PathBuf,
     marker: PathBuf,
     executor: PathBuf,
-    command: String,
-    env: Vec<(String, String)>,
 }
 
-fn dedent(text: &str) -> String {
-    let margin = text
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| line.len() - line.trim_start().len())
-        .min()
-        .unwrap_or(0);
-    text.lines()
-        .map(|line| line.get(margin..).unwrap_or(""))
-        .collect::<Vec<_>>()
-        .join("\n")
-        + "\n"
-}
-
-impl ArchiveExecutor {
+impl ArchiveGate {
     fn new() -> Self {
         let temp = tempfile::Builder::new()
-            .prefix("ccvl-archive-adapter-test-")
+            .prefix("ccvl-archive-gate-test-")
             .tempdir()
             .unwrap();
         let root = temp.path().to_path_buf();
+        let scripts = root.join("repo/.agent/scripts");
+        fs::create_dir_all(&scripts).unwrap();
         let dist = root.join("package directory");
         fs::create_dir_all(&dist).unwrap();
-        let marker = root.join("gate-called");
-        let gate = b"#!/usr/bin/env bash\nset -eu\ntest \"$1\" = \"$EXPECTED_DIST\"\nprintf gate > \"$GATE_MARKER\"\n";
-        let archive = root.join("source.tar");
-        fs::write(
-            &archive,
-            ccvl::archive::write([(
-                ".agent/scripts/check-release-archive.sh",
-                0o644,
-                gate.as_slice(),
-            )]),
+        fs::copy(
+            repository().join(".agent/scripts/archive-gate.sh"),
+            scripts.join("archive-gate.sh"),
         )
         .unwrap();
-        let workflow = fs::read_to_string(repository().join(".crow/release-archive.yaml")).unwrap();
-        let command = dedent(workflow.split_once("      - |\n").unwrap().1);
+        fs::write(
+            scripts.join("check-release-archive.sh"),
+            "#!/usr/bin/env bash\nset -eu\ntest \"$1\" = \"$EXPECTED_DIST\"\nprintf gate >> \"$GATE_MARKER\"\n",
+        )
+        .unwrap();
+        // Stands in for the built-in minimal executor: it only records its call.
+        fs::write(
+            scripts.join("archive-executor.sh"),
+            "#!/usr/bin/env bash\nset -eu\nprintf builtin > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
+        )
+        .unwrap();
         let executor = root.join("external executor");
         fs::write(
             &executor,
-            "#!/usr/bin/env bash\nset -eu\ntest \"$0\" != \"$ORIGINAL_EXECUTOR\"\nprintf executor > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
+            "#!/usr/bin/env bash\nset -eu\ntest \"$0\" != \"$ORIGINAL_EXECUTOR\"\nprintf external > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
         )
         .unwrap();
-        let env = [
-            ("CI_REPO", "corbet-fsl/ccvl".to_owned()),
-            ("SOURCE_ARCHIVE", archive.display().to_string()),
-            ("SOURCE_SHA256", file_hash(&archive)),
-            ("CCVL_RELEASE_DIR", dist.display().to_string()),
-            ("EXPECTED_DIST", dist.display().to_string()),
-            ("GATE_MARKER", marker.display().to_string()),
-            (
-                "EXECUTOR_MARKER",
-                root.join("executor-called").display().to_string(),
-            ),
-            ("ORIGINAL_EXECUTOR", executor.display().to_string()),
-            ("ARCHIVE_EXECUTOR", String::new()),
-            ("ARCHIVE_EXECUTOR_SHA256", String::new()),
-        ]
-        .into_iter()
-        .map(|(key, value)| (key.to_owned(), value))
-        .collect();
         Self {
-            temp,
+            marker: root.join("gate-called"),
             dist,
-            marker,
             executor,
-            command,
-            env,
+            temp,
         }
     }
 
     fn invoke(&self, changes: &[(&str, &str)]) -> Output {
+        let root = self.temp.path();
         for _ in 0..20 {
             let output = Command::new("bash")
-                .args(["-c", &self.command])
-                .envs(self.env.iter().map(|(key, value)| (key, value)))
+                .arg(root.join("repo/.agent/scripts/archive-gate.sh"))
+                .arg(&self.dist)
+                .env_clear()
+                .envs(
+                    std::env::vars()
+                        .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
+                )
+                .env("EXPECTED_DIST", &self.dist)
+                .env("GATE_MARKER", &self.marker)
+                .env("EXECUTOR_MARKER", root.join("executor-called"))
+                .env("ORIGINAL_EXECUTOR", &self.executor)
                 .envs(changes.iter().copied())
                 .output();
             match output {
@@ -1000,27 +1403,29 @@ impl ArchiveExecutor {
                 other => return other.unwrap(),
             }
         }
-        panic!("archive adapter stayed busy");
+        panic!("archive gate stayed busy");
     }
 
-    fn executor_called(&self) -> bool {
-        self.temp.path().join("executor-called").exists()
+    fn executor_called(&self) -> Option<String> {
+        fs::read_to_string(self.temp.path().join("executor-called")).ok()
     }
 }
 
 #[test]
-fn default_route_runs_verified_check_directly() {
-    let fixture = ArchiveExecutor::new();
-    let result = fixture.invoke(&[]);
+fn a_minimal_worker_runs_the_verified_check_directly_and_others_use_the_builtin_executor() {
+    let fixture = ArchiveGate::new();
+    let result = fixture.invoke(&[("CCVL_ARCHIVE_EXECUTOR", "direct")]);
     assert!(result.status.success(), "{}", text(&result));
     assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
-    assert!(!fixture.executor_called());
-    let _ = &fixture.dist;
+    assert_eq!(fixture.executor_called(), None);
+    let result = fixture.invoke(&[]);
+    assert!(result.status.success(), "{}", text(&result));
+    assert_eq!(fixture.executor_called().as_deref(), Some("builtin"));
 }
 
 #[test]
 fn verified_executor_snapshot_receives_unchanged_check_and_package() {
-    let fixture = ArchiveExecutor::new();
+    let fixture = ArchiveGate::new();
     let executor = fixture.executor.display().to_string();
     let result = fixture.invoke(&[
         ("ARCHIVE_EXECUTOR", &executor),
@@ -1028,15 +1433,12 @@ fn verified_executor_snapshot_receives_unchanged_check_and_package() {
     ]);
     assert!(result.status.success(), "{}", text(&result));
     assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
-    assert_eq!(
-        fs::read_to_string(fixture.temp.path().join("executor-called")).unwrap(),
-        "executor"
-    );
+    assert_eq!(fixture.executor_called().as_deref(), Some("external"));
 }
 
 #[test]
 fn incomplete_changed_or_untrusted_executor_never_executes() {
-    let fixture = ArchiveExecutor::new();
+    let fixture = ArchiveGate::new();
     let checksum = file_hash(&fixture.executor);
     let executor = fixture.executor.display().to_string();
     let link = fixture.temp.path().join("executor-link");
@@ -1054,16 +1456,11 @@ fn incomplete_changed_or_untrusted_executor_never_executes() {
             ("ARCHIVE_EXECUTOR", &link),
             ("ARCHIVE_EXECUTOR_SHA256", &checksum),
         ],
-        vec![
-            ("ARCHIVE_EXECUTOR", &executor),
-            ("ARCHIVE_EXECUTOR_SHA256", &checksum),
-            ("SOURCE_SHA256", &zeros),
-        ],
     ];
     for inputs in cases {
         let result = fixture.invoke(&inputs);
         assert!(!result.status.success(), "{inputs:?}: {}", text(&result));
         assert!(!fixture.marker.exists());
-        assert!(!fixture.executor_called());
+        assert_eq!(fixture.executor_called(), None);
     }
 }

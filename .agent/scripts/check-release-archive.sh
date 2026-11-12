@@ -19,9 +19,6 @@ sha="$(field source_commit)"
 [[ $(field repository) == corbet-fsl/ccvl && $(field platform) == linux-x86_64 && $(field rust_host) == x86_64-unknown-linux-gnu ]] || exit 2
 source_hash="$(field source_sha256)"
 archive_hash="$(field source_archive_sha256)"
-if [[ -n ${SOURCE_SHA256:-} && "$archive_hash" != "$SOURCE_SHA256" ]]; then
-  echo 'Archive gate source archive differs from its native package.' >&2; exit 2
-fi
 lock_hash="$(field cargo_lock_sha256)"
 runtime_id="$(field runtime_id)"
 for value in "$source_hash" "$archive_hash" "$lock_hash" "$runtime_id"; do
@@ -35,10 +32,9 @@ cd "$scratch"
 [[ $(sha256sum Cargo.lock | cut -d ' ' -f 1) == "$lock_hash" ]]
 [[ $(.agent/cache/ccvl/bin/ccvl runtime-id) == "$runtime_id" ]]
 bash ./ccvl setup
-provider=gha
-[[ -z ${CI_REPO:-} ]] || provider=crow
-run="${CI_PIPELINE_NUMBER:-${CI_BUILD_NUMBER:-${GITHUB_RUN_ID:-}}}"
-[[ "$run" =~ ^[0-9]+$ ]] || { echo 'Missing CI run identity.' >&2; exit 2; }
+provider=forgejo
+run="${GITHUB_RUN_ID:-}"
+[[ "$run" =~ ^[0-9]+$ && ${FORGEJO_ACTIONS:-} == true ]] || { echo 'Missing Forgejo Actions run identity.' >&2; exit 2; }
 native_hash="$(sha256sum "$receipt" | cut -d ' ' -f 1)"
 cat > "$scratch/gate-archive.json" <<EOF
 {

@@ -121,14 +121,21 @@ partial_output="$(
 [[ "$partial_output" == *'ccvl binary: install'* ]]
 [[ "$partial_output" == *'missing bootstrap commands: none'* ]]
 
-# A known developer target is not a promise that a prebuilt release exists.
+# A known developer target is not a promise that a prebuilt release exists: the
+# release platform policy decides. Every target is released today, so a copy of
+# the scripts under a Linux-x86_64-only policy stands in for an unreleased one.
+policy_root="$scratch/policy-root"
+mkdir -p "$policy_root/.agent"
+cp -r "$repo_root/.agent/scripts" "$policy_root/.agent/scripts"
+cp "$repo_root/Cargo.toml" "$repo_root/rust-toolchain.toml" "$repo_root/ccvl.json" "$policy_root/"
+printf 'linux-x86_64\n' > "$policy_root/.agent/release-platforms.txt"
 for unreleased_platform in Linux-aarch64 Darwin-aarch64 Darwin-x86_64; do
   unsupported_cache="$scratch/unreleased-$unreleased_platform"
   if unsupported_output="$(
     CCVL_BOOTSTRAP_PROBE_PATH="$partial_bin" \
     CCVL_BOOTSTRAP_CACHE_ROOT="$unsupported_cache" \
     CCVL_BOOTSTRAP_TEST_PLATFORM="$unreleased_platform" \
-      bash "$repo_root/.agent/scripts/bootstrap.sh" plan 2>&1
+      bash "$policy_root/.agent/scripts/bootstrap.sh" plan 2>&1
   )"; then
     printf 'An unavailable prebuilt platform must fail before setup.\n' >&2
     exit 1
@@ -140,9 +147,19 @@ for unreleased_platform in Linux-aarch64 Darwin-aarch64 Darwin-x86_64; do
     CCVL_BOOTSTRAP_PROBE_PATH="$partial_bin" \
     CCVL_BOOTSTRAP_CACHE_ROOT="$unsupported_cache" \
     CCVL_BOOTSTRAP_TEST_PLATFORM="$unreleased_platform" \
-      bash "$repo_root/.agent/scripts/bootstrap.sh" plan
+      bash "$policy_root/.agent/scripts/bootstrap.sh" plan
   )"
   [[ "$ready_output" == *'ccvl binary: ready'* ]]
+done
+# With the real policy every target plans a prebuilt download.
+for released_platform in Linux-aarch64 Darwin-aarch64 Darwin-x86_64; do
+  released_output="$(
+    CCVL_BOOTSTRAP_PROBE_PATH="$partial_bin" \
+    CCVL_BOOTSTRAP_CACHE_ROOT="$scratch/released-$released_platform" \
+    CCVL_BOOTSTRAP_TEST_PLATFORM="$released_platform" \
+      bash "$repo_root/.agent/scripts/bootstrap.sh" plan 2>&1
+  )"
+  [[ "$released_output" == *'ccvl binary: install'* ]]
 done
 
 managed_cache="$scratch/managed-cache"

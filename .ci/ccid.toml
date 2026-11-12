@@ -60,6 +60,14 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "release-native"]]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-linux-deep"]]
 
+[checks.release-cross]
+kind = "commands"
+commands = [["bash", ".agent/scripts/ci-check.sh", "release-cross"]]
+
+[checks.release-archive]
+kind = "commands"
+commands = [["bash", ".agent/scripts/ci-check.sh", "release-archive"]]
+
 [checks.release-check]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-check"]]
@@ -67,6 +75,10 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "release-check"]]
 [checks.release-publish]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-publish"]]
+
+[checks.release-promote]
+kind = "commands"
+commands = [["bash", ".agent/scripts/ci-check.sh", "release-promote"]]
 
 [checks.core-package]
 kind = "commands"
@@ -110,4 +122,24 @@ runs_on = "linux"
 checks = ["skill-eval-build", "skill-eval"]
 command = ["ccid:run-declared-checks"]
 workflow = "skill-eval"
+events = ["manual"]
+
+# One run builds, verifies and drafts the release of the exact main commit; the
+# stages run in this order on one runner and are never reused from a cache.
+[jobs.release]
+scheduler = "forgejo"
+runs_on = "linux"
+checks = ["release-rust", "release-lint", "release-native", "release-cross", "release-linux-deep", "release-archive", "release-check", "release-publish"]
+workflow = "release"
+command = ["bash", ".ci/run-release.sh"]
+events = ["manual"]
+
+# Promotion is its own explicit run: it re-checks the drafts, makes them public and
+# copies them downstream. Nothing is built here.
+[jobs.release-promote]
+scheduler = "forgejo"
+runs_on = "linux"
+checks = ["release-promote"]
+workflow = "release-promote"
+command = ["bash", ".ci/run-release.sh"]
 events = ["manual"]

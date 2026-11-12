@@ -1,27 +1,34 @@
 #!/usr/bin/env bash
-# Release stages on existing workers; no installation, cross-build, or scheduler.
+# Release stages on a Forgejo runner; no installation, no scheduler of its own.
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
-action="${1:?Usage: release-ci.sh rust|lint|native|linux-deep|archive|check|publish}"
-if [[ -n ${CI_REPO:-} ]]; then
-  [[ "$CI_REPO" == corbet-fsl/ccvl && ${CI_COMMIT_BRANCH:-} == main ]] || {
-    echo 'Crow release stages require public ccvl main.' >&2; exit 2;
+action="${1:?Usage: release-ci.sh rust|lint|native|cross|linux-deep|archive|check|publish|promote}"
+if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
+  [[ ${GITHUB_REPOSITORY:-} == corbet-fsl/ccvl && ${GITHUB_REF_NAME:-} == main ]] || {
+    echo 'Forgejo release stages require public ccvl main.' >&2; exit 2;
   }
   [[ -n ${CARGO_TARGET_DIR:-} && ${CCID_TARGET_LOCK_HELD:-} == "$CARGO_TARGET_DIR" ]] || {
-    echo 'Crow release stages require the verified ccid target lock.' >&2; exit 2;
+    echo 'Forgejo release stages require the verified ccid target lock.' >&2; exit 2;
   }
 fi
-if [[ "$action" != publish && -n ${GH_TOKEN:-}${GITHUB_TOKEN:-} ]]; then
-  echo 'Publication credentials are allowed only in the publish stage.' >&2; exit 2
+# The job's own token is the forge's per-job credential and is always present;
+# any other publication credential has no business here.
+if [[ -n ${GH_TOKEN:-} ]]; then
+  echo 'Publication credentials are not accepted by the release stages.' >&2; exit 2
+fi
+# The runner-level downstream credential is read by the promote stage only: no
+# build, test or repository script runs with its location in the environment.
+if [[ "$action" != promote ]]; then
+  unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
 fi
 if [[ -z ${CCVL_RELEASE_DIR:-} ]]; then
   : "${CARGO_TARGET_DIR:?Set CCVL_RELEASE_DIR or the locked Cargo target}"
   : "${CI_COMMIT_SHA:?Missing source commit}"
-  run="${CI_PIPELINE_NUMBER:-${CI_BUILD_NUMBER:-}}"
-  : "${run:?Missing Crow run number}"
+  run="${GITHUB_RUN_ID:-}"
+  : "${run:?Missing Forgejo run number}"
   CCVL_RELEASE_DIR="$CARGO_TARGET_DIR/ccvl-release/$CI_COMMIT_SHA/$run"
 fi
 mkdir -p "$CCVL_RELEASE_DIR"
@@ -38,7 +45,16 @@ case "$action" in
     release_evidence gate "$action" --output "$CCVL_RELEASE_DIR"
     ;;
   native)
-    bash .agent/scripts/native-release.sh "${CCVL_RELEASE_PLATFORM:?Select an actual native platform}" "$CCVL_RELEASE_DIR"
+    # Built portably and run on this host: the platform that has a test executor.
+    bash .agent/scripts/native-release.sh "${CCVL_RELEASE_PLATFORM:-linux-x86_64}" "$CCVL_RELEASE_DIR"
+    ;;
+  cross)
+    # Built here for platforms nothing here can run: ARM64 (never run anywhere
+    # yet), and x86_64 Windows until its test executor exists. macOS waits for
+    # the macOS build clone and stays pending.
+    for platform in linux-aarch64 windows-x86_64 windows-arm64; do
+      bash .agent/scripts/cross-release.sh "$platform" "$CCVL_RELEASE_DIR"
+    done
     ;;
   linux-deep)
     [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo 'Linux x86_64 verification worker required.' >&2; exit 2; }
@@ -51,15 +67,19 @@ case "$action" in
     release_evidence gate linux-deep --output "$CCVL_RELEASE_DIR"
     ;;
   archive)
-    # This stage must run inside an already provided minimal executor. Do not
-    # hide tools with PATH: absence is an executor property, not a mock test.
-    bash .agent/scripts/check-release-archive.sh "$CCVL_RELEASE_DIR"
+    # The real downloaded bundle must run where Git and Rust do not exist.
+    bash .agent/scripts/archive-gate.sh "$CCVL_RELEASE_DIR"
     ;;
   check)
     release_evidence check --output "$CCVL_RELEASE_DIR"
     ;;
   publish)
+    # Complete DRAFT releases on the forge; publishing them is the promote stage.
     bash .agent/scripts/publish-release.sh "$CCVL_RELEASE_DIR"
+    ;;
+  promote)
+    # Make the verified drafts of this exact commit public, then copy downstream.
+    bash .agent/scripts/publish-release.sh --promote "$CCVL_RELEASE_DIR"
     ;;
   *) echo "Unknown release stage: $action" >&2; exit 2 ;;
 esac

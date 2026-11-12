@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Native release validation shared by GHA and provisioned Crow workers.
+# Native release validation on a platform that can run what it builds.
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 platform="${1:?Usage: native-release.sh PLATFORM OUTPUT}"
 output="${2:?Missing package output directory}"
-[[ -z ${GH_TOKEN:-}${GITHUB_TOKEN:-} ]] || { echo 'Publication credentials must not reach the native build.' >&2; exit 2; }
-if [[ -n ${CI_REPO:-} ]]; then
+# The job's own token is always present on a Forgejo runner; no other publication
+# credential, and not the runner-level downstream credential, reaches a build.
+[[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the native build.' >&2; exit 2; }
+unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
+if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   [[ -n ${CARGO_TARGET_DIR:-} && ${CCID_TARGET_LOCK_HELD:-} == "$CARGO_TARGET_DIR" ]] || {
-    echo 'Crow native builds require the verified ccid target lock.' >&2; exit 2;
+    echo 'Forgejo native builds require the verified ccid target lock.' >&2; exit 2;
   }
 fi
 # shellcheck source=.agent/scripts/rust-toolchain.sh
@@ -43,9 +46,26 @@ exe=ccvl
 # Explicitly build for the verified compiler's native host, ignoring configured cross targets.
 # Thin LTO and one codegen unit are release flags in a cargo config file, not a
 # manifest [profile] table (build-efficiency rule 2).
-"${CCVL_CARGO_COMMAND[@]}" build --locked --release \
-  --config .cargo/release-profile.toml --target "$host"
+if [[ $native_os == Linux && ${FORGEJO_ACTIONS:-} == true ]]; then
+  # A release binary must run on an ordinary glibc Linux, not only inside the
+  # runner's Nix store: zig links it against a glibc 2.39 baseline and the system
+  # loader. The platform is still built, tested and run on this host.
+  "${CCVL_CARGO_COMMAND[@]}" zigbuild --locked --release \
+    --config .cargo/release-profile.toml --target "$host.2.39"
+else
+  "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
+    --config .cargo/release-profile.toml --target "$host"
+fi
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$host/release/$exe"
+if [[ $native_os == Linux && ${FORGEJO_ACTIONS:-} == true ]]; then
+  interpreter="$(readelf -l "$binary" | sed -n 's/.*Requesting program interpreter: \(.*\)]/\1/p')"
+  [[ "$interpreter" == /lib64/ld-linux-x86-64.so.2 ]] || {
+    echo "The release binary is linked to $interpreter, not the system loader." >&2; exit 2;
+  }
+  if readelf -d "$binary" | grep -Eq '(RPATH|RUNPATH).*/nix/store'; then
+    echo 'The release binary carries a Nix store library path.' >&2; exit 2
+  fi
+fi
 # The tested binary verifies the exact source before any evidence is written.
 export CCVL_RELEASE_EVIDENCE_BIN="$binary"
 # shellcheck source=.agent/scripts/release-evidence.sh

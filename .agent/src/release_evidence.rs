@@ -19,15 +19,50 @@ use crate::archive::{
 
 const REPOSITORY: &str = "corbet-fsl/ccvl";
 
-/// Release platform names and the Rust host triple each requires.
-pub const PLATFORMS: [(&str, &str); 6] = [
-    ("linux-x86_64", "x86_64-unknown-linux-gnu"),
-    ("linux-aarch64", "aarch64-unknown-linux-gnu"),
-    ("macos-x86_64", "x86_64-apple-darwin"),
-    ("macos-arm64", "aarch64-apple-darwin"),
-    ("windows-x86_64", "x86_64-pc-windows-msvc"),
-    ("windows-arm64", "aarch64-pc-windows-msvc"),
+/// What the release holds for one platform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Plan {
+    /// Built and run on its own platform: only a `native` receipt satisfies it.
+    Native,
+    /// Built and run on its own platform once that executor exists. Until then a
+    /// `cross` receipt (built, tests pending) is accepted.
+    NativeWhenAvailable,
+    /// Built for a platform nothing here can run (there is no native ARM64
+    /// executor and no emulation): only a `cross` receipt, never a test claim.
+    BuiltOnly,
+}
+
+/// Release platform names, the Rust target triple each is built for, and the
+/// evidence each holds. Windows is built for the GNU ABI (zig links it without
+/// the Microsoft SDK); the MSVC ABI would need that SDK on the runner.
+pub const PLATFORMS: [(&str, &str, Plan); 6] = [
+    ("linux-x86_64", "x86_64-unknown-linux-gnu", Plan::Native),
+    (
+        "linux-aarch64",
+        "aarch64-unknown-linux-gnu",
+        Plan::BuiltOnly,
+    ),
+    (
+        "macos-x86_64",
+        "x86_64-apple-darwin",
+        Plan::NativeWhenAvailable,
+    ),
+    ("macos-arm64", "aarch64-apple-darwin", Plan::BuiltOnly),
+    (
+        "windows-x86_64",
+        "x86_64-pc-windows-gnu",
+        Plan::NativeWhenAvailable,
+    ),
+    (
+        "windows-arm64",
+        "aarch64-pc-windows-gnullvm",
+        Plan::BuiltOnly,
+    ),
 ];
+/// Platforms whose build executor does not exist yet (the macOS build clone is
+/// stage 5 of the runner rollout). Without a receipt they are `pending` and the
+/// release still completes; remove them from this list when the executor exists.
+pub const PENDING_ALLOWED: [&str; 2] = ["macos-x86_64", "macos-arm64"];
 pub const GATES: [&str; 4] = ["rust", "lint", "linux-deep", "archive"];
 
 #[derive(Debug, Subcommand)]
@@ -53,6 +88,24 @@ pub enum Command {
         #[arg(long)]
         output: PathBuf,
     },
+    /// Package one cross-built executable (built, never run here) with its receipt.
+    Cross {
+        #[arg(long, value_parser = platform_names())]
+        platform: String,
+        #[arg(long)]
+        binary: PathBuf,
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        rustc: String,
+        #[arg(long)]
+        cargo: String,
+        /// Identity of the cross toolchain (for example `cargo-zigbuild 0.20 zig 0.16`).
+        #[arg(long)]
+        tool: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Record one release gate receipt.
     Gate {
         #[arg(value_parser = GATES)]
@@ -70,14 +123,21 @@ pub enum Command {
 }
 
 fn platform_names() -> Vec<&'static str> {
-    PLATFORMS.iter().map(|(name, _)| *name).collect()
+    PLATFORMS.iter().map(|(name, _, _)| *name).collect()
 }
 
 fn host_of(platform: &str) -> Option<&'static str> {
     PLATFORMS
         .iter()
-        .find(|(name, _)| *name == platform)
-        .map(|(_, host)| *host)
+        .find(|(name, _, _)| *name == platform)
+        .map(|(_, host, _)| *host)
+}
+
+fn plan_of(platform: &str) -> Option<Plan> {
+    PLATFORMS
+        .iter()
+        .find(|(name, _, _)| *name == platform)
+        .map(|(_, _, plan)| *plan)
 }
 
 fn fail<T>(message: impl Into<String>) -> Result<T> {
@@ -132,6 +192,28 @@ pub fn execute(root: &Path, env: &Env, command: &Command) -> Result<()> {
                 rustc,
                 cargo,
                 output,
+                tool: None,
+            },
+        )?,
+        Command::Cross {
+            platform,
+            binary,
+            host,
+            rustc,
+            cargo,
+            tool,
+            output,
+        } => native(
+            root,
+            env,
+            &NativeArguments {
+                platform,
+                binary,
+                host,
+                rustc,
+                cargo,
+                output,
+                tool: Some(tool),
             },
         )?,
         Command::Gate { gate: name, output } => gate(root, env, name, output)?,
@@ -230,9 +312,7 @@ fn git(root: &Path, args: &[&str]) -> Result<String> {
 
 /// Verify that the checkout is the exact CI source and derive its identity.
 fn source(root: &Path, env: &Env) -> Result<(Identity, SourceFiles)> {
-    let repository = env
-        .first_nonempty(&["CI_REPO", "GITHUB_REPOSITORY"])
-        .unwrap_or_default();
+    let repository = env.nonempty("GITHUB_REPOSITORY").unwrap_or_default();
     if repository != REPOSITORY {
         return fail("Release work requires the public corbet-fsl/ccvl repository.");
     }
@@ -411,18 +491,17 @@ fn load(path: &Path) -> Result<Value> {
     serde_json::from_str(&text).with_context(|| format!("invalid JSON in {}", path.display()))
 }
 
+/// The Forgejo Actions run that produced the evidence: it is the only CI engine.
 fn provenance(env: &Env) -> Result<Map<String, Value>> {
-    let provider = if env.nonempty("CI_REPO").is_some() {
-        "crow"
-    } else {
-        "gha"
-    };
-    let Some(run) = env.first_nonempty(&["CI_PIPELINE_NUMBER", "CI_BUILD_NUMBER", "GITHUB_RUN_ID"])
+    let Some(run) = env
+        .nonempty("GITHUB_RUN_ID")
+        .filter(|run| run.bytes().all(|byte| byte.is_ascii_digit()))
+        .filter(|_| env.get("FORGEJO_ACTIONS") == Some("true"))
     else {
-        return fail("A CI run identity is required.");
+        return fail("A Forgejo Actions run identity is required.");
     };
     let mut map = Map::new();
-    map.insert("provider".into(), provider.into());
+    map.insert("provider".into(), "forgejo".into());
     map.insert("run".into(), run.into());
     Ok(map)
 }
@@ -438,6 +517,17 @@ struct NativeArguments<'a> {
     rustc: &'a str,
     cargo: &'a str,
     output: &'a Path,
+    /// The cross toolchain when the executable was built for another platform
+    /// and can not be run here; `None` for an executable that ran.
+    tool: Option<&'a str>,
+}
+
+/// A cross-built executable is not run; it is verified to embed the identity of
+/// the verified source (the runtime id is a string constant of the binary).
+fn embeds_identity(binary: &Path, runtime_id: &str) -> Result<bool> {
+    let bytes = fs::read(binary).with_context(|| format!("cannot read {}", binary.display()))?;
+    let needle = runtime_id.as_bytes();
+    Ok(bytes.windows(needle.len()).any(|window| window == needle))
 }
 
 fn native(root: &Path, env: &Env, arguments: &NativeArguments) -> Result<()> {
@@ -445,9 +535,24 @@ fn native(root: &Path, env: &Env, arguments: &NativeArguments) -> Result<()> {
     if host_of(arguments.platform) != Some(arguments.host) {
         return fail("Rust compiler host does not match the requested native platform.");
     }
+    match (plan_of(arguments.platform), arguments.tool) {
+        (Some(Plan::BuiltOnly), None) => {
+            return fail(
+                "This platform is built only and never run; it can not carry native evidence.",
+            );
+        }
+        (Some(Plan::Native), Some(_)) => {
+            return fail("This platform requires native evidence; a cross build can not stand in.");
+        }
+        _ => {}
+    }
     let binary = absolute(arguments.binary)?;
     let binary = binary.canonicalize().unwrap_or(binary);
-    if command_text(root, &binary, &["runtime-id"])? != identity.runtime_id {
+    if arguments.tool.is_some() {
+        if !embeds_identity(&binary, &identity.runtime_id)? {
+            return fail("Cross-built runtime does not embed the verified source identity.");
+        }
+    } else if command_text(root, &binary, &["runtime-id"])? != identity.runtime_id {
         return fail("Compiled runtime differs from the verified source.");
     }
     fs::create_dir_all(arguments.output)?;
@@ -502,16 +607,26 @@ fn native(root: &Path, env: &Env, arguments: &NativeArguments) -> Result<()> {
     )?;
     let mut receipt = identity.map();
     receipt.extend(provenance(env)?);
+    let (kind, checks) = if arguments.tool.is_some() {
+        ("cross", json!(["cross-build"]))
+    } else {
+        ("native", json!(["public-check", "native-runtime"]))
+    };
     for (key, value) in [
-        ("kind", json!("native")),
+        ("kind", json!(kind)),
         ("platform", json!(platform)),
         ("rust_host", json!(arguments.host)),
         ("rustc", json!(arguments.rustc)),
         ("cargo", json!(arguments.cargo)),
-        ("checks", json!(["public-check", "native-runtime"])),
+        ("checks", checks),
         ("assets", json!(assets)),
     ] {
         receipt.insert(key.into(), value);
+    }
+    if let Some(tool) = arguments.tool {
+        // Built, not tested: the executable was never run.
+        receipt.insert("tested".into(), json!(false));
+        receipt.insert("tool".into(), json!(tool));
     }
     write_json(
         &output.join(format!("ccvl-{platform}.receipt.json")),
@@ -551,7 +666,7 @@ fn truthy(value: Option<&Value>) -> bool {
 fn has_provenance(receipt: &Value) -> bool {
     matches!(
         receipt.get("provider").and_then(Value::as_str),
-        Some("crow" | "gha")
+        Some("forgejo")
     ) && truthy(receipt.get("run"))
 }
 
@@ -576,23 +691,46 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
     }
     let mut receipts = BTreeMap::new();
     let mut runtimes = Map::new();
+    // What the release holds per platform: `tested` (built and run on its own
+    // platform), `built` (cross-built, never run: ARM64 by design, x86_64 until its
+    // test executor exists) or `pending` (no executor yet; the release completes).
+    let mut states = Map::new();
     for platform in &platforms {
         let host = host_of(platform).unwrap_or_default();
+        let plan = plan_of(platform).unwrap_or(Plan::Native);
         let file = format!("ccvl-{platform}.receipt.json");
         let path = output.join(&file);
+        if !path.exists() && PENDING_ALLOWED.contains(&platform.as_str()) {
+            states.insert(platform.clone(), json!("pending"));
+            continue;
+        }
         let receipt = load(&path)?;
         identity_equal(&receipt, &identity)?;
         let field = |name: &str| receipt.get(name).and_then(Value::as_str);
-        if (field("kind"), field("platform"), field("rust_host"))
-            != (Some("native"), Some(platform.as_str()), Some(host))
-        {
+        let (kind, state, checks) = match (plan, field("kind")) {
+            (Plan::Native | Plan::NativeWhenAvailable, Some("native")) => (
+                "native",
+                "tested",
+                json!(["public-check", "native-runtime"]),
+            ),
+            (Plan::NativeWhenAvailable | Plan::BuiltOnly, Some("cross")) => {
+                ("cross", "built", json!(["cross-build"]))
+            }
+            _ => return fail(format!("Missing native platform evidence: {platform}")),
+        };
+        if (field("platform"), field("rust_host")) != (Some(platform.as_str()), Some(host)) {
             return fail(format!("Missing native platform evidence: {platform}"));
         }
-        if receipt.get("checks") != Some(&json!(["public-check", "native-runtime"]))
+        if receipt.get("checks") != Some(&checks)
             || !truthy(receipt.get("rustc"))
             || !truthy(receipt.get("cargo"))
         {
             return fail(format!("Incomplete native check evidence: {platform}"));
+        }
+        if kind == "cross"
+            && (receipt.get("tested") != Some(&json!(false)) || !truthy(receipt.get("tool")))
+        {
+            return fail(format!("Incomplete cross-build evidence: {platform}"));
         }
         if !has_provenance(&receipt) {
             return fail(format!("Missing native run provenance: {platform}"));
@@ -626,9 +764,10 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
             return fail(format!("Runtime identity mismatch: {platform}"));
         }
         receipts.insert(file, file_sha256(&path)?);
+        states.insert(platform.clone(), json!(state));
         runtimes.insert(
             platform.clone(),
-            json!({"binary_sha256": assets[&name], "rust_host": host}),
+            json!({"binary_sha256": assets[&name], "rust_host": host, "state": state}),
         );
     }
     for name in GATES {
@@ -655,6 +794,7 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
     }
     let mut manifest = identity.map();
     manifest.insert("platforms".into(), json!(platforms));
+    manifest.insert("platform_states".into(), Value::Object(states.clone()));
     manifest.insert("receipts".into(), json!(receipts));
     write_json(&output.join("manifest.json"), &Value::Object(manifest))?;
     write_json(
@@ -664,6 +804,7 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
             "runtime_id": identity.runtime_id,
             "cargo_lock_sha256": identity.cargo_lock_sha256,
             "platforms": runtimes,
+            "platform_states": states,
         }),
     )?;
     println!("{} {}", identity.source_commit, identity.runtime_id);

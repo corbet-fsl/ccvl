@@ -8,29 +8,52 @@ neither Git nor Rust is required.
 
 ## Required delivery path
 
-Eligible public hosted CI runners remain supported and preferred when available.
-Crow independently provides release preparation and publication; delivery does
-not wait for hosted CI. Routine pushes and pull requests run applicable
-source checks when hosted CI is available; Crow provides explicit equivalent
-checks. Releases remain manual actions. Both providers call the same native
-build, package and publication scripts.
-Current stable Rust is selected without an exact compiler pin; Crow uses an
-already provisioned compatible compiler and never installs one implicitly.
+Forgejo is the single source and the only place a release is built. The `release`
+workflow of `corbet-fsl/ccvl` runs on our own `linux` runners: it builds, verifies
+and drafts the release of the exact `main` commit. The separate `release-promote`
+workflow then makes the verified drafts public and copies them to GitHub and
+GitLab. Both are manual actions. The GitHub mirror runs the checks of pull
+requests on GitHub's own compute and never builds or publishes a release.
+Current stable Rust is selected without an exact compiler pin; the runner keeps
+it in persistent storage and every receipt records the actual compiler version.
 
-The explicit released platform set is **Linux x86_64**, declared in
-`.agent/release-platforms.txt` and listed by
-`ccvl release-evidence platforms`. Missing artifacts never
-shrink that set. Linux ARM64, both macOS architectures and both Windows
-architectures have no verified prebuilt release. Their native developer paths
-and hosted CI runner mappings remain available. Any future advertised target
-needs its own native proof; either provider can supply eligible evidence.
+The explicit released platform set is declared in `.agent/release-platforms.txt`
+and listed by `ccvl release-evidence platforms`. Missing artifacts never shrink
+that set. Each platform holds one of three states:
 
-For every released target, the native command verifies the running
-OS/architecture and compiler host, builds the locked native target, then runs
-public document and native runtime checks before packaging. Cross-compilation
-is not native evidence. Linux independent PDF verification reuses that exact
-executable. Rust tests, Clippy, workflow/shell/license checks and the real
-Git/Rust-free archive executor are separate required gates.
+| State | Platforms | Evidence |
+|---|---|---|
+| `tested` | linux-x86_64 | built on the runner, then run there: public check and native runtime checks |
+| `built` | linux-aarch64, windows-x86_64, windows-arm64 | cross-built on the Linux runner, never run there; ARM is never emulated, x86_64 Windows is tested later in its Windows build clone |
+| `pending` | macos-x86_64, macos-arm64 | no executor yet; the release completes without them and records the state |
+
+A `built` platform never claims tests, and a `pending` one has no asset. The
+cross platforms are linked by `cargo zigbuild` (Windows for the GNU ABI, so no
+Microsoft SDK is needed). The Linux x86_64 binary is linked the same way against
+a glibc 2.39 baseline and the system loader, so it runs on an ordinary Linux and
+not only inside the runner's Nix store.
+
+`cargo zigbuild` was chosen over `cargo xwin` for the Windows targets by
+measurement (2026-11-12, the Windows x86_64 release build, `measure4`):
+
+| Lane | cargo-zigbuild (GNU ABI) | cargo-xwin (MSVC ABI) |
+|---|---|---|
+| CPU | 1395 CPU-s, 209 s wall | 1475 CPU-s, 280 s wall (includes the first SDK download) |
+| RAM | peak 6.2 GiB | peak 8.1 GiB |
+| IO | 965 MiB read | 757 MiB read, plus the SDK download |
+| Storage | +1.4 GiB target | +1.4 GiB target and +1.1 GiB Windows SDK cache |
+
+xwin also downloads the Microsoft CRT and SDK under their licence terms; zig
+needs neither. The price is the GNU ABI, which a Windows user does not notice for
+a console tool. Revisit the choice when the Windows build clone can build MSVC
+natively.
+
+For the tested platform, the native command verifies the running
+OS/architecture and compiler host, builds the locked target, then runs public
+document and native runtime checks before packaging. A cross-build is not native
+evidence. Linux independent PDF verification reuses that exact executable. Rust
+tests, Clippy, workflow/shell/license checks and the real Git/Rust-free archive
+executor are separate required gates.
 
 Each package includes a receipt binding its CI provider/run, exact source
 commit, canonical workspace contents, source archive, Cargo.lock, compiler,
@@ -38,15 +61,17 @@ native host, runtime identity and asset checksums. The publisher requires every
 released platform's receipt and four gate receipts from the same source and
 dependency identity;
 the Linux deep/archive gates additionally identify their exact native receipt.
-Hosted CI and Crow archives may encode tar metadata differently, so canonical source
-file/mode hashes establish equal source contents across providers. Reports are
-retained beside the artifacts. They are trusted CI evidence, not cryptographic
-attestations against a compromised executor.
+Canonical source file/mode hashes establish equal source contents however the
+source archive encodes tar metadata. Reports are retained beside the artifacts.
+They are trusted CI evidence, not cryptographic attestations against a
+compromised executor.
 
-Only publication receives a release credential. It creates a complete draft,
-verifies every remote asset's bytes and then makes the release public. Existing
-assets are never overwritten or deleted, including draft assets. Repeated
-publication verifies matching bytes and uploads only missing draft assets.
+The `release` run ends with complete DRAFT releases on Forgejo, published with
+the job's own token; the drafts are the review point. `release-promote` re-reads
+the drafts of the exact commit, checks the whole set again and makes them public.
+Existing assets are never overwritten or deleted, including draft assets.
+Repeated publication verifies matching bytes and uploads only missing draft
+assets.
 Incomplete published releases, different bytes, missing native results and
 superseded main revisions fail closed. Workspace release assets include full
 native/gate receipts; the runtime release has a stable runtime manifest so a
@@ -62,14 +87,17 @@ separate helper language:
 ccvl release-evidence source [--output FILE]
 ccvl release-evidence native --platform P --binary FILE --host TRIPLE \
   --rustc VERSION --cargo VERSION --output DIR
+ccvl release-evidence cross --platform P --binary FILE --host TRIPLE \
+  --rustc VERSION --cargo VERSION --tool IDENTITY --output DIR
 ccvl release-evidence gate rust|lint|linux-deep|archive --output DIR
 ccvl release-evidence check --output DIR
 ccvl release-evidence platforms
 ```
 
 It runs from the repository root (or `--root DIR`) and reads the CI source
-identity from the environment (`CI_REPO`, `CI_COMMIT_SHA`, `SOURCE_ARCHIVE`,
-`SOURCE_SHA256` and the run number). Failures print the message alone and
+identity from the environment the Forgejo runner provides (`GITHUB_REPOSITORY`,
+`CI_COMMIT_SHA` or `GITHUB_SHA`, an optional `SOURCE_ARCHIVE` with its
+`SOURCE_SHA256`, and `GITHUB_RUN_ID`). Failures print the message alone and
 exit 1. The release scripts reach it through
 `.agent/scripts/release-evidence.sh`: `native-release.sh` first builds the
 host binary and uses that exact tested binary, so no binary has to exist
@@ -78,32 +106,41 @@ with `cargo run --locked` on the already provisioned toolchain. Set
 `CCVL_RELEASE_EVIDENCE_BIN` to a built binary to reuse it instead. Nothing is
 installed implicitly.
 
-## Crow release routes
+## Forgejo release routes
 
-Use the existing shared `crow-ci` dispatcher for committed source staging,
-verified ccid execution, memory admission and the actual persistent Cargo target
-lock. Prefer an eligible available hosted CI execution where it can complete the
-selected work; otherwise use Crow without waiting for hosted CI. Do not dispatch
-duplicate work or treat a real failed check as provider unavailability.
+The workflows are rendered by `ccid` from `.ci/ccid.toml`; edit the manifest,
+never the generated `.forgejo/workflows/*.yml`. Each one is a thin shim that
+hands over to `ccid job-run`, which stages the exact commit, takes the persistent
+Cargo target lock and runs the job command.
 
-| Workflow | Action | Existing executor requirement |
+| Workflow | Action | Runner requirement |
 |---|---|---|
-| `release-linux` | Rust/lint, native Linux x86_64 package, independent PDF gate | Provisioned Linux x86_64 worker and existing tools |
-| `release-archive` | Run the exact bundle with Git and Rust absent | A real minimal Linux x86_64 executor |
-| `release-publish` | Verify every released package and all four gates, then publish immutable releases | Linux worker, existing `gh`/`jq`, publication-only secret |
+| `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, in this order, never reused from a cache | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
+| `release-promote` | re-check the drafts of this commit, make them public, copy them downstream | `linux` runner; the downstream credential |
 
-`release-linux` prints its retained directory under the locked Cargo target,
-keyed by source commit and Crow run. Supply that explicit `CCVL_RELEASE_DIR` to
-later stages. Native jobs use
-`bash .agent/scripts/native-release.sh PLATFORM OUTPUT` and contribute their
-packages/receipts to that directory. A future platform must be explicitly added
-to release policy before it is advertised. Transfer exact files without
-replacing a different existing artifact; run `release-ci.sh check` before publication.
-`release-publish` requires the manual-event repository secret
-`ccvl_release_github_token`; it never compiles with that credential. The current
-publisher script, `.agent/scripts/publish-release.sh`, targets a GitHub-compatible
-release API; it is the only forge-specific release step. Registry or forge
-authorization settings are not changed by these commands.
+`.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, the lint and PDF
+tools) and the three cross targets in the runner's persistent storage, then runs
+each stage through `bash .agent/scripts/ci-check.sh release-<stage>`, which calls
+`release-ci.sh <stage>`. All stages share one directory under the locked Cargo
+target, keyed by source commit and run (`CCVL_RELEASE_DIR`). The native stage uses
+`bash .agent/scripts/native-release.sh PLATFORM OUTPUT` and the cross stage
+`bash .agent/scripts/cross-release.sh PLATFORM OUTPUT`; a future platform is
+added to the release policy before it is advertised. The publisher,
+`.agent/scripts/publish-release.sh`, speaks the Forgejo release API with the
+job's own token and never replaces an existing asset.
+
+### Downstream copies
+
+`release-promote` ends with `.agent/scripts/downstream-release.sh`, which copies
+the public release to the targets in `.agent/release-downstreams.json` (GitHub and
+GitLab; Bitbucket is a git mirror and has no releases). The upload credentials are
+one runner-level secret, loaded as a systemd credential and named by
+`CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE`; they are not per-organisation Forgejo
+secrets, no build stage ever sees the variable, and the file is never printed. A
+runner without that credential skips the copy with a clear `token missing`
+message and the promotion still succeeds. The calls are few and strictly
+sequential (two releases per copy, one upload per asset) to respect the GitHub
+automation pacing policy, and a copy never replaces an existing asset.
 
 An already provisioned sandbox can be selected for `release-archive` with the
 paired `ARCHIVE_EXECUTOR` and `ARCHIVE_EXECUTOR_SHA256` inputs. The workflow
@@ -177,30 +214,26 @@ installing it. It never labels an arbitrary downloaded binary as current and
 never silently falls back to compilation. Developers use `setup --from-source`
 to request a local build with a suitable installed stable compiler, or a
 repository-local stable toolchain when none meets the `Cargo.toml` minimum.
-Hosted release CI installs current stable; Crow reuses a provisioned compatible
-compiler. Both record the actual compiler version.
+The Forgejo runner reuses a provisioned stable compiler in its persistent
+storage and records the actual compiler version.
 The channel file remains part of the runtime source identity; download hashes,
 source fingerprints, every released target's native checks and all four shared
 gates remain mandatory.
 
 ## Reusing work
 
-Crow retains dependencies in dedicated, locked Cargo storage keyed by repository
-identity. On hosted CI, the pinned Rust cache action retains dependency downloads and
-compiled dependencies, keyed by OS, architecture, compiler, dependency
-lockfile, and build settings; only `main` saves these separate test, document
-and release caches, and a daily scheduled `main` run refreshes the first two
-after a toolchain update. Workspace executables receive current source-bound verification on
-each run; a cache hit alone is not a passing check. Debug information is
-disabled for the CI test build to reduce cache size. Successful dependency work
-remains available when a later test fails, so fixes do not repeat a cold build.
+The Forgejo runner retains dependencies in dedicated, locked Cargo storage keyed
+by repository identity. Workspace executables receive current source-bound
+verification on each run; a cache hit alone is not a passing check. Debug
+information is disabled for the CI test build to reduce cache size. Successful
+dependency work remains available when a later test fails, so fixes do not
+repeat a cold build.
 
-Release binaries are built once per released platform per run and retained for
-later gates and publication. Hosted CI artifacts have a three-day retention period;
-Crow retains packages under its explicit release directory. Published downloads
-remain release assets. Eligible public source can use hosted CI runners.
-Private downstream content stays on trusted internal workers, with its own
-ownership and document gates.
+Release binaries are built once per platform per run and retained for later
+gates and publication under the run's release directory. Published downloads
+remain release assets. The GitHub mirror's pull-request checks use GitHub's free
+public runners. Private downstream content stays on trusted internal workers,
+with its own ownership and document gates.
 
 Linux independent verification runs one public check and retains its freshly
 verified PDFs for Poppler, QPDF and pixel comparisons. Each variant still
