@@ -12,8 +12,10 @@
 # from an archive of the committed pointers (`SOURCE_ARCHIVE`), exactly as for the Linux run.
 #
 # Needs curl, jq, git and sha256sum or shasum; bash 3.2 and the BSD userland are enough.
-# The repository is public, so no credential is needed; the runner's read-only credential
-# is used when it is there. Nothing is installed and nothing is written outside the checkout.
+# The repository is public, so every request goes out anonymously first: Forgejo's LFS
+# endpoint answers 401 to an API token it does not take as an LFS credential, even for a public
+# repository. Only when the anonymous request fails is the runner's read-only credential tried.
+# Nothing is installed and nothing is written outside the checkout.
 set -euo pipefail
 cd "${1:-.}"
 git rev-parse --is-inside-work-tree >/dev/null
@@ -38,7 +40,8 @@ lfs_url="${CCVL_LFS_URL:-$server/$repository.git/info/lfs}"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/ccvl-lfs.XXXXXXXX")"
 trap 'find "$scratch" -delete' EXIT
 
-# The runner's read-only credential, when there is one, through a curl configuration file.
+# The runner's read-only credential, when there is one, through a curl configuration file;
+# lfs_curl uses it only after an anonymous request has failed.
 auth=()
 read_file="${CCVL_FORGE_READ_TOKEN_FILE:-${CREDENTIALS_DIRECTORY:+$CREDENTIALS_DIRECTORY/forgejo-ci-read}}"
 if [[ -n $read_file && -r $read_file ]]; then
@@ -50,6 +53,13 @@ if [[ -n $read_file && -r $read_file ]]; then
   fi
   unset read_token
 fi
+
+# lfs_curl ARGS...: curl, anonymously; if that fails and there is a credential, once more with it.
+lfs_curl() {
+  if curl -q --silent --show-error --fail "$@" 2> "$scratch/curl.error"; then return 0; fi
+  if [[ ${#auth[@]} -eq 0 ]]; then cat "$scratch/curl.error" >&2; return 1; fi
+  curl -q --silent --show-error --fail "${auth[@]}" "$@"
+}
 
 # 1. Every pointer: "OID SIZE PATH" per line. A file that already holds its object is left alone.
 git -c core.quotepath=off ls-files | git -c core.quotepath=off check-attr --stdin filter | sed -n 's/: filter: lfs$//p' > "$scratch/paths"
@@ -80,7 +90,7 @@ fetched=0
 for batch in "$scratch"/batch-*; do
   jq -Rn '{operation: "download", transfers: ["basic"],
            objects: [inputs | split(" ") | {oid: .[0], size: (.[1] | tonumber)}]}' < "$batch" > "$batch.request"
-  curl -q --silent --show-error --fail --max-time 300 ${auth[@]+"${auth[@]}"} -X POST \
+  lfs_curl --max-time 300 -X POST \
     -H 'Accept: application/vnd.git-lfs+json' -H 'Content-Type: application/vnd.git-lfs+json' \
     --data-binary "@$batch.request" -o "$batch.response" "$lfs_url/objects/batch" || {
     echo "The forge's LFS API did not answer ($lfs_url)." >&2; exit 2
@@ -88,7 +98,7 @@ for batch in "$scratch"/batch-*; do
   while IFS=' ' read -r oid size href; do
     [[ -n $oid ]] || continue
     [[ -n $href ]] || { echo "The forge has no LFS object $oid." >&2; exit 2; }
-    curl -q --silent --show-error --fail --max-time 600 ${auth[@]+"${auth[@]}"} -o "$scratch/object-$oid" "$href" || {
+    lfs_curl --max-time 600 -o "$scratch/object-$oid" "$href" || {
       echo "Cannot download the LFS object $oid." >&2; exit 2
     }
     [[ $(size_of "$scratch/object-$oid") == "$size" && $(sha256 "$scratch/object-$oid") == "$oid" ]] || {
