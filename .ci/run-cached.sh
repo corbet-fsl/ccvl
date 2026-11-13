@@ -78,11 +78,10 @@ jq --version
 # Cached checks get the declared environment only, never the runner's credentials
 # (cmnp: "Credentials and arbitrary inherited variables are not handed to
 # cacheable work"). The runner's CC/CXX name the compile-cache wrapper
-# (sccache-corbet), which in that environment starts an sccache server without a
-# signing credential and fails every C compile of a build script (ring, psm).
-# Plain compilers keep the cached checks independent of it; Rust compiles keep
-# the kache cache, whose remote lives in a file the declared environment names.
-export CC=cc CXX=c++
+# (sccache-corbet), which with no credential in sight runs the compiler directly
+# and starts no server, so cached C compiles stay independent of the cache;
+# Rust compiles keep the kache cache, whose remote lives in a file the declared
+# environment names.
 "$CCID_BIN" cached --repo "$PWD" --check "$CHECKS"
 IFS=, read -r -a selected_checks <<< "$CHECKS"
 for check in "${selected_checks[@]}"; do test -s ".ccid/results/$check.jsonl"; done
