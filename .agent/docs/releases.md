@@ -163,7 +163,14 @@ differ from our file they are refused, never replaced. A leg that runs again
 replaces the files of its own platform that differ from what it now produced, in the
 draft only, receipt last. The promotion replaces the two manifests and `SHA256SUMS`,
 which are derived data, where they differ from what the receipts say. Nothing else
-is ever overwritten or deleted. Incomplete published releases, different bytes,
+is ever overwritten or deleted. A draft left by a run that died is not resumed by the
+next run (its receipts name the run that made them): delete it, by hand, and release
+again.
+
+The release publishes more than 400 MB over the home uplink, which has run anywhere from
+a few KB/s to 0.8 MB/s. The stages of the `release` run therefore share a deadline of two
+hours (`CI_TIMEOUT` in `.ci/run-release.sh`; ccid's default is 45 minutes), and one upload
+may take 600 s plus one second per 20 KB of the file, in the publisher and in the legs. Incomplete published releases, different bytes,
 missing native results, platform legs that have not passed and superseded main
 revisions fail closed. The release carries the executables, the workspace bundles,
 the full native/gate receipts, a runtime manifest that binds the version, the
@@ -313,8 +320,10 @@ commit at a stable path on that disk and runs `.agent/scripts/macos-leg.sh`:
    are not touched here (the promotion derives them).
 8. `dispatch-leg.sh` says what is left.
 
-The suite and the build share the clone's compile cache (kache with the srv remote), so a
-leg after a release costs minutes, not the cold half hour.
+The suite and the builds share the clone's compile cache (kache with the srv remote). Measured
+on the first run, 2026-11-13: 23 minutes in all, of which the test suite took 5, the macos-x86_64
+release build 8, the cold macos-arm64 cross build 10 and the upload of 12 files (210 MB) 4; a
+leg with a warm cache is shorter.
 
 ### Mirrors: GitHub and GitLab pull the release
 
