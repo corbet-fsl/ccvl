@@ -367,4 +367,34 @@ fi
 [[ ! -e "$scratch/corrupt-cache/bin/ccvl" ]]
 grep -Fq 'Checksum mismatch' "$scratch/corrupt-log"
 
+# Without an explicit base, the runtime is an asset of the release named by the version
+# in Cargo.toml (`v<version>`), on the forge the checkout came from. The version is the
+# one of [package], whatever other tables carry a `version` key.
+unset CCVL_RELEASE_BASE
+origin_root="$scratch/origin-root"
+mkdir -p "$origin_root/.agent"
+cp -r "$repo_root/.agent/scripts" "$origin_root/.agent/scripts"
+cp "$repo_root/rust-toolchain.toml" "$repo_root/ccvl.json" "$origin_root/"
+cp "$repo_root/.agent/release-platforms.txt" "$origin_root/.agent/"
+printf '[workspace.dependencies]\nversion = "9"\n\n[package]\nname = "ccvl"\nversion = "0.7.3"\nrust-version = "1.94"\n\n[dependencies]\nversion = "8"\n' > "$origin_root/Cargo.toml"
+git -C "$origin_root" init --quiet
+git -C "$origin_root" remote add origin https://forge.example.invalid/corbet-fsl/ccvl.git
+url_log="$scratch/curl-urls"
+cat > "$fetch_bin/curl" <<EOF
+#!/bin/sh
+for arg in "\$@"; do
+  case "\$arg" in https://*) printf '%s\\n' "\$arg" >> "$url_log" ;; esac
+done
+exit 22
+EOF
+if CCVL_BOOTSTRAP_PROBE_PATH="$fetch_bin" \
+  CCVL_BOOTSTRAP_CACHE_ROOT="$scratch/origin-cache" \
+  CCVL_BOOTSTRAP_TEST_PLATFORM=Linux-x86_64 \
+    bash "$origin_root/.agent/scripts/bootstrap.sh" install >"$scratch/origin-log" 2>&1; then
+  printf 'An unreachable release must fail.\n' >&2
+  exit 1
+fi
+grep -Fxq 'https://forge.example.invalid/corbet-fsl/ccvl/releases/download/v0.7.3/ccvl-linux-x86_64' "$url_log"
+grep -Fq 'Only a released version has one' "$scratch/origin-log"
+
 printf 'POSIX bootstrap handles Linux and macOS empty, partial, complete, unsupported, and manager-less states.\n'

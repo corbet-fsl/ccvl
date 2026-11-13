@@ -159,9 +159,12 @@ fi
 # shellcheck source=.agent/scripts/runtime-id.sh
 source "$repo_root/.agent/scripts/runtime-id.sh"
 
-# Runtime releases live beside the source on whichever forge this checkout was
-# cloned from: the HTTPS form of `origin` plus /releases/download, a path shared
-# by the common forges. CCVL_RELEASE_BASE overrides the complete base.
+# Releases live beside the source on whichever forge this checkout was cloned
+# from: the HTTPS form of `origin` plus /releases/download, a path shared by the
+# common forges. The runtime of a workspace is an asset of the release named by
+# its version, `v<version>` (Cargo.toml); only a released version has one, and a
+# checkout between two releases builds from source. CCVL_RELEASE_BASE overrides
+# the complete base.
 origin_release_root() {
   local url host path
   url="$(git -C "$repo_root" remote get-url origin 2>/dev/null)" || return 1
@@ -177,12 +180,17 @@ origin_release_root() {
   [[ -n "$host" && "$path" != "$url" && -n "$path" ]] || return 1
   printf 'https://%s/%s/releases/download\n' "${host%%:*}" "${path%.git}"
 }
+# The version of the workspace package: the first `version` of [package] in Cargo.toml.
+workspace_version() {
+  awk '/^\[/ { in_package = ($0 == "[package]"); next }
+       in_package && /^version[[:space:]]*=/ { gsub(/^[^"]*"|".*$/, ""); print; exit }' "$repo_root/Cargo.toml"
+}
 release_base_for() {
-  local root
+  local root version
   if [[ -n "${CCVL_RELEASE_BASE:-}" ]]; then
     printf '%s\n' "$CCVL_RELEASE_BASE"
-  elif root="$(origin_release_root)"; then
-    printf '%s/runtime-%s\n' "$root" "$1"
+  elif root="$(origin_release_root)" && version="$(workspace_version)" && [[ -n "$version" ]]; then
+    printf '%s/v%s\n' "$root" "$version"
   fi
 }
 
@@ -192,7 +200,7 @@ if [[ -x "$binary" && -n "$fingerprint" ]] \
   && [[ "$("$binary" runtime-id 2>/dev/null)" == "$fingerprint" ]]; then
   binary_state=ready
 fi
-release_base="$(release_base_for "$fingerprint")"
+release_base="$(release_base_for)"
 if [[ "$binary_state" != ready && "$from_source" != 1 ]] \
   && ! grep -Fxq -- "${release_asset#ccvl-}" "$repo_root/.agent/release-platforms.txt"; then
   printf 'No prebuilt runtime is released for %s in this workspace. See .agent/docs/tooling.md for developer source builds.\n' "$platform" >&2
@@ -425,7 +433,7 @@ fetch_prebuilt() {
 }
 
 fingerprint="$(source_fingerprint)"
-release_base="$(release_base_for "$fingerprint")"
+release_base="$(release_base_for)"
 fetched_binary=0
 if [[ "$binary_state" == install && -n "$release_asset" && "$from_source" != 1 ]] \
   && { probe curl >/dev/null || probe wget >/dev/null; } \
@@ -433,7 +441,7 @@ if [[ "$binary_state" == install && -n "$release_asset" && "$from_source" != 1 ]
   if fetch_prebuilt; then
     fetched_binary=1
   else
-    printf 'Matching precompiled binary unavailable. Download a complete release, or use setup --from-source for development.\n' >&2
+    printf 'Matching precompiled binary unavailable. Only a released version has one (the release v<version> of Cargo.toml); download a complete release, or use setup --from-source for development.\n' >&2
     exit 2
   fi
 fi

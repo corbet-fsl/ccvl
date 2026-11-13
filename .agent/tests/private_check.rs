@@ -62,7 +62,7 @@ if [[ $last == "https://forge.example.invalid/api/v1/repos/fixture/private-downs
   printf '{"private": %s, "full_name": "fixture/private-downstream"}' "$private" > "$output"
   exit 0
 fi
-[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/runtime-$TEST_RUNTIME_ID/$name" ]] || exit 97
+[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/v$TEST_VERSION/$name" ]] || exit 97
 printf 'download:%s\n' "$name" >> "$TEST_TRACE"
 [[ -z ${TEST_RUNTIME_UNAVAILABLE:-} ]] || exit 22
 cp "$TEST_ASSETS/$name" "$output"
@@ -163,6 +163,11 @@ impl Downstream {
         ] {
             downstream.write(name, "runtime fixture\n");
         }
+        // The release that holds the runtime is named by the version of this source.
+        downstream.write(
+            "Cargo.toml",
+            "[package]\nname = \"ccvl\"\nversion = \"0.1.0\"\n",
+        );
         downstream.git(&["add", "."]);
         downstream.git(&["commit", "--quiet", "-m", "public fixture"]);
         downstream.upstream = downstream.rev_parse();
@@ -275,6 +280,7 @@ impl Downstream {
             ),
             ("TEST_TOKEN", TOKEN.to_owned()),
             ("TEST_RUNTIME_ID", downstream.fingerprint.clone()),
+            ("TEST_VERSION", "0.1.0".to_owned()),
             ("TEST_TRACE", downstream.trace.display().to_string()),
             ("TEST_ASSETS", downstream.assets.display().to_string()),
         ] {

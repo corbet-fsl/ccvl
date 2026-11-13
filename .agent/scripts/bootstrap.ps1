@@ -162,9 +162,20 @@ function Get-OriginReleaseRoot {
     else { return $null }
     return "https://$($Matches[1])/$($Matches[2])/releases/download"
 }
+# The runtime of a workspace is an asset of the release named by its version, v<version>
+# (Cargo.toml): only a released version has one.
+function Get-WorkspaceVersion {
+    $InPackage = $false
+    foreach ($Line in Get-Content -LiteralPath (Join-Path $RepoRoot "Cargo.toml")) {
+        if ($Line -match '^\[') { $InPackage = ($Line.Trim() -eq '[package]'); continue }
+        if ($InPackage -and $Line -match '^version\s*=\s*"([^"]*)"') { return $Matches[1] }
+    }
+    return $null
+}
 $ReleaseBase = if (Test-Path Env:CCVL_RELEASE_BASE) { $env:CCVL_RELEASE_BASE } else {
     $ReleaseRoot = Get-OriginReleaseRoot
-    if ($ReleaseRoot) { "$ReleaseRoot/runtime-$Fingerprint" } else { "" }
+    $WorkspaceVersion = Get-WorkspaceVersion
+    if ($ReleaseRoot -and $WorkspaceVersion) { "$ReleaseRoot/v$WorkspaceVersion" } else { "" }
 }
 $BinaryState = "install"
 if (Test-Path -LiteralPath $Binary -PathType Leaf) {
@@ -268,7 +279,7 @@ try {
             $FetchedBinary = $true
         }
         catch {
-            throw "Matching precompiled binary unavailable. Download a complete release, or use setup --from-source for development. $($_.Exception.Message)"
+            throw "Matching precompiled binary unavailable. Only a released version has one (the release v<version> of Cargo.toml); download a complete release, or use setup --from-source for development. $($_.Exception.Message)"
         }
     }
 

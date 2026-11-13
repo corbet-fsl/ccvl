@@ -574,9 +574,14 @@ fn check(root: &Path, env: &Env) -> Result<Value> {
         cfg!(all(target_os = "linux", target_arch = "x86_64")),
         "This route requires the existing Linux x86_64 executor.",
     )?;
+    // The runtime is an asset of the public release named by the version of this
+    // source (`v<version>`); its identity is compared with the source's below.
+    let release =
+        crate::release_evidence::release_version(&checkout).context("workspace release version")?;
     let base = format!(
-        "{}/releases/download/runtime-{fingerprint}",
-        mirror_url.strip_suffix(".git").unwrap_or(&mirror_url)
+        "{}/releases/download/v{}",
+        mirror_url.strip_suffix(".git").unwrap_or(&mirror_url),
+        release.version
     );
     let checksum_file = scratch.path().join(format!("{ASSET}.sha256"));
     let checksum_text = checksum_file.to_string_lossy().into_owned();

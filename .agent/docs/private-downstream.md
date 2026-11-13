@@ -121,7 +121,9 @@ An explicit 40-character `UPSTREAM_COMMIT` selects the upstream commit the
 private history must contain; without one, the newest public commit the private
 history already contains is used. The command uses the runtime identity
 algorithm of the compiled source, which equals the bootstrap one, and the
-matching public `runtime-<identity>/ccvl-linux-x86_64` release and checksum.
+matching public `v<version>/ccvl-linux-x86_64` release and checksum (`<version>`
+is the one in the source's `Cargo.toml`; see "How a downstream finds the runtime" in
+[releases](releases.md)).
 Optional `CCVL_CHECK_RUNTIME` points to an existing worker artifact; its bytes
 must still match the downloaded official checksum and its executable runtime
 identity. Without that input, the binary is downloaded into disposable job
