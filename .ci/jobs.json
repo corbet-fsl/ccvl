@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "1ea3d67271f12b49678c32ab4ddca8e5b490b17e404817ae780f222202fcce04",
+  "manifest_sha256": "793e09542ef0a4abf0ed8a20776c2239cd4122c906850b398349a0dfee1b6aa3",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -24,43 +24,46 @@
       "job": "release",
       "scheduler": "forgejo",
       "checks": [
-        "release-rust",
-        "release-lint",
-        "release-native",
-        "release-cross",
-        "release-linux-deep",
-        "release-archive",
-        "release-check",
-        "release-publish",
-        "release-legs"
+        "release-build"
       ],
       "workflow": "release",
       "command": [
-        "bash",
-        ".ci/run-release.sh"
+        "ccid:release-build"
       ],
       "runs_on": "linux",
       "events": [
         "manual"
+      ]
+    },
+    "release-macos": {
+      "job": "release-macos",
+      "scheduler": "forgejo",
+      "checks": [
+        "release-macos"
       ],
-      "archive_inputs": true
+      "workflow": "release",
+      "command": [
+        "ccid:release-leg"
+      ],
+      "runs_on": "macos",
+      "events": [
+        "manual"
+      ]
     },
     "release-promote": {
       "job": "release-promote",
       "scheduler": "forgejo",
       "checks": [
-        "release-promote"
+        "release-seal"
       ],
-      "workflow": "release-promote",
+      "workflow": "release",
       "command": [
-        "bash",
-        ".ci/run-release.sh"
+        "ccid:release-promote"
       ],
       "runs_on": "linux",
       "events": [
         "manual"
-      ],
-      "archive_inputs": true
+      ]
     },
     "release-windows": {
       "job": "release-windows",
@@ -68,16 +71,14 @@
       "checks": [
         "release-windows"
       ],
-      "workflow": "release-windows",
+      "workflow": "release",
       "command": [
-        "bash",
-        ".ci/run-windows.sh"
+        "ccid:release-leg"
       ],
       "runs_on": "windows",
       "events": [
         "manual"
-      ],
-      "archive_inputs": true
+      ]
     },
     "verify": {
       "job": "verify",
@@ -94,9 +95,6 @@
         ".ci/run-cached.sh"
       ],
       "runs_on": "linux",
-      "events": [
-        "manual"
-      ],
       "archive_inputs": true
     }
   }

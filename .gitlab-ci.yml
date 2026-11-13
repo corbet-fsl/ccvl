@@ -2,6 +2,14 @@
 # Release mirror (pull model): when a release tag reaches this project, copy the Forgejo release of the
 # same tag here (generic package files plus a GitLab release). The forge builds and publishes; this job
 # only reads, verifies and republishes. Tags only: a branch pipeline is never created.
+# Pipelines exist for merge requests (the check), for release tags and for the release mirror's own
+# runs, and for nothing else: a pushed branch creates none.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+    - if: '$CI_PIPELINE_SOURCE =~ /^(web|api)$/ && $RELEASE_TAG =~ /^v/'
+
 release-mirror:
   image: alpine:3.22
   interruptible: false

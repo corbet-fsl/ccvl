@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Julian Y. Richard Corbet
 # SPDX-License-Identifier: FSL-1.1-ALv2
-# Run the release stages of one exact commit in order on a Forgejo runner.
-# Release stages are never reused from a result cache: each run proves its own commit.
+# The stages of the release job, in order, on a Forgejo runner of the label `linux`: this is the one
+# `build` check of [release] (`ccid release build` runs it under the verified Cargo target lock and
+# uploads what it leaves in $CCID_RELEASE_DIR to the draft of the commit). Release stages are never
+# reused from a result cache: each run proves its own commit.
+#
+# What ccid does around it (docs/release.md of ccid): the version and the preflight (a version is
+# released once, the source is main), the third-party lock refresh, the draft, the uploads, the
+# platform legs and the promotion. What is left here is the part only ccvl knows: how its platforms
+# are built and what their evidence is.
 set -euo pipefail
 exec 2>&1
 : "${CCID_BIN:?Missing verified ccid job runtime}"
 : "${CI_COMMIT_SHA:?Missing verified source revision}"
 : "${CI_REPOSITORY_URL:?Missing canonical repository identity}"
-: "${CHECKS:?Missing declared check selection}"
-case "$CHECKS" in
-  release-rust,release-lint,release-native,release-cross,release-linux-deep,release-archive,release-check,release-publish,release-legs) ;;
-  release-promote) ;;
-  *) echo "CHECKS is not a declared release sequence: $CHECKS" >&2; exit 2 ;;
-esac
+: "${CCID_RELEASE_DIR:?Missing the release directory}"
 cache_root=${CI_CACHE_ROOT:-${CARGO_HOME:-}}
 [[ $cache_root = /* ]] || { echo 'An absolute persistent CI_CACHE_ROOT or CARGO_HOME is required' >&2; exit 2; }
 namespace=$(printf '%s' "$CI_REPOSITORY_URL" | sha256sum | cut -c1-24)
@@ -63,16 +65,19 @@ cargo_bin=$("$CARGO_HOME/bin/rustup" which --toolchain stable cargo)
 test -x "$cargo_bin"
 export PATH="$(dirname "$cargo_bin"):$PATH"
 export CCID_SOURCE_REVISION="$CI_COMMIT_SHA"
-"$CCID_BIN" render --repo "$PWD" --check
 rustc -vV
 cargo --version
 zig version
 cargo-zigbuild --version
 x86_64-w64-mingw32-clang --version | head -1
-# ccid runs the declared checks in order under the verified Cargo target lock
-# (CARGO_TARGET_DIR with CCID_TARGET_LOCK_HELD) that the release stages require.
-# The stages share one deadline, 45 minutes by default. A release publishes more than 400 MB over
-# the home uplink, which has run anywhere from a few KB/s to 0.8 MB/s: when it is slow the upload
-# alone outlasts that deadline and the run dies in the middle of the draft. Two hours.
-export CI_TIMEOUT=7200
-exec "$CCID_BIN" check --repo "$PWD" --check "$CHECKS"
+export CCID_SOURCE_REVISION="$CI_COMMIT_SHA"
+rustc -vV
+cargo --version
+zig version
+cargo-zigbuild --version
+x86_64-w64-mingw32-clang --version | head -1
+# The stages share one directory: what is in it when they are done is the release.
+export CCVL_RELEASE_DIR="$CCID_RELEASE_DIR"
+for stage in rust lint native cross linux-deep archive check; do
+  bash .agent/scripts/release-ci.sh "$stage"
+done

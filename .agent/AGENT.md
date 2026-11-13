@@ -104,9 +104,9 @@ wanted, follow `.agent/docs/releases.md`: the Forgejo `release` run drafts the
 compiled bundles for the version's platform set (Linux x86_64 tested; Windows x86_64
 cross-built and tested by `release-windows` in the offline Windows clone; macOS x86_64
 built and tested by `release-macos` in the macOS build clone; Linux, Windows and macOS
-ARM64 cross-built; the run starts the legs of a minor release by itself) and
-`release-promote` publishes them on Forgejo once every leg has passed (GitHub and GitLab
-pull the release). A source push alone is not delivery. Every
+ARM64 cross-built; the legs of a minor release follow by themselves, ordered by the
+workflow) and `release-promote` publishes them on Forgejo once every leg has passed (GitHub
+and GitLab pull the release). A source push alone is not delivery. Every
 advertised platform requires its real evidence and all shared publication gates. Never install a
 stale rolling binary or silently compile on a normal user's machine. Developer
 source builds require `setup --from-source`. Other platform source paths remain
