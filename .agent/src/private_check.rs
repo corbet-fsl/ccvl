@@ -25,9 +25,8 @@ const ASSET: &str = "ccvl-linux-x86_64";
 /// The upstream workflow whose successful run anchors the checks.
 const UPSTREAM_CI: &str = "ci.yml";
 /// Publication credentials. None may reach this stage.
-const CREDENTIALS: [&str; 8] = [
+const CREDENTIALS: [&str; 7] = [
     "GH_TOKEN",
-    "DOWNSTREAM_PUSH_KEY",
     "CARGO_REGISTRY_TOKEN",
     "CARGO_REGISTRIES_CRATES_IO_TOKEN",
     "NPM_TOKEN",

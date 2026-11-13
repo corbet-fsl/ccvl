@@ -111,16 +111,13 @@ jobs:
 
       - name: Check workflows and shell scripts
         run: |
-          # The legacy private workflows intentionally remain disabled.
-          actionlint -ignore '^constant expression "false" in condition\. remove the if: section$' \
-            -shellcheck shellcheck .github/workflows/*.yml
+          actionlint -shellcheck shellcheck .github/workflows/*.yml
           shellcheck .agent/scripts/*.sh .agent/tests/*.sh ccvl
 
-      - name: Verify bootstrap, downstream sync and existing compiler selection
+      - name: Verify bootstrap and existing compiler selection
         run: |
           bash .agent/tests/test_bootstrap.sh
           bash .agent/tests/test_ci_toolchain.sh
-          bash .agent/tests/test_downstream_sync.sh
 
       - name: Check REUSE licensing
         uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0

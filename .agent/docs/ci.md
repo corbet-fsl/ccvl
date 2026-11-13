@@ -97,10 +97,10 @@ the built ones and all four shared gates. Linux evidence does not prove macOS,
 Windows or ARM behavior. A registry dependency that is not published still blocks
 a locked build; a provisional path-patched lock is not release evidence.
 
-The staged-archive Crow route that fed `.agent/scripts/downstream-sync.sh` is
-retired with Crow and has no Forgejo workflow yet; until one exists, a private
-downstream merges the public upstream by hand (see
-[private downstream](private-downstream.md)). Model evaluation is a local
+The staged-archive Crow route is retired with Crow. A private downstream follows
+the public upstream through the event-driven upstream sync (see
+[private downstream](private-downstream.md)); the old push-model script and its
+GitHub workflow are removed. Model evaluation is a local
 command, never a CI workflow; see below.
 
 ## Skill evaluation

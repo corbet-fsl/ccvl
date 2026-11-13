@@ -267,21 +267,21 @@ mod tests {
     }
 
     #[test]
-    fn private_downstream_sync_is_gated() {
+    fn retired_push_sync_stays_absent() {
         let workspace = repository();
-        // No CI route runs the sync (it waits for a key-placement decision), and
-        // no scheduled or push trigger may be added for it either.
-        assert!(
-            !workspace
-                .path(".forgejo/workflows/downstream-sync.yml")
-                .exists()
-        );
-        let command =
-            fs::read_to_string(workspace.path(".agent/scripts/downstream-sync.sh")).unwrap();
-        assert!(command.contains("\"${CCVL_CARGO_COMMAND[@]}\" build --locked"));
-        assert!(!command.contains("build --locked --release"));
-        let push = command.find("git push --porcelain").unwrap();
-        assert!(command.find("\"$gate\" downstream-check").unwrap() < push);
-        assert!(command.find("\"$gate\" check").unwrap() < push);
+        // The old push model is retired in favour of the event-driven upstream
+        // sync: no push script, no sync fixture and no sync workflow may come
+        // back, on either forge.
+        for retired in [
+            ".agent/scripts/downstream-sync.sh",
+            ".agent/tests/test_downstream_sync.sh",
+            ".github/workflows/downstream-sync.yml",
+            ".forgejo/workflows/downstream-sync.yml",
+        ] {
+            assert!(
+                !workspace.path(retired).exists(),
+                "retired push-model path is present: {retired}"
+            );
+        }
     }
 }
