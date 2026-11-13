@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "468fb0f9884a38456d9a116b8f35ffc6aa48c0b761ce929909ff2982a11918ec",
+  "manifest_sha256": "ec05464d4c7755c39bc8c1f40a684de1cd3364c0480a31bbd438f72361182e7c",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -31,7 +31,8 @@
         "release-linux-deep",
         "release-archive",
         "release-check",
-        "release-publish"
+        "release-publish",
+        "release-legs"
       ],
       "workflow": "release",
       "command": [

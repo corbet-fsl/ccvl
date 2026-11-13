@@ -1,0 +1,48 @@
+# Written by hand, NOT rendered by ccid: ccid has no macOS build (its tool channel ships Linux
+# binaries) and the shim of a rendered workflow starts by finding one. `ccid render --check`
+# leaves this file alone. See .ci/ccid.toml.
+#
+# The macOS leg of a MINOR release: macos-x86_64 built natively and tested in the macOS build
+# clone, macos-arm64 cross-built there (never run), both left in the draft of the commit.
+# Nobody starts it by hand: the Windows leg dispatches it when it has left its evidence
+# (.agent/scripts/dispatch-leg.sh), and it can be dispatched again to repair a failed run.
+# What it does is in .agent/scripts/macos-leg.sh; this file only puts the exact commit on the
+# clone's persistent disk and runs that script.
+#
+# A job of the label `macos` runs INSIDE the clone as the user `ci`: bash 3.2, the BSD userland,
+# the Command Line Tools, the Rust toolchain and the compile cache of the cache disk
+# (CI_SOURCE_ROOT, CI_CACHE_ROOT). There is no node: run steps only. Steps run `bash -e`.
+name: release-macos
+on:
+  workflow_dispatch:
+# A newer dispatch waits for the one that runs: a leg is never cut off in the middle of an
+# upload (the draft would keep the part of a file).
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release-macos:
+    runs-on: macos
+    steps:
+      - name: Check out the exact commit
+        env:
+          CCVL_COMMIT: ${{ github.sha }}
+        run: |
+          set -eu
+          # The path is stable on purpose: it is part of the compile-cache key of every crate
+          # of the workspace.
+          root="$CI_SOURCE_ROOT/ccvl"
+          mkdir -p "$CI_SOURCE_ROOT"
+          [ -d "$root/.git" ] || git clone --quiet "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$root"
+          cd "$root"
+          git fetch --quiet origin main
+          git checkout --quiet --force "$CCVL_COMMIT"
+          # Back to the committed files: a previous leg put LFS objects over the pointers.
+          git reset --quiet --hard "$CCVL_COMMIT"
+          test "$(git rev-parse HEAD)" = "$CCVL_COMMIT"
+          git log --oneline -1
+      - name: Build, test and package macOS, leave it in the draft
+        run: |
+          set -eu
+          cd "$CI_SOURCE_ROOT/ccvl"
+          exec bash .agent/scripts/macos-leg.sh

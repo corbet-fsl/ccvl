@@ -84,6 +84,14 @@ kind = "commands"
 cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-publish"]]
 
+# The last stage of the release run: a minor release holds platforms that only their own
+# executors can run, so it starts the first platform leg (release-windows), which starts the
+# next (release-macos) when it has left its evidence. A patch release has no legs.
+[checks.release-legs]
+kind = "commands"
+cache = false
+commands = [["bash", ".agent/scripts/ci-check.sh", "release-legs"]]
+
 [checks.release-promote]
 kind = "commands"
 cache = false
@@ -145,13 +153,14 @@ events = ["manual"]
 [jobs.release]
 scheduler = "forgejo"
 runs_on = "linux"
-checks = ["release-rust", "release-lint", "release-native", "release-cross", "release-linux-deep", "release-archive", "release-check", "release-publish"]
+checks = ["release-rust", "release-lint", "release-native", "release-cross", "release-linux-deep", "release-archive", "release-check", "release-publish", "release-legs"]
 workflow = "release"
 command = ["bash", ".ci/run-release.sh"]
 events = ["manual"]
 
-# Promotion is its own explicit run: it re-checks the drafts, makes them public and
-# copies them downstream. Nothing is built here.
+# Promotion is its own explicit run: it re-checks the draft (the evidence of every platform
+# leg must be final), re-derives the manifests from the receipts and makes it the public
+# release. Nothing is built here.
 [jobs.release-promote]
 scheduler = "forgejo"
 runs_on = "linux"
@@ -160,10 +169,12 @@ workflow = "release-promote"
 command = ["bash", ".ci/run-release.sh"]
 events = ["manual"]
 
-# The Windows test is its own explicit run, after a release run has left the drafts of
-# the same commit. It builds nothing: it fetches ccvl-windows-x86_64.exe from the draft,
-# proves it is the file the receipt names and runs that file in the offline Windows
-# clone, which the job of the label `windows` owns for its length.
+# The Windows leg of a minor release. The release run starts it (its last stage,
+# release-legs) and it starts the macOS leg when it has left its evidence; nobody starts it
+# by hand, but it can be dispatched for a repair. It does not build the executable: it
+# fetches ccvl-windows-x86_64.exe from the draft, proves it is the file the receipt names and
+# runs that file, with the test suite built for the same ABI, in the offline Windows clone,
+# which the job of the label `windows` owns for its length.
 [jobs.release-windows]
 scheduler = "forgejo"
 runs_on = "windows"
@@ -171,3 +182,9 @@ checks = ["release-windows"]
 workflow = "release-windows"
 command = ["bash", ".ci/run-windows.sh"]
 events = ["manual"]
+
+# The macOS leg has no job here: .forgejo/workflows/release-macos.yml is written by hand,
+# because ccid ships no macOS build (its tool channel is Linux only) and the shim a rendered
+# job starts with needs one. The leg runs in the macOS build clone of the label `macos`,
+# builds, tests and packages macos-x86_64 there and cross-builds macos-arm64 (never run), then
+# leaves both in the draft (.agent/scripts/macos-leg.sh). The Windows leg starts it.

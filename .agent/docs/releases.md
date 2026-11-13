@@ -10,7 +10,8 @@ neither Git nor Rust is required.
 
 Forgejo is the single source and the only place a release is built. The `release`
 workflow of `corbet-fsl/ccvl` runs on our own `linux` runners: it builds, verifies
-and drafts the release of the exact `main` commit. The separate `release-promote` workflow then
+and drafts the release of the exact `main` commit; for a minor release it ends by
+starting the platform legs (below). The separate `release-promote` workflow then
 makes the verified draft the public release `v<version>` on Forgejo and does
 nothing else: GitHub and GitLab fetch the release themselves (the mirror workflows
 `ccid render` writes into the repository pull the tag, verify it against
@@ -57,9 +58,14 @@ it.
   platforms. A bump is not a release and a release is never started by a commit.
 
 To release: raise `version` in `Cargo.toml` on `main` (the version is part of the
-runtime identity, so the bump is the commit that is released), dispatch `release`
-on that commit, check the draft, run `release-windows` on the same commit (a minor
-release; without it Windows x86_64 stays `built`), then dispatch `release-promote`.
+runtime identity, so the bump is the commit that is released) and dispatch `release`
+on that commit. A minor release then runs to the end of its legs by itself: the
+release run starts `release-windows`, which starts `release-macos` when it has left
+its evidence (`dispatch-leg.sh`: a chain of dispatches; nothing polls, nothing waits,
+there is no input to set). Check the draft, then dispatch `release-promote`. It
+refuses a minor release whose platform legs have not left their final evidence, so
+a failed leg is a draft that can not be promoted: repair the leg (dispatch its
+workflow again; it is idempotent) and promote. A patch release has no legs.
 
 The declared platform set is `.agent/release-platforms.txt`; a release holds all of
 it or, for a patch, `linux-x86_64`, as listed by `ccvl release-evidence platforms`.
@@ -69,10 +75,17 @@ Missing artifacts never shrink that set. Each platform holds one of three states
 |---|---|---|
 | `tested` | linux-x86_64 | built on the runner, then run there: public check and native runtime checks |
 | `tested` | windows-x86_64 | cross-built on the Linux runner, then the shipped executable and the whole test suite pass in the offline Windows clone (`release-windows`, below), which re-issues its receipt as a native one |
-| `built` | linux-aarch64, windows-arm64, and windows-x86_64 until `release-windows` has run | cross-built on the Linux runner, never run there; ARM is never emulated |
-| `pending` | macos-x86_64, macos-arm64 | no executor yet; the release completes without them and records the state |
+| `tested` | macos-x86_64 | built natively in the macOS build clone and tested there: the whole Rust test suite, the public check and the runtime checks (`release-macos`, below) |
+| `built` | linux-aarch64, windows-arm64, macos-arm64 | cross-built, never run; ARM is never emulated. macos-arm64 is cross-built in the macOS clone with the Command Line Tools |
+| `pending` | macos-x86_64, macos-arm64, in a fresh draft only | the macOS leg has not run yet: no receipt, no asset |
 
-A `built` platform never claims tests, and a `pending` one has no asset. The
+A `built` platform never claims tests, and a `pending` one has no asset. The states
+of a fresh draft are not a state a release may end in: `windows-x86_64` is `built`
+until the Windows clone has tested it and the macOS platforms are `pending` until the
+macOS clone has built them. `release-promote` checks the set as **complete**
+(`ccvl release-evidence check --complete`): no platform `pending`, and the platforms
+that have a native executor (`windows-x86_64`, `macos-x86_64`) `tested` on it. A
+minor release whose legs have not all passed is refused, naming the leg to repair. The
 Linux aarch64 binary is linked by `cargo zigbuild`, and so is the Linux x86_64
 binary, against a glibc 2.39 baseline and the system loader, so they run on an
 ordinary Linux and not only inside the runner's Nix store.
@@ -132,16 +145,27 @@ source archive encodes tar metadata. Reports are retained beside the artifacts.
 They are trusted CI evidence, not cryptographic attestations against a
 compromised executor.
 
-The `release` run ends with one complete DRAFT release on Forgejo, published with
-the job's own token; the draft is the review point. `release-promote` re-reads
-the draft of the exact commit, checks the whole set again and makes it the public
-release `v<version>`. Existing assets are never overwritten or deleted, including
-draft assets. Repeated publication verifies matching bytes and uploads only
-missing draft assets.
-Incomplete published releases, different bytes, missing native results and
-superseded main revisions fail closed. The release carries the executables, the
-workspace bundles, the full native/gate receipts and a runtime manifest that
-binds the version, the runtime identity and the executables' checksums.
+The `release` run ends with one DRAFT release on Forgejo, published with the job's
+own token; the legs of a minor release add their platforms to it, and the draft is
+the review point. `release-promote` re-reads the draft of the exact commit, checks the
+whole set again as complete, derives `manifest.json` and `runtime-manifest.json` from
+the receipts afresh (the legs ran after the draft was made, so the draft's copies may
+be older: where they differ they are replaced in the draft), adds `SHA256SUMS` and
+makes it the public release `v<version>`.
+
+How assets are written, as the code does it. A published release is never changed.
+On a DRAFT, the `release` run's publisher removes an asset whose size differs from
+our file of that name (the forge keeps the part of an interrupted upload) and
+uploads it again; an asset of the right size is never touched, and if its bytes
+differ from our file they are refused, never replaced. A leg that runs again
+replaces the files of its own platform that differ from what it now produced, in the
+draft only, receipt last. The promotion replaces the two manifests and `SHA256SUMS`,
+which are derived data, where they differ from what the receipts say. Nothing else
+is ever overwritten or deleted. Incomplete published releases, different bytes,
+missing native results, platform legs that have not passed and superseded main
+revisions fail closed. The release carries the executables, the workspace bundles,
+the full native/gate receipts, a runtime manifest that binds the version, the
+runtime identity and the executables' checksums, and `SHA256SUMS`.
 
 ## Release evidence command
 
@@ -155,8 +179,9 @@ ccvl release-evidence native --platform P --binary FILE --host TRIPLE \
   --rustc VERSION --cargo VERSION --output DIR
 ccvl release-evidence cross --platform P --binary FILE --host TRIPLE \
   --rustc VERSION --cargo VERSION --tool IDENTITY --output DIR
+ccvl release-evidence attest --platform P --result FILE --output DIR
 ccvl release-evidence gate rust|lint|linux-deep|archive --output DIR
-ccvl release-evidence check --output DIR
+ccvl release-evidence check [--complete] --output DIR
 ccvl release-evidence platforms
 ccvl release-evidence version
 ```
@@ -183,9 +208,10 @@ Cargo target lock and runs the job command.
 
 | Workflow | Action | Runner requirement |
 |---|---|---|
-| `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, in this order, never reused from a cache; the first stage refuses a version that names no release or is released already; the cross stage builds the platforms the version holds | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
-| `release-promote` | re-check the draft of this commit, make it the public release `v<version>`; nothing is copied anywhere | `linux` runner |
-| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested` | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
+| `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, `release-legs`, in this order, never reused from a cache; the first stage refuses a version that names no release or is released already; the cross stage builds the platforms the version holds; the last stage starts the Windows leg of a minor release | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
+| `release-promote` | re-check the draft of this commit as complete (every platform leg has passed), derive the manifests and `SHA256SUMS`, make it the public release `v<version>`; nothing is copied anywhere | `linux` runner |
+| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested`; starts the macOS leg | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
+| `release-macos` | build, test and package macOS in the macOS clone (below). Hand-written, not rendered by ccid | `macos` runner (the macOS build clone); the runner's read credential |
 
 `.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
 lint and PDF tools) and the three cross targets in the runner's persistent storage, then runs
@@ -196,13 +222,15 @@ target, keyed by source commit and run (`CCVL_RELEASE_DIR`). The native stage us
 `bash .agent/scripts/cross-release.sh PLATFORM OUTPUT`; a future platform is
 added to the release policy before it is advertised. The publisher,
 `.agent/scripts/publish-release.sh`, speaks the Forgejo release API with the
-job's own token and never replaces an existing asset.
+job's own token and treats an existing asset as described above.
 
 ### The Windows test: the file that ships and the suite that vouches for it
 
-`release-windows` is its own manual run on the same `main` commit, after a `release`
-run has left the draft and before `release-promote` renames it. A patch release holds
-no Windows executable: the run says so and ends green without building anything.
+`release-windows` is its own run on the same `main` commit: the `release` run starts it
+once it has left the draft (a minor release only), and it ends by starting the macOS leg.
+It always runs before `release-promote` renames the draft, and it can be dispatched by
+hand to repair a failed run. A patch release holds no Windows executable: the run says
+so and ends green without building anything.
 Otherwise it has three parts, all for the one ABI, `x86_64-pc-windows-gnullvm`.
 
 1. **The file that ships.** `windows-test.sh` reads the `build-<commit>` draft for the
@@ -248,6 +276,43 @@ Otherwise it has three parts, all for the one ABI, `x86_64-pc-windows-gnullvm`.
 The job fails if the executable or any test fails, and the draft is then left as it was.
 `CCVL_WINDOWS_ASSET_DIR=DIR` runs the first two parts on assets from a directory (a local
 rehearsal of a `cross-release.sh` output); it writes the report and attests nothing.
+
+### The macOS leg: built, tested and packaged where it runs
+
+`release-macos` is the macOS twin of the Windows leg, started by it. It is the one release
+workflow written by hand (`.forgejo/workflows/release-macos.yml`, not rendered by ccid):
+ccid ships no macOS build, and the shim of a rendered workflow starts by finding one. The
+job of the label `macos` runs inside the macOS build clone as the user `ci` (bash 3.2, the
+BSD userland, the Command Line Tools, Rust and the compile cache on the clone's persistent
+disk, no git-lfs, no node) and the clone is rolled back after it. The workflow puts the exact
+commit at a stable path on that disk and runs `.agent/scripts/macos-leg.sh`:
+
+1. **Before any work**: the commit must still be `main`, the draft `build-<commit>` must
+   exist and be a draft, and its manifest must say that this release holds macOS (a patch
+   release does not). A leg dispatched for anything else ends in seconds.
+2. **The source.** `git archive` of the commit is the source archive of the evidence (the
+   committed LFS pointers, as the Linux run stages it), and `lfs-fetch.sh` puts the LFS
+   objects over the pointers without git-lfs (the LFS API, each object checked against
+   its pointer's size and SHA-256), so the checkout the build sees is the source the Linux
+   run built from.
+3. **The suite.** `cargo test --locked --workspace --all-features --no-fail-fast` runs in the
+   clone. The publication scripts and their fixtures need bash 4 and GNU tools and are
+   gated to Linux; everything else runs. A failure stops the leg before anything is packaged.
+4. **macos-x86_64** is built natively (`native-release.sh`: the release profile, the public
+   check, the runtime checks) and packaged with a **native** receipt.
+5. **macos-arm64** is cross-built in the same clone with the Command Line Tools
+   (`cross-release.sh`), checked to be an arm64 Mach-O and never run; its **cross** receipt
+   says `built`.
+6. **Evidence.** The two receipts must equal the draft's Linux receipt in source, lock and
+   runtime identity before anything is uploaded.
+7. **The draft.** The executables, their checksums and runtime identities, the bundles and
+   the receipts of both platforms go into the draft, the receipt of a platform last. A
+   file the draft holds with other bytes is replaced, the same is left; the manifests
+   are not touched here (the promotion derives them).
+8. `dispatch-leg.sh` says what is left.
+
+The suite and the build share the clone's compile cache (kache with the srv remote), so a
+leg after a release costs minutes, not the cold half hour.
 
 ### Mirrors: GitHub and GitLab pull the release
 
@@ -295,8 +360,9 @@ One release per version, and the other names are identities, not releases:
   It holds every asset of the version: the released platforms' executables with
   their `.sha256` files and `.runtime-id` files, the workspace bundles
   (`ccvl-<platform>.tar.gz` with checksums, the user-facing download including
-  current templates and documents), the native/gate receipts and the manifests
-  (`manifest.json`, `runtime-manifest.json`).
+  current templates and documents), the native/gate receipts, the manifests
+  (`manifest.json`, `runtime-manifest.json`) and `SHA256SUMS`, the checksums of every
+  other asset, which the mirrors verify.
 - `build-<git-commit>` is the internal name of the draft of one run's commit. It
   never turns public as such: it is renamed to `v<version>` by `release-promote`
   (a draft has no git tag yet, so the rename is the publication, and the tag

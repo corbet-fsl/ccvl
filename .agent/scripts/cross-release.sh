@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cross-build one release platform and package it with its receipt. Linux aarch64 is
-# linked by cargo-zigbuild; both Windows platforms are built for the one gnullvm ABI
+# linked by cargo-zigbuild; macOS arm64 is built in the macOS clone with the Command Line
+# Tools (the one cross build that runs on its platform's own OS); both Windows platforms are built for the one gnullvm ABI
 # with clang and lld and the mingw-w64 UCRT runtime of llvm-mingw (plain cargo build,
 # no Microsoft SDK, free licences). The result is built, never run here: ARM64 has no
 # native executor and is never emulated, and the Windows x86_64 executable is run
@@ -22,12 +23,14 @@ case "$platform" in
   linux-aarch64) triple=aarch64-unknown-linux-gnu; zig_target="$triple.2.39" ;;
   windows-x86_64) triple=x86_64-pc-windows-gnullvm; driver=llvm-mingw; exe=ccvl.exe ;;
   windows-arm64) triple=aarch64-pc-windows-gnullvm; driver=llvm-mingw; exe=ccvl.exe ;;
-  macos-*) echo "$platform waits for the macOS build clone and stays pending." >&2; exit 2 ;;
+  macos-arm64) triple=aarch64-apple-darwin; driver=clt ;;
+  macos-x86_64) echo 'macOS x86_64 is built and run natively in the macOS clone: native-release.sh.' >&2; exit 2 ;;
   linux-x86_64) echo 'Linux x86_64 is built and run natively: native-release.sh.' >&2; exit 2 ;;
   *) echo "Unknown cross platform: $platform" >&2; exit 2 ;;
 esac
-if [[ $driver == zigbuild ]]; then
-  for tool in cargo-zigbuild zig; do
+if [[ $driver == zigbuild || $driver == clt ]]; then
+  if [[ $driver == zigbuild ]]; then needed=(cargo-zigbuild zig); else needed=(clang lipo); fi
+  for tool in "${needed[@]}"; do
     command -v "$tool" >/dev/null || { echo "Missing cross toolchain: $tool" >&2; exit 2; }
   done
 else
@@ -54,12 +57,24 @@ if [[ $driver == zigbuild ]]; then
   "${CCVL_CARGO_COMMAND[@]}" zigbuild --locked --release \
     --config .cargo/release-profile.toml --target "$zig_target"
   tool="cargo-zigbuild $(cargo-zigbuild --version | awk '{print $NF}'), zig $(zig version)"
+elif [[ $driver == clt ]]; then
+  # The macOS clone is an x86_64 Mac: its Command Line Tools (clang, ld, the SDK) link the
+  # arm64 slice of the same SDK, and the result is never run (ARM is never emulated).
+  [[ $(uname -s) == Darwin ]] || { echo 'macos-arm64 is built in the macOS clone, with its Command Line Tools.' >&2; exit 2; }
+  "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
+    --config .cargo/release-profile.toml --target "$triple"
+  clang_version="$(clang --version | sed -n '1s/.*clang version \([0-9][0-9.]*\).*/\1/p')"
+  clt_version="$(pkgutil --pkg-info=com.apple.pkg.CLTools_Executables 2>/dev/null | sed -n 's/^version: //p')" || clt_version=
+  tool="Apple clang ${clang_version:-unknown}, Command Line Tools ${clt_version:-unknown}"
 else
   "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
     --config .cargo/release-profile.toml --target "$triple"
   tool="$(ccvl_llvm_mingw_identity "$triple")"
 fi
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$triple/release/$exe"
+if [[ $driver == clt ]]; then
+  [[ $(lipo -archs "$binary") == arm64 ]] || { echo "$binary is not an arm64 executable." >&2; exit 2; }
+fi
 if [[ $driver == llvm-mingw ]]; then
   # A Windows executable of this ABI imports Windows system libraries only. A mingw
   # runtime DLL (libunwind, libc++, libwinpthread) is not on a clean Windows, and an ARM64

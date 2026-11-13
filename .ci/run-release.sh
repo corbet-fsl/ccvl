@@ -10,7 +10,7 @@ exec 2>&1
 : "${CI_REPOSITORY_URL:?Missing canonical repository identity}"
 : "${CHECKS:?Missing declared check selection}"
 case "$CHECKS" in
-  release-rust,release-lint,release-native,release-cross,release-linux-deep,release-archive,release-check,release-publish) ;;
+  release-rust,release-lint,release-native,release-cross,release-linux-deep,release-archive,release-check,release-publish,release-legs) ;;
   release-promote) ;;
   *) echo "CHECKS is not a declared release sequence: $CHECKS" >&2; exit 2 ;;
 esac

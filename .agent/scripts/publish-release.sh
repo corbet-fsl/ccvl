@@ -9,7 +9,11 @@
 # internal identity: the drafts of different commits never meet) and holds every
 # asset: the executables with their checksums and runtime identities, the workspace
 # bundles, the receipts and the manifests. Promoting is a separate, explicit run: it
-# checks the whole set again and renames the draft to the version, `v<version>`.
+# checks the whole set again, COMPLETE (a minor release whose Windows or macOS leg has
+# not left its final evidence is refused), derives the two manifests from the receipts
+# afresh (the legs that ran after the draft was made are in them now), adds SHA256SUMS
+# over every asset and renames the draft to the version, `v<version>`. Nothing is copied
+# anywhere: the mirrors on GitHub and GitLab pull the release.
 # The version is the one in Cargo.toml; `ccvl release-evidence version` refuses a
 # version that names no release (anything but 0.MINOR.PATCH), and a version already
 # released (release or tag `v<version>`, draft or public) is never released again.
@@ -260,6 +264,49 @@ fetch_release() {
   done < <(jq -r '.assets[].name' "$scratch/release.json")
 }
 
+# replace_in_draft NAME: the draft ends up holding $dist/NAME under that name; an asset of the
+# name that is there is removed first (a draft only, never a public release).
+replace_in_draft() {
+  local name="$1" held
+  held="$(jq -r --arg name "$name" '[.assets[] | select(.name == $name)][0] | if . == null then "" else "\(.id)" end' "$scratch/release.json")"
+  if [[ -n $held ]]; then
+    call DELETE "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")/assets/$held" || return 2
+  fi
+  upload_asset "$(jq -r '.id' "$scratch/release.json")" "$draft_tag" "$dist/$name" || return 2
+  release_state "$draft_tag" || return 2
+}
+
+# write_sums FILE: the checksums of every asset of the release in $dist but the checksum file
+# itself, in coreutils format and in byte order. The mirrors on GitHub and GitLab pull the
+# release and fail closed on an asset that has no entry in a checksum file.
+write_sums() {
+  (cd "$dist" && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | LC_ALL=C sort -z | xargs -0 sha256sum --) > "$1"
+}
+
+# seal_draft: what a promotion publishes is derived from the complete set of receipts and
+# never trusted as the draft holds it. The legs of the Windows and macOS clones ran after the
+# draft was made, so the two manifests are derived again (`check --complete` refuses a set
+# whose legs have not left their final evidence) and, with the checksum file of every asset,
+# replaced in the draft wherever they differ from what it holds.
+seal_draft() {
+  local name fetched="$scratch/fetched-derived"
+  mkdir -p "$fetched"
+  for name in manifest.json runtime-manifest.json SHA256SUMS; do
+    if [[ -e $dist/$name ]]; then mv -- "$dist/$name" "$fetched/$name"; fi
+  done
+  "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --complete --output "$dist" >/dev/null
+  for name in manifest.json runtime-manifest.json; do
+    if [[ -e $fetched/$name ]] && cmp -s -- "$fetched/$name" "$dist/$name"; then continue; fi
+    echo "The draft's $name is not what its receipts say; replacing it."
+    replace_in_draft "$name" || return 2
+  done
+  # The checksum file covers the manifests as they are now, so it comes last.
+  write_sums "$dist/SHA256SUMS"
+  if [[ -e $fetched/SHA256SUMS ]] && cmp -s -- "$fetched/SHA256SUMS" "$dist/SHA256SUMS"; then return 0; fi
+  echo "The draft's SHA256SUMS does not cover its assets; writing it."
+  replace_in_draft SHA256SUMS || return 2
+}
+
 # make_public: the verified draft of this commit becomes the release of the version;
 # the tag appears, on this commit.
 make_public() {
@@ -287,13 +334,17 @@ if [[ $mode == promote ]]; then
     [[ $(jq -r '.draft' "$scratch/release.json") == false ]] || { echo "Release $public_tag is a draft of another run; nothing is promoted." >&2; exit 2; }
     validate_tag "$public_tag" "$sha" false
     fetch_release
-    "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
+    "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --complete --output "$dist" >/dev/null
+    write_sums "$scratch/SHA256SUMS.expected"
+    cmp -s -- "$scratch/SHA256SUMS.expected" "$dist/SHA256SUMS" || {
+      echo "The SHA256SUMS of $public_tag does not cover its assets." >&2; exit 2
+    }
     printf 'Release %s is public already.\n' "$public_tag"
   elif [[ $status == 4 ]]; then
     # Fetch the draft of this commit and check the whole set again.
     release_state "$draft_tag" || { echo "No release $draft_tag to promote." >&2; exit 2; }
     fetch_release
-    "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
+    seal_draft
     version_is_free
     release_state "$draft_tag"
     make_public

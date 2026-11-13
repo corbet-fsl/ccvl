@@ -55,6 +55,7 @@ for check in "$@"; do
       bash .agent/tests/test_bootstrap.sh
       bash .agent/tests/test_ci_toolchain.sh
       bash .agent/tests/test_downstream_sync.sh
+      bash .agent/tests/test_lfs_fetch.sh
       bash .agent/tests/test_skill_eval_ci.sh
       ;;
     documents)

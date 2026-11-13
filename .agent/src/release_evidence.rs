@@ -1,7 +1,7 @@
 //! Source-bound native packages and release receipts shared by CI providers.
 //!
 //! Maintainer route, hidden from the normal help: `ccvl release-evidence
-//! <source|native|cross|attest|gate|check|platforms>`. The release scripts call it; see
+//! <source|native|cross|attest|gate|check|platforms|version>`. The release scripts call it; see
 //! `.agent/docs/releases.md`.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -62,9 +62,10 @@ pub const PLATFORMS: [(&str, &str, Plan); 6] = [
         Plan::BuiltOnly,
     ),
 ];
-/// Platforms whose build executor does not exist yet (the macOS build clone is
-/// stage 5 of the runner rollout). Without a receipt they are `pending` and the
-/// release still completes; remove them from this list when the executor exists.
+/// Platforms that only their own executor can build: the `release-macos` leg builds them
+/// in the macOS build clone, after the release run has left its draft. A fresh draft has no
+/// receipt for them yet and calls them `pending`; `check --complete` (a promotion) refuses
+/// that state.
 pub const PENDING_ALLOWED: [&str; 2] = ["macos-x86_64", "macos-arm64"];
 pub const GATES: [&str; 4] = ["rust", "lint", "linux-deep", "archive"];
 /// What the native executor of a platform that this host can not run reports about the
@@ -214,10 +215,18 @@ pub enum Command {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Verify complete release evidence and write the manifests.
+    /// Verify the release evidence and write the manifests.
+    ///
+    /// A fresh draft may still await a platform leg: macOS `pending` (no receipt yet) and
+    /// Windows `x86_64` only `built` (its clone has not tested it yet). `--complete` is
+    /// the state a release is promoted in.
     Check {
         #[arg(long)]
         output: PathBuf,
+        /// Require the final evidence of every platform the version holds: no `pending`
+        /// platform, and the platforms with a native executor `tested` on it.
+        #[arg(long)]
+        complete: bool,
     },
     /// Print the explicit release targets of this version.
     Platforms,
@@ -250,7 +259,6 @@ fn fail<T>(message: impl Into<String>) -> Result<T> {
 
 /// Run one subcommand from the workspace `root` (the current directory unless
 /// given). Like the helper it replaced, failures print the bare message.
-#[must_use]
 pub fn run(root: Option<&Path>, command: &Command) -> ExitCode {
     let outcome = root
         .map_or_else(
@@ -330,7 +338,7 @@ pub fn execute(root: &Path, env: &Env, command: &Command) -> Result<()> {
             output,
         } => attest(root, env, platform, result, output)?,
         Command::Gate { gate: name, output } => gate(root, env, name, output)?,
-        Command::Check { output } => check(root, env, output)?,
+        Command::Check { output, complete } => check(root, env, output, *complete)?,
     }
     Ok(())
 }
@@ -988,7 +996,17 @@ fn has_provenance(receipt: &Value) -> bool {
     ) && truthy(receipt.get("run"))
 }
 
-fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
+/// The workflow whose run leaves the evidence of a platform that only its own executor can
+/// produce (`release-windows` for the Windows clone, `release-macos` for the macOS clone).
+fn leg_of(platform: &str) -> &'static str {
+    if windows(platform) {
+        "release-windows"
+    } else {
+        "release-macos"
+    }
+}
+
+fn check(root: &Path, env: &Env, output: &Path, complete: bool) -> Result<()> {
     let (identity, _) = source(root, env)?;
     let platforms = release_platforms(root)?;
     let expected_native: BTreeSet<String> = platforms
@@ -1019,6 +1037,12 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
         let file = format!("ccvl-{platform}.receipt.json");
         let path = output.join(&file);
         if !path.exists() && PENDING_ALLOWED.contains(&platform.as_str()) {
+            if complete {
+                return fail(format!(
+                    "Missing platform evidence: {platform} (its leg, {}, has not left a receipt)",
+                    leg_of(platform)
+                ));
+            }
             states.insert(platform.clone(), json!("pending"));
             continue;
         }
@@ -1038,6 +1062,12 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
         };
         if (field("platform"), field("rust_host")) != (Some(platform.as_str()), Some(host)) {
             return fail(format!("Missing native platform evidence: {platform}"));
+        }
+        if complete && plan == Plan::NativeWhenAvailable && state != "tested" {
+            return fail(format!(
+                "{platform} is only built: its leg, {}, has not tested it",
+                leg_of(platform)
+            ));
         }
         if receipt.get("checks") != Some(&checks)
             || !truthy(receipt.get("rustc"))

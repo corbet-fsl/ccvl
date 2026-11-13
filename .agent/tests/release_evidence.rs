@@ -119,6 +119,7 @@ impl Release {
         for name in [
             "release-evidence.sh",
             "publish-release.sh",
+            "dispatch-leg.sh",
             "forge-draft.sh",
             "windows-attest.sh",
         ] {
@@ -205,6 +206,19 @@ impl Release {
         self.run(&["check", "--output", self.output.to_str().unwrap()], &[])
     }
 
+    /// The check a promotion makes: every leg has left its final evidence.
+    fn check_complete(&self) -> Output {
+        self.run(
+            &[
+                "check",
+                "--complete",
+                "--output",
+                self.output.to_str().unwrap(),
+            ],
+            &[],
+        )
+    }
+
     fn identity_field(&self, field: &str) -> String {
         self.identity[field].as_str().unwrap().to_owned()
     }
@@ -265,64 +279,101 @@ impl Release {
 
     fn populate(&self) {
         for platform in platforms_of(&self.version) {
-            // The macOS build clone does not exist yet: those platforms stay pending.
+            // The macOS leg has not run when the draft is made: those platforms stay pending.
             if platform.starts_with("macos-") {
                 continue;
             }
-            let host = host_of(&platform);
-            let native = platform == "linux-x86_64";
-            let name = format!(
-                "ccvl-{platform}{}",
-                if platform.starts_with("windows-") {
-                    ".exe"
-                } else {
-                    ""
-                }
-            );
-            let mut assets = serde_json::Map::new();
-            for filename in [name.clone(), format!("ccvl-{platform}.tar.gz")] {
-                let payload = format!("fixture {filename}");
-                fs::write(self.output.join(&filename), &payload).unwrap();
-                let checksum = sha256_hex(payload.as_bytes());
-                fs::write(
-                    self.output.join(format!("{filename}.sha256")),
-                    format!("{checksum}  {filename}\n"),
-                )
-                .unwrap();
-                assets.insert(filename, json!(checksum));
+            self.write_platform(&platform);
+        }
+        self.write_gates();
+    }
+
+    /// The manifests are derived from the receipts: they are written again after a leg.
+    fn forget_manifests(&self) {
+        for name in ["manifest.json", "runtime-manifest.json"] {
+            let _ = fs::remove_file(self.output.join(name));
+        }
+    }
+
+    /// What the `release-windows` leg leaves in the draft: the clone's report and the native
+    /// receipt that stands on it.
+    fn finish_windows(&self) {
+        let result = self.attest(&self.clone_result());
+        assert!(result.status.success(), "{}", text(&result));
+        self.forget_manifests();
+    }
+
+    /// What the `release-macos` leg leaves in the draft: the native receipt of `x86_64`
+    /// (built and run in the macOS clone) and the cross receipt of ARM64.
+    fn finish_macos(&self) {
+        for platform in ["macos-x86_64", "macos-arm64"] {
+            self.write_platform(platform);
+        }
+        self.forget_manifests();
+    }
+
+    fn finish_legs(&self) {
+        self.finish_windows();
+        self.finish_macos();
+    }
+
+    fn write_platform(&self, platform: &str) {
+        let host = host_of(platform);
+        let native = platform == "linux-x86_64" || platform == "macos-x86_64";
+        let name = format!(
+            "ccvl-{platform}{}",
+            if platform.starts_with("windows-") {
+                ".exe"
+            } else {
+                ""
             }
+        );
+        let mut assets = serde_json::Map::new();
+        for filename in [name.clone(), format!("ccvl-{platform}.tar.gz")] {
+            let payload = format!("fixture {filename}");
+            fs::write(self.output.join(&filename), &payload).unwrap();
+            let checksum = sha256_hex(payload.as_bytes());
             fs::write(
-                self.output.join(format!("{name}.runtime-id")),
-                format!("{}\n", self.identity_field("runtime_id")),
+                self.output.join(format!("{filename}.sha256")),
+                format!("{checksum}  {filename}\n"),
             )
             .unwrap();
-            let mut receipt = self.identity.clone();
-            for (key, value) in [
-                ("kind", json!(if native { "native" } else { "cross" })),
-                ("platform", json!(platform)),
-                ("rust_host", json!(host)),
-                ("rustc", json!("rustc 1.97.0 fixture")),
-                ("cargo", json!("cargo 1.97.0 fixture")),
-                (
-                    "checks",
-                    if native {
-                        json!(["public-check", "native-runtime"])
-                    } else {
-                        json!(["cross-build"])
-                    },
-                ),
-                ("assets", Value::Object(assets)),
-                ("provider", json!("forgejo")),
-                ("run", json!("123")),
-            ] {
-                receipt[key] = value;
-            }
-            if !native {
-                receipt["tested"] = json!(false);
-                receipt["tool"] = json!("cargo-zigbuild fixture");
-            }
-            self.write(&format!("ccvl-{platform}.receipt.json"), &receipt);
+            assets.insert(filename, json!(checksum));
         }
+        fs::write(
+            self.output.join(format!("{name}.runtime-id")),
+            format!("{}\n", self.identity_field("runtime_id")),
+        )
+        .unwrap();
+        let mut receipt = self.identity.clone();
+        for (key, value) in [
+            ("kind", json!(if native { "native" } else { "cross" })),
+            ("platform", json!(platform)),
+            ("rust_host", json!(host)),
+            ("rustc", json!("rustc 1.97.0 fixture")),
+            ("cargo", json!("cargo 1.97.0 fixture")),
+            (
+                "checks",
+                if native {
+                    json!(["public-check", "native-runtime"])
+                } else {
+                    json!(["cross-build"])
+                },
+            ),
+            ("assets", Value::Object(assets)),
+            ("provider", json!("forgejo")),
+            ("run", json!("123")),
+        ] {
+            receipt[key] = value;
+        }
+        if !native {
+            receipt["tested"] = json!(false);
+            receipt["tool"] = json!("cargo-zigbuild fixture");
+        }
+        self.write(&format!("ccvl-{platform}.receipt.json"), &receipt);
+    }
+
+    fn write_gates(&self) {
         for gate in GATES {
             let mut receipt = self.identity.clone();
             for (key, value) in [
@@ -662,6 +713,82 @@ fn macos_without_an_executor_is_pending_and_with_one_is_checked() {
     // A macOS receipt that exists is validated like any other.
     release.write("ccvl-macos-arm64.receipt.json", &json!({"kind": "cross"}));
     assert!(!release.check().status.success());
+}
+
+#[test]
+fn a_complete_check_needs_the_final_evidence_of_every_leg() {
+    let release = Release::new();
+    // A fresh draft awaits its legs: macOS has no receipt yet, Windows is only built.
+    assert!(release.check().status.success());
+    release.forget_manifests();
+    assert_refused(
+        &release.check_complete(),
+        "Missing platform evidence: macos-x86_64 (its leg, release-macos, has not left a receipt)",
+    );
+    // The macOS leg alone is not enough: the shipped Windows executable was never run.
+    release.finish_macos();
+    assert!(release.check().status.success());
+    release.forget_manifests();
+    assert_refused(
+        &release.check_complete(),
+        "windows-x86_64 is only built: its leg, release-windows, has not tested it",
+    );
+    release.finish_windows();
+    let result = release.check_complete();
+    assert!(result.status.success(), "{}", text(&result));
+    // Tested where an executor ran the platform, built where nothing can run it.
+    let manifest = read_json(&release.output.join("manifest.json"));
+    assert_eq!(
+        manifest["platform_states"],
+        json!({
+            "linux-x86_64": "tested",
+            "linux-aarch64": "built",
+            "windows-x86_64": "tested",
+            "windows-arm64": "built",
+            "macos-x86_64": "tested",
+            "macos-arm64": "built",
+        })
+    );
+    // The manifests of a complete set are the ones the interim check writes for it: a repeat
+    // of either verifies and rewrites nothing.
+    assert!(release.check().status.success());
+    assert!(release.check_complete().status.success());
+}
+
+#[test]
+fn macos_x86_64_is_complete_only_when_it_ran_in_the_clone() {
+    let release = Release::new();
+    release.finish_legs();
+    let receipt = "ccvl-macos-x86_64.receipt.json";
+    let mut data = read_json(&release.output.join(receipt));
+    data["kind"] = json!("cross");
+    data["checks"] = json!(["cross-build"]);
+    data["tested"] = json!(false);
+    data["tool"] = json!("cross fixture");
+    release.write(receipt, &data);
+    // Built is a state of its own, fine for a draft and refused for a promotion.
+    assert!(release.check().status.success());
+    release.forget_manifests();
+    assert_refused(
+        &release.check_complete(),
+        "macos-x86_64 is only built: its leg, release-macos, has not tested it",
+    );
+    // One ARM64 platform missing is incomplete too.
+    release.finish_macos();
+    fs::remove_file(release.output.join("ccvl-macos-arm64.receipt.json")).unwrap();
+    assert_refused(
+        &release.check_complete(),
+        "Missing platform evidence: macos-arm64",
+    );
+}
+
+#[test]
+fn a_patch_release_is_complete_without_any_leg() {
+    let release = Release::with_version("0.1.1");
+    let result = release.check_complete();
+    assert!(result.status.success(), "{}", text(&result));
+    let manifest = read_json(&release.output.join("manifest.json"));
+    assert_eq!(manifest["platforms"], json!(["linux-x86_64"]));
 }
 
 #[test]
@@ -1204,8 +1331,7 @@ fn a_run_identity_is_required_for_new_evidence() {
     assert_refused(&result, "A Forgejo Actions run identity is required.");
 }
 
-/// The maintainers' publication scripts (`publish-release.sh`, `archive-gate.sh`,
-/// `forge-draft.sh`,
+/// The maintainers' publication scripts (`publish-release.sh`, `dispatch-leg.sh`,
 /// `archive-gate.sh`) run on the Linux release host only: they need bash 4 (`mapfile`),
 /// GNU `sha256sum --check --strict` and GNU `stat -c`, none of which macOS ships. Their
 /// fixtures therefore run where the scripts do. Nothing here covers behaviour that is
@@ -1233,6 +1359,8 @@ mod maintainer_scripts {
         releases: Vec<ForgeRelease>,
         tags: BTreeMap<String, String>,
         list_error: bool,
+        /// The forge refuses to start a workflow.
+        dispatch_refused: bool,
         /// Uploads the forge accepts the whole body of and then resets, before storing it.
         drop_uploads: usize,
         /// Uploads of which the forge stores half the body and then resets.
@@ -1399,6 +1527,16 @@ mod maintainer_scripts {
                 let answer = release_json(&release, port);
                 state.releases.push(release);
                 (201, answer.to_string().into_bytes())
+            }
+            ("POST", workflow)
+                if workflow.starts_with("/actions/workflows/")
+                    && workflow.ends_with("/dispatches") =>
+            {
+                if state.dispatch_refused {
+                    (404, b"{}".to_vec())
+                } else {
+                    (204, Vec::new())
+                }
             }
             ("GET", tag) if tag.starts_with("/tags/") => state
                 .tags
@@ -1601,6 +1739,66 @@ mod maintainer_scripts {
         fn preflight(&self) -> Output {
             self.run(&["--preflight"], &[("CI_COMMIT_SHA", COMMIT)])
         }
+
+        /// The end of the release run and of every leg: start the next leg, if one is due.
+        fn dispatch(&self) -> Output {
+            self.run_script("dispatch-leg.sh", &[], &[("CI_COMMIT_SHA", COMMIT)])
+        }
+
+        /// The workflows the forge was asked to start, in order.
+        fn dispatched(&self) -> Vec<String> {
+            self.requests()
+                .iter()
+                .filter_map(|request| {
+                    let path = request.strip_prefix("POST ")?;
+                    let workflow = path.split("/actions/workflows/").nth(1)?;
+                    Some(workflow.strip_suffix("/dispatches")?.to_owned())
+                })
+                .collect()
+        }
+
+        /// What a leg leaves in the draft: every file of the evidence directory the draft does
+        /// not hold yet, and the receipts it replaced. The manifests stay as the release run
+        /// made them; they are derived again at promotion.
+        fn leave_in_draft(&self) {
+            self.leave_files(|_| true);
+        }
+
+        /// The same, for the files of the evidence directory that `keep` selects.
+        fn leave_files(&self, keep: impl Fn(&str) -> bool) {
+            let tag = Self::draft_tag();
+            for entry in fs::read_dir(&self.release.output).unwrap() {
+                let entry = entry.unwrap();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name == "manifest.json" || name == "runtime-manifest.json" || !keep(&name) {
+                    continue;
+                }
+                let bytes = fs::read(entry.path()).unwrap();
+                self.state(|state| {
+                    state.next_asset += 1;
+                    let id = 1000 + state.next_asset;
+                    let draft = release_mut(state, &tag);
+                    match draft.assets.iter_mut().find(|(_, held, _)| *held == name) {
+                        Some(asset) => asset.2 = bytes,
+                        None => draft.assets.push((id, name, bytes)),
+                    }
+                });
+            }
+        }
+
+        /// The macOS leg has run, whatever the Windows leg left in the draft: only the macOS
+        /// files are added, so a receipt the attestation re-issued is not put back.
+        fn finish_macos_leg(&self) {
+            self.release.finish_macos();
+            self.leave_files(|name| name.starts_with("ccvl-macos-"));
+        }
+
+        /// Both legs have run: the Windows clone has tested its executable, the macOS clone
+        /// has built, tested and packaged its platforms.
+        fn finish_legs(&self) {
+            self.release.finish_legs();
+            self.leave_in_draft();
+        }
     }
 
     fn release_mut<'a>(state: &'a mut ForgeState, tag: &str) -> &'a mut ForgeRelease {
@@ -1709,7 +1907,9 @@ mod maintainer_scripts {
                 );
             }
         });
-        // Promotion checks the whole draft again, writes the manifests again, and agrees.
+        // The macOS leg has run too; promotion checks the whole draft again, writes the
+        // manifests again, and agrees.
+        publisher.finish_macos_leg();
         let promoted = publisher.promote();
         assert!(promoted.status.success(), "{}", text(&promoted));
         publisher.state(|state| {
@@ -1766,6 +1966,7 @@ mod maintainer_scripts {
         assert!(again.status.success(), "{}", text(&again));
         assert!(text(&again).contains("already native"), "{}", text(&again));
         assert_eq!(publisher.writes(), done, "a repeat writes nothing");
+        publisher.finish_macos_leg();
         assert!(publisher.promote().status.success());
         // A published release is final: its evidence is never touched.
         let final_writes = publisher.writes();
@@ -1814,6 +2015,7 @@ mod maintainer_scripts {
                 "tested"
             );
         });
+        publisher.finish_macos_leg();
         assert!(publisher.promote().status.success());
     }
 
@@ -1922,6 +2124,17 @@ mod maintainer_scripts {
         assert_eq!(publisher.uploads(), 30, "nothing is uploaded twice");
     }
 
+    /// The checksums the release carries for the mirrors: `SHA256SUMS` lists every other asset.
+    fn sums_of(assets: &[(u64, String, Vec<u8>)]) -> String {
+        let mut lines: Vec<(String, String)> = assets
+            .iter()
+            .filter(|(_, name, _)| name != "SHA256SUMS")
+            .map(|(_, name, bytes)| (name.clone(), format!("{}  {name}\n", sha256_hex(bytes))))
+            .collect();
+        lines.sort();
+        lines.into_iter().map(|(_, line)| line).collect()
+    }
+
     #[test]
     fn promotion_checks_the_draft_again_and_publishes_it_as_the_version() {
         let release = Release::new();
@@ -1929,11 +2142,33 @@ mod maintainer_scripts {
         // Nothing to promote before the draft exists.
         assert!(!publisher.promote().status.success());
         assert!(publisher.publish().status.success());
+        // The legs have not run: a minor release is not complete, and nothing changes.
+        let uploads = publisher.uploads();
+        let result = publisher.promote();
+        assert_refused(&result, "Missing platform evidence: macos-x86_64");
+        assert_eq!(publisher.uploads(), uploads);
+        publisher.state(|state| {
+            assert!(state.releases.iter().all(|release| release.draft));
+            assert!(state.tags.is_empty());
+        });
+        // Both legs have left their evidence; the draft's manifests still describe the draft
+        // the release run made (macOS pending, Windows built).
+        publisher.finish_legs();
         let result = publisher.promote();
         assert!(result.status.success(), "{}", text(&result));
         let output = text(&result);
         assert!(output.contains("Promoted build-"), "{output}");
+        // The legs ran after the draft was made, so the promotion derived the manifests
+        // afresh and wrote the checksum file the mirrors need.
+        for message in [
+            "The draft's manifest.json is not what its receipts say; replacing it.",
+            "The draft's runtime-manifest.json is not what its receipts say; replacing it.",
+            "The draft's SHA256SUMS does not cover its assets; writing it.",
+        ] {
+            assert!(output.contains(message), "{message}: {output}");
+        }
         assert!(!output.contains("downstream"), "{output}");
+        let expected_assets = fs::read_dir(&release.output).unwrap().count() + 3;
         publisher.state(|state| {
             // One public release, named and tagged by the version, on this commit.
             assert_eq!(state.releases.len(), 1);
@@ -1941,10 +2176,47 @@ mod maintainer_scripts {
             assert_eq!(public.tag, "v0.1.0");
             assert_eq!(public.title, "0.1.0");
             assert!(!public.draft && !public.prerelease);
-            assert_eq!(public.assets.len(), 30);
+            // The evidence directory, the two manifests derived again, and SHA256SUMS.
+            assert_eq!(public.assets.len(), expected_assets);
             assert!(public.body.contains("ccvl 0.1.0 (minor release)"));
+            for state_text in [
+                "linux-x86_64 tested",
+                "windows-x86_64 tested",
+                "macos-x86_64 tested",
+                "macos-arm64 built, not tested",
+            ] {
+                assert!(public.body.contains(state_text), "{}", public.body);
+            }
             assert_eq!(state.tags.len(), 1);
             assert_eq!(state.tags["v0.1.0"], COMMIT);
+            let asset = |name: &str| {
+                let (_, _, bytes) = public
+                    .assets
+                    .iter()
+                    .find(|(_, held, _)| held == name)
+                    .unwrap_or_else(|| panic!("the release has no {name}"));
+                bytes.clone()
+            };
+            // The manifests say what the receipts say.
+            let manifest: Value = serde_json::from_slice(&asset("manifest.json")).unwrap();
+            assert_eq!(
+                manifest["platform_states"],
+                json!({
+                    "linux-x86_64": "tested",
+                    "linux-aarch64": "built",
+                    "windows-x86_64": "tested",
+                    "windows-arm64": "built",
+                    "macos-x86_64": "tested",
+                    "macos-arm64": "built",
+                })
+            );
+            // SHA256SUMS lists every other asset (the mirrors' pull job fails closed without an
+            // entry), in coreutils format, in byte order, and not itself.
+            let sums = String::from_utf8(asset("SHA256SUMS")).unwrap();
+            assert_eq!(sums, sums_of(&public.assets));
+            assert_eq!(sums.lines().count(), public.assets.len() - 1);
+            assert!(sums.contains("  ccvl-macos-arm64.receipt.json\n"), "{sums}");
+            assert!(sums.contains("  manifest.json\n"), "{sums}");
         });
         // A repeat verifies and changes nothing.
         let uploads = publisher.uploads();
@@ -1952,10 +2224,22 @@ mod maintainer_scripts {
         assert!(result.status.success(), "{}", text(&result));
         assert!(text(&result).contains("is public already"));
         assert_eq!(publisher.uploads(), uploads);
+        // A checksum file that no longer covers the release is not accepted as the release.
+        publisher.state(|state| {
+            let public = &mut state.releases[0];
+            let asset = public
+                .assets
+                .iter_mut()
+                .find(|(_, name, _)| name == "SHA256SUMS")
+                .unwrap();
+            asset.2.extend_from_slice(b"stray\n");
+        });
+        assert_refused(&publisher.promote(), "SHA256SUMS");
         // A corrupted draft never becomes public.
         let other = Release::new();
         let second = Publisher::new(&other);
         assert!(second.publish().status.success());
+        second.finish_legs();
         let tag = Publisher::draft_tag();
         second.state(|state| {
             let asset = release_mut(state, &tag)
@@ -1973,11 +2257,130 @@ mod maintainer_scripts {
     }
 
     #[test]
+    fn a_minor_release_is_promoted_only_when_both_legs_have_passed() {
+        // The macOS leg without the Windows leg.
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        release.finish_macos();
+        publisher.leave_in_draft();
+        assert_refused(
+            &publisher.promote(),
+            "windows-x86_64 is only built: its leg, release-windows, has not tested it",
+        );
+        // The Windows leg without the macOS leg.
+        let other = Release::new();
+        let second = Publisher::new(&other);
+        assert!(second.publish().status.success());
+        other.finish_windows();
+        second.leave_in_draft();
+        assert_refused(
+            &second.promote(),
+            "Missing platform evidence: macos-x86_64 (its leg, release-macos, has not left a receipt)",
+        );
+        // Neither refusal published, tagged or changed anything on the forge.
+        for forge in [&publisher, &second] {
+            forge.state(|state| {
+                assert!(state.releases.iter().all(|release| release.draft));
+                assert!(state.tags.is_empty());
+            });
+        }
+        // A patch release holds Linux x86_64 alone and has no leg to wait for.
+        let patch = Release::with_version("0.1.1");
+        let third = Publisher::new(&patch);
+        assert!(third.publish().status.success());
+        assert!(third.promote().status.success());
+    }
+
+    #[test]
+    fn the_release_run_starts_the_first_leg_and_each_leg_the_next() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        // Without a draft there is nothing to continue.
+        assert_refused(&publisher.dispatch(), "There is no draft build-");
+        assert_eq!(publisher.dispatched(), [] as [&str; 0]);
+        assert!(publisher.publish().status.success());
+        // The end of the release run: the Windows leg is due.
+        let result = publisher.dispatch();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(
+            text(&result).contains("Started release-windows"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.dispatched(), ["release-windows.yml"]);
+        // The Windows clone tested the executable: the macOS leg is due.
+        release.finish_windows();
+        publisher.leave_in_draft();
+        let result = publisher.dispatch();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(
+            text(&result).contains("Started release-macos"),
+            "{}",
+            text(&result)
+        );
+        // One macOS platform is not the leg: it is due until both left their receipt.
+        release.write_platform("macos-x86_64");
+        publisher.leave_in_draft();
+        assert!(publisher.dispatch().status.success());
+        assert_eq!(
+            publisher.dispatched(),
+            [
+                "release-windows.yml",
+                "release-macos.yml",
+                "release-macos.yml"
+            ]
+        );
+        release.finish_macos();
+        publisher.leave_in_draft();
+        // Both legs are done: nothing is started, and a re-run of a leg ends the chain here.
+        let result = publisher.dispatch();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(
+            text(&result).contains("release-promote can check the draft"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.dispatched().len(), 3);
+    }
+
+    #[test]
+    fn a_patch_release_has_no_legs_and_a_stale_or_refused_dispatch_fails_visibly() {
+        let patch = Release::with_version("0.1.1");
+        let publisher = Publisher::new(&patch);
+        assert!(publisher.publish().status.success());
+        let result = publisher.dispatch();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(
+            text(&result).contains("a patch release"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.dispatched(), [] as [&str; 0]);
+        // Main moved on: the draft is stale and no leg is started for another commit.
+        let release = Release::new();
+        let stale = Publisher::new(&release);
+        assert!(stale.publish().status.success());
+        stale.state(|state| state.head = "b".repeat(40));
+        assert_refused(&stale.dispatch(), "no longer main");
+        stale.state(|state| state.head = COMMIT.to_owned());
+        // The forge does not start the workflow: the run fails, it is not a quiet success.
+        stale.state(|state| state.dispatch_refused = true);
+        assert_refused(
+            &stale.dispatch(),
+            "did not start the workflow release-windows",
+        );
+        // The one request the forge refused; nothing else was asked of it.
+        assert_eq!(stale.dispatched(), ["release-windows.yml"]);
+    }
+
+    #[test]
     fn a_version_is_released_once() {
         let release = Release::new();
         let publisher = Publisher::new(&release);
         assert!(publisher.preflight().status.success());
         assert!(publisher.publish().status.success());
+        publisher.finish_legs();
         assert!(publisher.promote().status.success());
         let uploads = publisher.uploads();
         // The same version again: refused before anything is created or uploaded.

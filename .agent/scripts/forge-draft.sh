@@ -89,3 +89,65 @@ forge_fetch_asset() {
   echo "The forge answered $code reading the asset $name." >&2
   return 2
 }
+
+# forge_size FILE: the size of a file in bytes. `wc -c` reads the same everywhere; GNU and BSD
+# `stat` do not (the macOS leg sources this file too).
+forge_size() {
+  local size
+  size="$(wc -c < "$1")"
+  printf '%s' "${size//[[:space:]]/}"
+}
+
+# forge_held RELEASE_FILE NAME: "ID SIZE" of that asset of the release, empty when it holds none.
+forge_held() {
+  jq -r --arg name "$2" '[.assets[] | select(.name == $name)][0] | if . == null then "" else "\(.id) \(.size)" end' "$1"
+}
+
+# forge_upload RELEASE_FILE TAG FILE: one file becomes an asset of a DRAFT, checked on the
+# release by size. The forge keeps the part of an interrupted upload it received (the uplink is
+# slow): a part is removed and the upload repeated, a whole file is left alone.
+forge_upload() {
+  local release="$1" tag="$2" file="$3" name attempt held id size
+  name="$(basename "$file")"
+  for attempt in 1 2 3 4; do
+    if ! forge_call POST "$api/repos/$repository/releases/$(jq -r '.id' "$release")/assets?name=$name" \
+      -H 'Content-Type: application/octet-stream' --data-binary "@$file"; then
+      echo "Upload of $name failed (attempt $attempt of 4)." >&2
+      sleep $((attempt * ${CCVL_UPLOAD_RETRY_DELAY:-5}))
+    fi
+    forge_release "$tag" "$release" || return 2
+    held="$(forge_held "$release" "$name")"
+    if [[ -n $held ]]; then
+      read -r id size <<<"$held"
+      [[ $size == "$(forge_size "$file")" ]] && return 0
+      echo "Removing the truncated draft asset $name ($size of $(forge_size "$file") bytes)." >&2
+      forge_call DELETE "$api/repos/$repository/releases/$(jq -r '.id' "$release")/assets/$id" || return 2
+    fi
+  done
+  echo "Could not upload $name." >&2
+  return 2
+}
+
+# forge_put RELEASE_FILE TAG FILE: the DRAFT ends up holding FILE under its own name. An asset
+# of that name whose size or bytes differ is removed first; one that is the same is not touched.
+# Only a draft changes: a published release is final.
+forge_put() {
+  local release="$1" tag="$2" file="$3" name held id size current
+  name="$(basename "$file")"
+  [[ $(jq -r '.draft' "$release") == true ]] || {
+    echo "Release $(jq -r '.tag_name' "$release") is public: its assets are final." >&2; return 2
+  }
+  held="$(forge_held "$release" "$name")"
+  if [[ -n $held ]]; then
+    read -r id size <<<"$held"
+    current="$scratch/current-$name"
+    if [[ $size == "$(forge_size "$file")" ]] \
+      && forge_fetch_asset "$release" "$name" "$current" && cmp -s -- "$current" "$file"; then
+      printf '  %s is as it should be.\n' "$name"
+      return 0
+    fi
+    forge_call DELETE "$api/repos/$repository/releases/$(jq -r '.id' "$release")/assets/$id" || return 2
+  fi
+  forge_upload "$release" "$tag" "$file" || return 2
+  printf '  %s written.\n' "$name"
+}

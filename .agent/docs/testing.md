@@ -97,8 +97,8 @@ exercise the complete user setup path.
 
 The same tested files become release assets; publication never rebuilds or
 fetches an older rolling binary. Forgejo publication requires the evidence of
-every explicitly released platform (tested, built or pending, as its plan
-allows) and all four shared gates. GitHub's availability never gates delivery,
+every explicitly released platform (tested or built, as its plan allows; a draft may
+await a platform leg as pending, a promotion does not) and all four shared gates. GitHub's availability never gates delivery,
 and missing artifacts never silently reduce the released platform set. Validation also runs ShellCheck, Actionlint,
 and REUSE. See [Releases](releases.md) for cache and identity details.
 

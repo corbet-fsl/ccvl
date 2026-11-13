@@ -102,16 +102,18 @@ arm even more sparingly. We must keep down the compute." Never dispatch `release
 for a single change or a version bump; changes are batched. When a release is
 wanted, follow `.agent/docs/releases.md`: the Forgejo `release` run drafts the
 compiled bundles for the version's platform set (Linux x86_64 tested; Windows x86_64
-cross-built and tested by `release-windows` in the offline Windows clone; Linux ARM64
-and Windows ARM64 cross-built; macOS pending until its build clone exists) and
-`release-promote` publishes them. A source push alone is not delivery. Every
+cross-built and tested by `release-windows` in the offline Windows clone; macOS x86_64
+built and tested by `release-macos` in the macOS build clone; Linux, Windows and macOS
+ARM64 cross-built; the run starts the legs of a minor release by itself) and
+`release-promote` publishes them on Forgejo once every leg has passed (GitHub and GitLab
+pull the release). A source push alone is not delivery. Every
 advertised platform requires its real evidence and all shared publication gates. Never install a
 stale rolling binary or silently compile on a normal user's machine. Developer
 source builds require `setup --from-source`. Other platform source paths remain
 available for development, without a verified binary release claim.
 Forgejo Actions on our own runners builds, verifies and publishes independently;
-the GitHub mirror only checks pull requests. Unavailable executors or pending
-platforms must not block the available release path.
+the GitHub mirror only checks pull requests. A minor release is promoted only when its
+platform legs have passed; a patch release holds Linux x86_64 alone.
 
 For a new or uncertain environment, route to `ccvl-install`. Use
 `bash ./ccvl bootstrap` on Linux/macOS or `.\ccvl.cmd bootstrap` on Windows;
