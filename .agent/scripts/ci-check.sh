@@ -81,7 +81,8 @@ for check in "$@"; do
       ;;
     downstream-check)
       # Private downstream route: the ccvl runtime built from the checked-out
-      # private commit checks that tree against its published runtime.
+      # private commit checks that tree once the upstream commit's own ci run
+      # is proven green (no published runtime is needed between releases).
       ccvl_select_rust_toolchain >&2
       "${CCVL_CARGO_COMMAND[@]}" run --locked --quiet --bin ccvl -- private-check
       ;;

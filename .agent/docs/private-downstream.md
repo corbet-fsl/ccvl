@@ -120,24 +120,40 @@ to the public host (`CCVL_UPSTREAM_FETCH_URL` names another place to fetch from)
 An explicit 40-character `UPSTREAM_COMMIT` selects the upstream commit the
 private history must contain; without one, the newest public commit the private
 history already contains is used. The command uses the runtime identity
-algorithm of the compiled source, which equals the bootstrap one, and the
-matching public `v<version>/ccvl-linux-x86_64` release and checksum (`<version>`
-is the one in the source's `Cargo.toml`; see "How a downstream finds the runtime" in
-[releases](releases.md)).
-Optional `CCVL_CHECK_RUNTIME` points to an existing worker artifact; its bytes
-must still match the downloaded official checksum and its executable runtime
-identity. Without that input, the binary is downloaded into disposable job
-storage. No compiler, packages, worker tools, or user runtime cache are
-installed; the checking command itself uses the worker's existing Rust
-toolchain, and the published runtime is never built from source. Missing
-published runtime assets or an unreachable release host produce a failed
-prerequisite, not a source build or a successful validation result.
+algorithm of the compiled source, which equals the bootstrap one.
 
-The published runtime runs `downstream-check --policy ccvl-downstream.json
+There is no published runtime for every commit (a release exists per version), so
+the route is anchored on the upstream's own CI instead: the upstream commit the
+private history contains must have a successful `ci.yml` run on the forge that
+runs the job (`GET /repos/<upstream>/actions/runs?head_sha=…&workflow_id=ci.yml&status=success`,
+read anonymously because the upstream is public). A run that is not green, or a
+forge that does not answer, is a failed prerequisite, never a pass. The gates
+then run with the binary that is running (built from the checked-out source by
+`ci-check.sh`) or with the executable `CCVL_CHECK_RUNTIME` names; either must
+report the runtime identity of the source being checked, or the stage stops
+(`The binary that runs the gates was not built from this source`). Nothing is
+downloaded, and no compiler, packages, worker tools, or user runtime cache are
+installed; the checking command itself uses the worker's existing Rust
+toolchain.
+
+The binary runs `downstream-check --policy ccvl-downstream.json
 --upstream-ref <upstream commit>` followed by the complete `check` gate. Private
 command output is captured and discarded; the run log receives only a fixed
 failure stage or a success receipt containing source, upstream and runtime
-identities. This route declares no secrets and rejects publication tokens.
+identities and `upstream_ci: success`. This route declares no secrets and rejects
+publication tokens.
+
+### Following the upstream
+
+`ccid render` writes `.forgejo/workflows/upstream-sync.yml` into a repository that
+carries this policy (`upstream.url`). The forge tells the receiver whenever the
+upstream's `ci` run on its default branch succeeds, the receiver dispatches that
+workflow with the commit, and the run merges the exact commit, runs this check on the
+merge and pushes only a clean, green merge (a conflict or a red check pushes nothing).
+It also gives the downstream the upstream's `v<major>.<minor>.<patch>` tags and a release
+per tag whose notes point to the upstream release; the downstream builds and uploads
+nothing. Nothing polls. List the workflow among the downstream's own paths in
+`allowed_paths` (the upstream does not carry it). See ccid's `docs/upstream-sync.md`.
 
 ## Publishing improvements
 

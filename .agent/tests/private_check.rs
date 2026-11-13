@@ -9,7 +9,6 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use ccvl::archive::sha256_hex;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -62,18 +61,19 @@ if [[ $last == "https://forge.example.invalid/api/v1/repos/fixture/private-downs
   printf '{"private": %s, "full_name": "fixture/private-downstream"}' "$private" > "$output"
   exit 0
 fi
-[[ $last == "https://forge.example.invalid/corbet-fsl/ccvl/releases/download/v$TEST_VERSION/$name" ]] || exit 97
-printf 'download:%s\n' "$name" >> "$TEST_TRACE"
-[[ -z ${TEST_RUNTIME_UNAVAILABLE:-} ]] || exit 22
-cp "$TEST_ASSETS/$name" "$output"
+if [[ $last == "https://forge.example.invalid/api/v1/repos/corbet-fsl/ccvl/actions/runs?head_sha="*"&workflow_id=ci.yml&status=success&limit=1" ]]; then
+  sha="${last#*head_sha=}"; sha="${sha%%&*}"
+  printf 'ci:%s\n' "$sha" >> "$TEST_TRACE"
+  [[ -z ${TEST_CI_UNAVAILABLE:-} ]] || exit 22
+  if [[ -n ${TEST_CI_RED:-} ]]; then printf '{"workflow_runs": [], "total_count": 0}' > "$output"
+  else printf '{"workflow_runs": [{"id": 7, "status": "success"}], "total_count": 1}' > "$output"; fi
+  exit 0
+fi
+exit 97
 "#;
 
 fn repository() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-}
-
-fn file_hash(path: &Path) -> String {
-    sha256_hex(&fs::read(path).unwrap())
 }
 
 fn executable(path: &Path, content: &str) {
@@ -163,11 +163,6 @@ impl Downstream {
         ] {
             downstream.write(name, "runtime fixture\n");
         }
-        // The release that holds the runtime is named by the version of this source.
-        downstream.write(
-            "Cargo.toml",
-            "[package]\nname = \"ccvl\"\nversion = \"0.1.0\"\n",
-        );
         downstream.git(&["add", "."]);
         downstream.git(&["commit", "--quiet", "-m", "public fixture"]);
         downstream.upstream = downstream.rev_parse();
@@ -237,11 +232,6 @@ impl Downstream {
         fs::write(&downstream.trace, "").unwrap();
         let binary = downstream.assets.join("ccvl-linux-x86_64");
         executable(&binary, FAKE_RUNTIME);
-        fs::write(
-            downstream.assets.join("ccvl-linux-x86_64.sha256"),
-            format!("{}  ccvl-linux-x86_64\n", file_hash(&binary)),
-        )
-        .unwrap();
         executable(&bin.join("curl"), FAKE_CURL);
         let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap());
         for (key, value) in [
@@ -280,9 +270,15 @@ impl Downstream {
             ),
             ("TEST_TOKEN", TOKEN.to_owned()),
             ("TEST_RUNTIME_ID", downstream.fingerprint.clone()),
-            ("TEST_VERSION", "0.1.0".to_owned()),
+            (
+                "CCVL_CHECK_RUNTIME",
+                downstream
+                    .assets
+                    .join("ccvl-linux-x86_64")
+                    .display()
+                    .to_string(),
+            ),
             ("TEST_TRACE", downstream.trace.display().to_string()),
-            ("TEST_ASSETS", downstream.assets.display().to_string()),
         ] {
             downstream.env.insert(key.to_owned(), value);
         }
@@ -366,6 +362,7 @@ fn exact_private_commit_runs_both_gates_without_changing_source() {
     assert_eq!(receipt["repository"], "fixture/private-downstream");
     // The privacy answer comes before anything else leaves the machine.
     assert_eq!(trace[0], "api");
+    assert_eq!(trace[1], format!("ci:{}", fixture.upstream));
     assert_eq!(
         trace[trace.len() - 3..],
         ["runtime-id", "downstream-check", "check"]
@@ -391,7 +388,7 @@ fn an_explicit_upstream_commit_needs_no_public_fetch() {
 }
 
 #[test]
-fn public_hosted_manual_and_nonprivate_execution_are_refused_before_download() {
+fn public_hosted_manual_and_nonprivate_execution_are_refused_before_the_upstream_ci_is_asked() {
     let fixture = Downstream::new();
     for environment in [
         ("FORGEJO_ACTIONS", ""),
@@ -468,11 +465,22 @@ fn nonancestor_upstream_is_refused() {
 }
 
 #[test]
-fn missing_published_runtime_stops_before_private_gates() {
+fn an_upstream_commit_without_a_green_ci_run_stops_before_private_gates() {
     let fixture = Downstream::new();
-    let (output, trace) = fixture.invoke(false, &[("TEST_RUNTIME_UNAVAILABLE", "1")]);
+    let (output, trace) = fixture.invoke(false, &[("TEST_CI_RED", "1")]);
     assert!(
-        stderr(&output).contains("Matching published runtime checksum unavailable"),
+        stderr(&output).contains("The upstream commit has no successful ci run."),
+        "{}",
+        stderr(&output)
+    );
+    assert_eq!(
+        trace,
+        vec!["api".to_owned(), format!("ci:{}", fixture.upstream)]
+    );
+    // An unreachable forge is a failed prerequisite, never a pass.
+    let (output, trace) = fixture.invoke(false, &[("TEST_CI_UNAVAILABLE", "1")]);
+    assert!(
+        stderr(&output).contains("Upstream CI run unavailable"),
         "{}",
         stderr(&output)
     );
@@ -480,30 +488,35 @@ fn missing_published_runtime_stops_before_private_gates() {
 }
 
 #[test]
-fn wrong_runtime_checksum_and_identity_stop_before_private_gates() {
+fn a_binary_of_another_source_stops_before_private_gates() {
     let fixture = Downstream::new();
-    let (_, trace) = fixture.invoke(false, &[("TEST_WRONG_RUNTIME", "1")]);
+    let (output, trace) = fixture.invoke(false, &[("TEST_WRONG_RUNTIME", "1")]);
+    assert!(
+        stderr(&output).contains("was not built from this source"),
+        "{}",
+        stderr(&output)
+    );
     assert!(!trace.iter().any(|line| line == "downstream-check"));
-    fs::write(
-        fixture.assets.join("ccvl-linux-x86_64.sha256"),
-        format!("{}  ccvl-linux-x86_64\n", "0".repeat(64)),
-    )
-    .unwrap();
-    let (_, trace) = fixture.invoke(false, &[]);
-    assert!(!trace.iter().any(|line| line == "runtime-id"));
 }
 
 #[test]
-fn existing_runtime_requires_published_checksum_and_is_not_reinstalled() {
+fn without_a_named_binary_the_running_one_must_report_the_identity_of_the_source() {
+    // No published runtime exists between releases: the gates run with the binary that is running. The test binary's own
+    // identity is not the fixture source's, so the stage refuses before it runs any gate.
     let fixture = Downstream::new();
-    let existing = fixture.assets.join("ccvl-linux-x86_64");
-    let (_, trace) = fixture.invoke(true, &[("CCVL_CHECK_RUNTIME", existing.to_str().unwrap())]);
-    let downloads: Vec<_> = trace
-        .iter()
-        .filter(|line| line.starts_with("download:"))
-        .collect();
-    assert_eq!(downloads, ["download:ccvl-linux-x86_64.sha256"]);
-    assert!(!fixture.extracted.join(".agent/cache").exists());
+    let (output, trace) = fixture.invoke(false, &[("CCVL_CHECK_RUNTIME", "")]);
+    assert!(
+        stderr(&output).contains("was not built from this source"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !trace
+            .iter()
+            .any(|line| line == "downstream-check" || line == "check")
+    );
+    // The release of the source is never consulted any more.
+    assert!(!trace.iter().any(|line| line.starts_with("download:")));
 }
 
 #[test]

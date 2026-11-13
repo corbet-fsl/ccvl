@@ -323,11 +323,12 @@ checksum and identity, never by trust in the name:
 3. the executable must match the published checksum, and its `runtime-id` must
    equal the identity computed from the source being checked.
 
-`ccvl private-check` (the private downstream check) and `setup` do exactly this.
+`setup` does exactly this. (`ccvl private-check` no longer needs a published runtime:
+between releases there is none, so it is anchored on the upstream commit's successful
+`ci` run, see [private-downstream](private-downstream.md).)
 A source whose runtime sources differ from the release of its version (any commit
 after the release that touched the runtime, or an unreleased version) fails the
-third step as stale, with the message `Published runtime is stale or does not
-match this source`; it needs a release of its own version or, for development,
+third step as stale; it needs a release of its own version or, for development,
 `setup --from-source`. Missing assets or an unreachable release host fail the
 prerequisite and are never answered with a source build.
 

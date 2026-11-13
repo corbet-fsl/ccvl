@@ -1,4 +1,4 @@
-//! Check one private downstream on a Forgejo runner using its matching published runtime.
+//! Check one private downstream on a Forgejo runner, anchored on the upstream commit's own successful CI run.
 //!
 //! Maintainer route, hidden from the normal help: `ccvl private-check`. It runs
 //! in the checkout of the private repository that the Forgejo job staged (the
@@ -9,7 +9,7 @@
 use std::fmt;
 use std::fs;
 use std::io::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
@@ -22,6 +22,8 @@ use crate::archive::{self, Env, Kind, dumps, lfs_pointer, sha256_hex, unsafe_mem
 
 const PUBLIC_REPO: &str = "corbet-fsl/ccvl";
 const ASSET: &str = "ccvl-linux-x86_64";
+/// The upstream workflow whose successful run anchors the checks.
+const UPSTREAM_CI: &str = "ci.yml";
 /// Publication credentials. None may reach this stage.
 const CREDENTIALS: [&str; 8] = [
     "GH_TOKEN",
@@ -574,79 +576,70 @@ fn check(root: &Path, env: &Env) -> Result<Value> {
         cfg!(all(target_os = "linux", target_arch = "x86_64")),
         "This route requires the existing Linux x86_64 executor.",
     )?;
-    // The runtime is an asset of the public release named by the version of this
-    // source (`v<version>`); its identity is compared with the source's below.
-    let release =
-        crate::release_evidence::release_version(&checkout).context("workspace release version")?;
-    let base = format!(
-        "{}/releases/download/v{}",
-        mirror_url.strip_suffix(".git").unwrap_or(&mirror_url),
-        release.version
-    );
-    let checksum_file = scratch.path().join(format!("{ASSET}.sha256"));
-    let checksum_text = checksum_file.to_string_lossy().into_owned();
-    let curl = |label: &str, output: &str, url: &str| {
-        runner.run(
-            label,
-            "curl",
-            &[
-                "-q",
-                "--fail",
-                "--location",
-                "--proto",
-                "=https",
-                "--proto-redir",
-                "=https",
-                "--tlsv1.2",
-                "--silent",
-                "--show-error",
-                "--output",
-                output,
-                url,
-            ],
-            None,
-        )
-    };
-    curl(
-        "Matching published runtime checksum unavailable",
-        &checksum_text,
-        &format!("{base}/{ASSET}.sha256"),
+    // The anchor is the upstream's own CI: the upstream commit this downstream
+    // contains must have a successful `ci` run on the forge that hosts it. No
+    // published runtime is needed between releases; the gates below run with a
+    // binary that proves, by its identity, that it was built from exactly this
+    // source.
+    let slug = mirror_url
+        .strip_suffix(".git")
+        .unwrap_or(&mirror_url)
+        .strip_prefix("https://")
+        .and_then(|rest| rest.split_once('/'))
+        .map_or("", |(_, path)| path)
+        .to_owned();
+    let runs_file = scratch.path().join("upstream-ci.json");
+    runner.run(
+        "Upstream CI run unavailable",
+        "curl",
+        &[
+            "-q",
+            "--fail",
+            "--location",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--tlsv1.2",
+            "--silent",
+            "--show-error",
+            "--output",
+            &runs_file.to_string_lossy(),
+            &format!(
+                "{api}/repos/{slug}/actions/runs?head_sha={upstream}&workflow_id={UPSTREAM_CI}&status=success&limit=1"
+            ),
+        ],
+        None,
     )?;
-    let published = fs::read_to_string(&checksum_file)?;
-    let checksum = published
-        .strip_suffix('\n')
-        .unwrap_or(&published)
-        .strip_suffix(&format!("  {ASSET}"))
-        .filter(|digest| is_hex(digest, 64));
-    require(checksum.is_some(), "Invalid published runtime checksum.")?;
-    let checksum = checksum.unwrap_or_default();
+    let runs: Value = serde_json::from_slice(&fs::read(&runs_file)?)
+        .map_err(|_| Refusal("The upstream CI answer is not JSON.".to_owned()))?;
+    let green = runs.get("total_count").and_then(Value::as_u64).unwrap_or(0) > 0
+        || runs
+            .get("workflow_runs")
+            .and_then(Value::as_array)
+            .is_some_and(|list| !list.is_empty());
+    require(green, "The upstream commit has no successful ci run.")?;
+    // The binary that runs the gates: the running one (built from the staged
+    // source), or the executable the worker names. Either must report the
+    // identity of this source.
     let binary = scratch.path().join(ASSET);
-    if let Some(existing) = env.nonempty("CCVL_CHECK_RUNTIME") {
-        // An existing artifact is accepted only against the current published
-        // checksum and runtime ID; its path alone is not release evidence.
-        fs::copy(existing, &binary)?;
-    } else {
-        curl(
-            "Matching published runtime unavailable",
-            &binary.to_string_lossy(),
-            &format!("{base}/{ASSET}"),
-        )?;
-    }
-    require(
-        sha256_hex(&fs::read(&binary)?) == checksum,
-        "Published runtime checksum mismatch.",
-    )?;
+    let running = match env.nonempty("CCVL_CHECK_RUNTIME") {
+        Some(path) => PathBuf::from(path),
+        None => std::env::current_exe().context("running binary")?,
+    };
+    fs::copy(&running, &binary)?;
+    let checksum = sha256_hex(&fs::read(&binary)?);
     make_private_executable(&binary)?;
     let binary_text = binary.to_string_lossy().into_owned();
     let identity = runner.run(
-        "Published runtime identity",
+        "Runtime identity",
         &binary_text,
         &["runtime-id"],
         Some(&checkout),
     )?;
     require(
         String::from_utf8_lossy(&identity).trim() == fingerprint,
-        "Published runtime is stale or does not match this source.",
+        "The binary that runs the gates was not built from this source.",
     )?;
     runner.run(
         "Downstream ownership gate",
@@ -675,6 +668,7 @@ fn check(root: &Path, env: &Env) -> Result<Value> {
         "source_archive_sha256": sha256_hex(&committed),
         "runtime_id": fingerprint,
         "binary_sha256": checksum,
+        "upstream_ci": "success",
         "checks": ["downstream-check", "check"],
         "merged": false,
         "pushed": false,
