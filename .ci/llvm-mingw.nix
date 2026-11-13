@@ -30,6 +30,11 @@ stdenv.mkDerivation rec {
     cp -r . "$out"
     # The debugger is not part of any build and would pull libxml2, xz and ncurses in.
     rm -f "$out"/bin/lldb* "$out"/lib/liblldb*
+    # Rust's standard library links `-lunwind`. With the import library next to libunwind.a
+    # the linker takes the import library (rustc 1.99 does, 1.100 does not), and the
+    # executable would then import libunwind.dll, which a clean Windows does not have.
+    # Without it the one resolution is the static library, for every Rust version.
+    rm -f "$out"/*-w64-mingw32/lib/libunwind.dll.a
     runHook postInstall
   '';
   # The archive holds Windows objects and import libraries next to the Linux tools.
