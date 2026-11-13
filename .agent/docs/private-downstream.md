@@ -57,24 +57,26 @@ There is no implicit exception.
 
 ## Updating from ccvl
 
-Keep personal changes in private commits. To import a new upstream release:
+Keep personal changes in private commits. The downstream follows the upstream
+through the event-driven upstream sync (see [Following the
+upstream](#following-the-upstream) below): the forge tells the receiver
+whenever the upstream's `ci` run on its default branch succeeds, the receiver
+dispatches the downstream's `upstream-sync` workflow with the commit, and the
+run merges the exact commit, enforces the ownership policy, runs the complete
+deterministic document gate, and pushes only the verified merge. A superseded
+event is a no-op; a conflict, structural deviation, document failure, or
+ownership breach leaves the private remote unchanged. The run executes on the
+maintainer's own Forgejo runner, which keeps private interview and opportunity
+data off hosted runners.
+
+Without the sync route, import a new upstream release by hand:
 
 ```sh
 git fetch upstream
 git merge --no-edit upstream/main
 ```
 
-Do not poll for unattended updates. A trusted workflow may merge the exact
-triggering commit, enforce the ownership policy, run the complete deterministic
-document gate, and push only the verified merge. A superseded event is a no-op;
-a conflict, structural deviation, document failure, or ownership breach leaves
-the private remote unchanged. The GitHub Actions workflow in
-`.github/workflows/downstream-sync.yml` is the generic reusable workflow; the
-maintainer's own Forgejo runner keeps private interview and opportunity data off
-hosted runners. There is no Forgejo sync workflow yet, so the maintainer imports
-upstream releases with the commands above and verifies them with the route
-below. The sync script reads the public repository from `CCVL_UPSTREAM_URL`
-(`https://<forge>/<owner>/ccvl.git`), so it works against any mirror.
+and verify the merge with the route below. Do not poll for unattended updates.
 
 Keep credentials in the workflow runner's repository-scoped secret store and
 restrict them to the intended event. Never expose personal downstream content

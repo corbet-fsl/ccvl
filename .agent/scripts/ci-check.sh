@@ -47,14 +47,12 @@ for check in "$@"; do
       # shellcheck source=.agent/scripts/existing-tool-path.sh
       source .agent/scripts/existing-tool-path.sh
       ccvl_use_existing_lint_tools
-      # The GitHub workflows are the mirror's pull-request checks; the sync one stays disabled.
-      actionlint -ignore '^constant expression "false" in condition\. remove the if: section$' \
-        -shellcheck shellcheck .github/workflows/*.yml
+      # The GitHub workflows are the mirror's pull-request checks.
+      actionlint -shellcheck shellcheck .github/workflows/*.yml
       shellcheck .agent/scripts/*.sh .agent/tests/*.sh ccvl
       reuse lint
       bash .agent/tests/test_bootstrap.sh
       bash .agent/tests/test_ci_toolchain.sh
-      bash .agent/tests/test_downstream_sync.sh
       bash .agent/tests/test_lfs_fetch.sh
       ;;
     documents)

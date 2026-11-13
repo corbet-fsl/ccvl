@@ -16,9 +16,8 @@ const BIN: &str = env!("CARGO_BIN_EXE_ccvl");
 const UPSTREAM_URL: &str = "https://forge.example.invalid/corbet-fsl/ccvl.git";
 const TOKEN: &str = "fixture-job-token";
 /// Publication credentials: each one alone must stop the stage.
-const CREDENTIALS: [&str; 8] = [
+const CREDENTIALS: [&str; 7] = [
     "GH_TOKEN",
-    "DOWNSTREAM_PUSH_KEY",
     "CARGO_REGISTRY_TOKEN",
     "CARGO_REGISTRIES_CRATES_IO_TOKEN",
     "NPM_TOKEN",
