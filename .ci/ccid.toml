@@ -29,11 +29,14 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "styles"]]
 cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
 cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN", "CCVL_CHECK_STYLES"]
 
+# An online check of one run: it asks the forge whether the repository is private and reads the
+# runner's identity (FORGEJO_ACTIONS, GITHUB_REPOSITORY, GITHUB_EVENT_NAME, the job token). A cached
+# check sees only its declared environment, so the guard refused every real run; the check never
+# reuses a result and runs with the job's full environment, like the release checks.
 [checks.downstream-check]
 kind = "commands"
+cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "downstream-check"]]
-cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
-cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 
 [checks.release-rust]
 kind = "commands"
