@@ -24,29 +24,46 @@ that set. Each platform holds one of three states:
 | State | Platforms | Evidence |
 |---|---|---|
 | `tested` | linux-x86_64 | built on the runner, then run there: public check and native runtime checks |
-| `built` | linux-aarch64, windows-x86_64, windows-arm64 | cross-built on the Linux runner, never run there; ARM is never emulated, x86_64 Windows is tested later in its Windows build clone |
+| `built` | linux-aarch64, windows-x86_64, windows-arm64 | cross-built on the Linux runner, never run there; ARM is never emulated; the shipped x86_64 Windows executable is run afterwards in the offline Windows clone (`release-windows`, below) |
 | `pending` | macos-x86_64, macos-arm64 | no executor yet; the release completes without them and records the state |
 
 A `built` platform never claims tests, and a `pending` one has no asset. The
-cross platforms are linked by `cargo zigbuild` (Windows for the GNU ABI, so no
-Microsoft SDK is needed). The Linux x86_64 binary is linked the same way against
-a glibc 2.39 baseline and the system loader, so it runs on an ordinary Linux and
-not only inside the runner's Nix store.
+Linux aarch64 binary is linked by `cargo zigbuild`, and so is the Linux x86_64
+binary, against a glibc 2.39 baseline and the system loader, so they run on an
+ordinary Linux and not only inside the runner's Nix store.
 
-`cargo zigbuild` was chosen over `cargo xwin` for the Windows targets by
-measurement (2026-11-12, the Windows x86_64 release build, `measure4`):
+Both Windows platforms use one ABI, `gnullvm` (`x86_64-pc-windows-gnullvm` and
+`aarch64-pc-windows-gnullvm`): a plain `cargo build --target` linked by the clang
+and lld of llvm-mingw against its mingw-w64 UCRT runtime. The tool is the upstream
+release archive, pinned by hash and only patched for the Nix loader
+(`.ci/llvm-mingw.nix`; `.ci/llvm-mingw.sh` prints its store path): nothing is
+compiled, every licence is free, no Microsoft SDK is accepted, and it ships the
+`synchronization` import library that Rust's standard library needs. The cross
+stage refuses an executable that imports a mingw runtime DLL, so a clean Windows 10
+or newer needs nothing installed; the x86_64 file is the one the Windows clone runs.
 
-| Lane | cargo-zigbuild (GNU ABI) | cargo-xwin (MSVC ABI) |
-|---|---|---|
-| CPU | 1395 CPU-s, 209 s wall | 1475 CPU-s, 280 s wall (includes the first SDK download) |
-| RAM | peak 6.2 GiB | peak 8.1 GiB |
-| IO | 965 MiB read | 757 MiB read, plus the SDK download |
-| Storage | +1.4 GiB target | +1.4 GiB target and +1.1 GiB Windows SDK cache |
+The choice was made by measurement (2026-11-13, `measure4`, the release profile,
+a fresh target directory with warm downloads and no compile cache, 8 jobs, two
+runs each; the second run of each pair in the opposite order):
 
-xwin also downloads the Microsoft CRT and SDK under their licence terms; zig
-needs neither. The price is the GNU ABI, which a Windows user does not notice for
-a console tool. Revisit the choice when the Windows build clone can build MSVC
-natively.
+| x86_64 release build | llvm-mingw (gnullvm) | cargo-xwin (MSVC) | cargo-zigbuild (GNU) |
+|---|---|---|---|
+| CPU | 842 and 962 CPU-s | 885 and 916 CPU-s | fails |
+| wall | 174 and 208 s | 189 and 191 s | fails |
+| RAM | peak 6.06 and 5.50 GiB | 5.54 and 5.97 GiB | fails |
+| IO | 254 to 377 MiB read | 30 to 185 MiB read | fails |
+| Storage | +1.42 GiB target, 642 MiB toolchain in the Nix store | +1.41 GiB target, the Windows SDK cache (259 MiB to 1.1 GiB) | fails |
+
+llvm-mingw is within 1 % of xwin on the mean of every lane, far below the 5 %
+the choice allowed, and a warm rebuild is 4 % to 5 % cheaper (217 against 226
+CPU-s, 54 against 57 s). The run-to-run noise on a shared host is about 10 %.
+For aarch64-pc-windows-gnullvm the same measurement is 855 and 958 CPU-s, 196 and
+216 s, 5.64 and 5.49 GiB, +1.39 GiB. Neither alternative builds that target: zig
+cannot link `synchronization` (for either Windows target), and cargo-xwin stops in
+the `psm` build script of `aarch64-pc-windows-msvc` (clang-cl cannot assemble the
+GNU-syntax file psm picks for a cross build, and cargo-xwin sets the compiler of the
+target itself, so a `CC` override does not help). xwin also needs the Microsoft SDK
+licence accepted, which is Julian's decision to make and was not needed.
 
 For the tested platform, the native command verifies the running
 OS/architecture and compiler host, builds the locked target, then runs public
