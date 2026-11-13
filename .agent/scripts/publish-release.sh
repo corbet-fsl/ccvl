@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# Publish complete, source-bound results as Forgejo releases; retries never replace asset bytes.
+# Publish a complete, source-bound release on Forgejo; retries never replace asset bytes.
 #
-#   publish-release.sh DIR              create or complete the DRAFT releases of this commit
-#   publish-release.sh --promote [DIR]  make the verified drafts public, then copy them downstream
+#   publish-release.sh --preflight      refuse a version that names no release or is released already
+#   publish-release.sh DIR              create or complete the DRAFT release of this commit
+#   publish-release.sh --promote [DIR]  make the verified draft the public release v<version>
 #
-# The drafts hold every built platform; promoting is a separate, explicit run.
+# One release per version. The draft is named after its commit (`build-<commit>`, an
+# internal identity: the drafts of different commits never meet) and holds every
+# asset: the executables with their checksums and runtime identities, the workspace
+# bundles, the receipts and the manifests. Promoting is a separate, explicit run: it
+# checks the whole set again and renames the draft to the version, `v<version>`.
+# The version is the one in Cargo.toml; `ccvl release-evidence version` refuses a
+# version that names no release (anything but 0.MINOR.PATCH), and a version already
+# released (release or tag `v<version>`, draft or public) is never released again.
 set +x
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -13,7 +21,10 @@ cd "$repo_root"
 source .agent/scripts/release-evidence.sh
 ccvl_prepare_release_evidence
 mode=draft
-if [[ ${1:-} == --promote ]]; then mode=promote; shift; fi
+case ${1:-} in
+  --promote) mode=promote; shift ;;
+  --preflight) mode=preflight; shift ;;
+esac
 repository="${GITHUB_REPOSITORY:-}"
 server="${GITHUB_SERVER_URL:-}"
 server="${server%/}"
@@ -46,13 +57,19 @@ if [[ $mode == draft ]]; then
   identity="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist")"
   read -r sha runtime_id <<<"$identity"
 else
-  # The drafts of this commit are the evidence; they are fetched and re-checked below.
+  # The draft of this commit is the evidence; it is fetched and re-checked below.
   dist="$scratch/verified"
   mkdir -p "$dist"
   sha="${CI_COMMIT_SHA:-}"
   runtime_id="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" source | jq -er '.runtime_id')"
 fi
 [[ "$sha" =~ ^[0-9a-f]{40}$ && "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || exit 2
+# The version decides what is released (see `ccvl release-evidence platforms`); a version
+# that names no release stops here, before anything is asked of the forge.
+version_line="$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" version)" || exit 2
+read -r version kind <<<"$version_line"
+public_tag="v$version"
+draft_tag="build-$sha"
 
 # call METHOD URL [curl arguments]: the body lands in $scratch/response.
 # Returns 0 for 2xx, 4 for a definite 404, 2 for anything else (network, auth, rate limit).
@@ -176,29 +193,48 @@ upload_asset() {
   return 2
 }
 
-# publish TAG TITLE KIND FILE...: create or complete the draft, leave it a draft.
+# A version is released once: no release (draft or public) and no tag may carry it yet.
+# Returns 3 for a version that is taken, 2 when the forge could not tell.
+version_is_free() {
+  local status=0
+  release_state "$public_tag" || status=$?
+  case $status in
+    4) ;;
+    0) printf 'Release %s exists. A version is released once; raise the version in Cargo.toml for a new release.\n' "$public_tag" >&2; return 3 ;;
+    *) return 2 ;;
+  esac
+  status=0
+  call GET "$api/repos/$repository/tags/$public_tag" || status=$?
+  case $status in
+    4) return 0 ;;
+    0) printf 'A tag %s exists already; a version is released once.\n' "$public_tag" >&2; return 3 ;;
+    *) return 2 ;;
+  esac
+}
+
+# release_notes: one text for the draft and the public release, from the evidence in $dist.
+release_notes() {
+  local states
+  states="$(jq -r '.platform_states | to_entries | map(.key + " " + (if .value == "built" then "built, not tested" else .value end)) | join("; ")' "$dist/manifest.json")"
+  printf 'ccvl %s (%s release). Verified runtime %s from source %s. Platforms: %s. Receipts and source/dependency identities are included.' \
+    "$version" "$kind" "$runtime_id" "$sha" "$states"
+}
+
+# publish TAG TITLE FILE...: create or complete the draft, leave it a draft.
 publish() {
-  local tag="$1" title="$2" kind="$3" status=0 path name prerelease=false
-  shift 3
-  [[ "$kind" == runtime ]] && prerelease=true
+  local tag="$1" title="$2" status=0 path name
+  shift 2
   release_state "$tag" || status=$?
   if [[ $status == 4 ]]; then
     validate_tag "$tag" "$sha" true
     call POST "$api/repos/$repository/releases" -H 'Content-Type: application/json' --data "$(jq -cn \
-      --arg tag "$tag" --arg sha "$sha" --arg title "$title" --arg notes "$notes" --argjson prerelease "$prerelease" \
-      '{tag_name: $tag, target_commitish: $sha, name: $title, body: $notes, draft: true, prerelease: $prerelease}')"
+      --arg tag "$tag" --arg sha "$sha" --arg title "$title" --arg notes "$notes" \
+      '{tag_name: $tag, target_commitish: $sha, name: $title, body: $notes, draft: true, prerelease: false}')"
     release_state "$tag"
   elif [[ $status != 0 ]]; then
     return "$status"
   fi
-  if [[ "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == true && $(jq -r '.target_commitish' "$scratch/release.json") != "$sha" ]]; then
-    # The draft of an interrupted run on an earlier commit with the same runtime
-    # identity: it has no tag yet, so it follows this commit.
-    call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
-      --data "$(jq -cn --arg sha "$sha" --arg notes "$notes" '{target_commitish: $sha, body: $notes}')"
-    release_state "$tag"
-  fi
-  [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" || ( "$kind" == runtime && $(jq -r '.draft' "$scratch/release.json") == false ) ]] || {
+  [[ $(jq -r '.target_commitish' "$scratch/release.json") == "$sha" ]] || {
     echo "Release $tag targets a different source commit." >&2; return 2
   }
   validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" "$(jq -r '.draft' "$scratch/release.json")"
@@ -216,40 +252,55 @@ publish() {
   [[ $(jq -r '.assets | length' "$scratch/release.json") == "$#" ]] || return 2
 }
 
-# make_public TAG KIND: the verified draft becomes a release; the tag appears.
-make_public() {
-  local tag="$1" kind="$2" prerelease=false
-  [[ "$kind" == runtime ]] && prerelease=true
-  release_state "$tag"
-  if [[ $(jq -r '.draft' "$scratch/release.json") == false ]]; then
-    validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" false
-    return 0
-  fi
-  if [[ "$kind" == workspace ]]; then
-    is_current || { echo "Source advanced; leaving $tag as a draft." >&2; return 2; }
-  fi
-  call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
-    --data "$(jq -cn --argjson prerelease "$prerelease" '{draft: false, prerelease: $prerelease}')"
-  release_state "$tag"
-  [[ $(jq -r '.draft' "$scratch/release.json") == false ]]
-  validate_tag "$tag" "$(jq -r '.target_commitish' "$scratch/release.json")" false
+# fetch_release TAG: every asset of that release into $dist.
+fetch_release() {
+  local name
+  while IFS= read -r name; do
+    fetch_asset "$name" "$dist/$name" || { echo "Cannot read release asset: $name" >&2; return 2; }
+  done < <(jq -r '.assets[].name' "$scratch/release.json")
 }
 
-runtime_tag="runtime-$runtime_id"
-workspace_tag="build-$sha"
+# make_public: the verified draft of this commit becomes the release of the version;
+# the tag appears, on this commit.
+make_public() {
+  is_current || { echo "Source advanced; leaving $draft_tag as a draft." >&2; return 2; }
+  call PATCH "$api/repos/$repository/releases/$(jq -r '.id' "$scratch/release.json")" -H 'Content-Type: application/json' \
+    --data "$(jq -cn --arg tag "$public_tag" --arg name "$version" --arg notes "$(release_notes)" \
+      '{tag_name: $tag, name: $name, body: $notes, draft: false, prerelease: false}')"
+  release_state "$public_tag"
+  [[ $(jq -r '.draft' "$scratch/release.json") == false ]]
+  validate_tag "$public_tag" "$sha" false
+}
+
+if [[ $mode == preflight ]]; then
+  version_is_free
+  printf 'Release %s (%s release) of %s may proceed. Platforms: %s.\n' "$public_tag" "$kind" "${sha:0:12}" \
+    "$("${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" platforms | paste -sd ' ')"
+  exit
+fi
 
 if [[ $mode == promote ]]; then
-  # Fetch both drafts of this commit into one directory and check the whole set again.
-  for tag in "$runtime_tag" "$workspace_tag"; do
-    release_state "$tag" || { echo "No release $tag to promote." >&2; exit 2; }
-    while IFS= read -r name; do
-      fetch_asset "$name" "$dist/$name" || { echo "Cannot read release asset: $name" >&2; exit 2; }
-    done < <(jq -r '.assets[].name' "$scratch/release.json")
-  done
-  "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
-  make_public "$runtime_tag" runtime
-  make_public "$workspace_tag" workspace
-  printf 'Promoted %s and %s.\n' "$runtime_tag" "$workspace_tag"
+  status=0
+  release_state "$public_tag" || status=$?
+  if [[ $status == 0 ]]; then
+    # Promoted already (a repeat): it must be this commit's, public and complete.
+    [[ $(jq -r '.draft' "$scratch/release.json") == false ]] || { echo "Release $public_tag is a draft of another run; nothing is promoted." >&2; exit 2; }
+    validate_tag "$public_tag" "$sha" false
+    fetch_release
+    "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
+    printf 'Release %s is public already.\n' "$public_tag"
+  elif [[ $status == 4 ]]; then
+    # Fetch the draft of this commit and check the whole set again.
+    release_state "$draft_tag" || { echo "No release $draft_tag to promote." >&2; exit 2; }
+    fetch_release
+    "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" check --output "$dist" >/dev/null
+    version_is_free
+    release_state "$draft_tag"
+    make_public
+    printf 'Promoted %s as %s.\n' "$draft_tag" "$public_tag"
+  else
+    exit "$status"
+  fi
   # Downstream copies follow the Forgejo release and can not undo it.
   bash .agent/scripts/downstream-release.sh "$dist"
   exit
@@ -258,17 +309,14 @@ fi
 # What is released: every platform the release holds a build of, never a pending one.
 mapfile -t platforms < <(jq -r '.platform_states | to_entries[] | select(.value != "pending") | .key' "$dist/manifest.json")
 states="$(jq -r '.platform_states | to_entries | map(.key + " " + (if .value == "built" then "built, not tested" else .value end)) | join("; ")' "$dist/manifest.json")"
-notes="Verified runtime $runtime_id from source $sha. Platforms: $states. Receipts and source/dependency identities are included."
-runtime_files=()
-bundle_files=()
-evidence_files=("$dist/manifest.json" "$dist"/gate-*.json)
+notes="$(release_notes)"
+files=("$dist/runtime-manifest.json" "$dist/manifest.json" "$dist"/gate-*.json)
 for platform in "${platforms[@]}"; do
   name="ccvl-$platform"
   if [[ "$platform" == windows-* ]]; then name="$name.exe"; fi
-  runtime_files+=("$dist/$name" "$dist/$name.sha256" "$dist/$name.runtime-id")
-  bundle_files+=("$dist/ccvl-$platform.tar.gz" "$dist/ccvl-$platform.tar.gz.sha256")
-  evidence_files+=("$dist/ccvl-$platform.receipt.json")
+  files+=("$dist/$name" "$dist/$name.sha256" "$dist/$name.runtime-id" \
+    "$dist/ccvl-$platform.tar.gz" "$dist/ccvl-$platform.tar.gz.sha256" "$dist/ccvl-$platform.receipt.json")
 done
-publish "$runtime_tag" "Compiled runtime ${runtime_id:0:12}" runtime "${runtime_files[@]}" "$dist/runtime-manifest.json"
-publish "$workspace_tag" "ccvl ${sha:0:12}" workspace "${bundle_files[@]}" "${evidence_files[@]}"
-printf 'Drafted %s platform build(s) and the matching workspace bundle(s) for %s: %s.\n' "${#platforms[@]}" "$sha" "$states"
+version_is_free
+publish "$draft_tag" "$version (draft of ${sha:0:12})" "${files[@]}"
+printf 'Drafted %s platform build(s) for %s as %s: %s. Promoting makes it %s.\n' "${#platforms[@]}" "$sha" "$draft_tag" "$states" "$public_tag"

@@ -93,12 +93,18 @@ claims the candidate marked as not true, and similar risks. Fix the data or
 keep a deliberate deviation with a short written reason; see
 [hints and acknowledgements](docs/profile-interview.md#hints-and-acknowledgements).
 
-Runtime and delivery changes are complete only when the exact main revision has
-passed CI and the Forgejo `release` run has drafted the compiled bundles for the
-explicit released platform set (Linux x86_64 tested; Linux ARM64 and Windows
-cross-built; macOS pending until its build clone exists). A source push alone is
-not delivery. Follow `.agent/docs/releases.md`; every advertised platform
-requires its real evidence and all shared publication gates. Never install a
+Runtime and delivery changes are complete when the exact main revision has
+passed CI. They reach users in the next release, which is deliberate and rare:
+semantic versioning below 1.0, one release `v<version>` per version of
+`Cargo.toml`, all platforms only for `0.y.0` and Linux x86_64 for `0.y.z`. Julian:
+"we should not release for every patch or minor version. And for Mac and Windows /
+arm even more sparingly. We must keep down the compute." Never dispatch `release`
+for a single change or a version bump; changes are batched. When a release is
+wanted, follow `.agent/docs/releases.md`: the Forgejo `release` run drafts the
+compiled bundles for the version's platform set (Linux x86_64 tested; Linux ARM64
+and Windows cross-built; macOS pending until its build clone exists) and
+`release-promote` publishes them. A source push alone is not delivery. Every
+advertised platform requires its real evidence and all shared publication gates. Never install a
 stale rolling binary or silently compile on a normal user's machine. Developer
 source builds require `setup --from-source`. Other platform source paths remain
 available for development, without a verified binary release claim.

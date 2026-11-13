@@ -79,8 +79,10 @@ pages or update its record. A successful refresh removes surplus numbered
 previews for that PDF when its page count shrinks. `test_previews.sh` exercises reuse, each source
 of invalidation, and recovery from a failure partway through a document.
 
-An explicit release dispatch builds optimized release binaries natively for
-every platform in `.agent/release-platforms.txt`, currently Linux x86_64.
+An explicit release dispatch builds optimized release binaries for every platform
+the release's version holds (a minor release `0.y.0` all of
+`.agent/release-platforms.txt`, a patch release `0.y.z` Linux x86_64 alone; see
+[Releases](releases.md)).
 Each released binary passes `public-check` and tests proving that both the
 launcher and direct executable
 reject a mismatched workspace. A future Windows release must also exercise its

@@ -68,6 +68,81 @@ pub const PLATFORMS: [(&str, &str, Plan); 6] = [
 pub const PENDING_ALLOWED: [&str; 2] = ["macos-x86_64", "macos-arm64"];
 pub const GATES: [&str; 4] = ["rust", "lint", "linux-deep", "archive"];
 
+/// What a release holds, derived from its version alone (no input, no knob).
+///
+/// Julian, 2026-11-13: "use semantic versioning. we are not at 1.0 - we should not
+/// release for every patch or minor version. And for Mac and Windows / arm even
+/// more sparingly. We must keep down the compute."
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReleaseKind {
+    /// `0.y.0`: every declared platform (Linux, macOS and Windows `x86_64` built and
+    /// tested where an executor exists, the three ARM64 platforms built only).
+    Minor,
+    /// `0.y.z` with `z > 0`: Linux `x86_64` alone.
+    Patch,
+}
+
+impl ReleaseKind {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Minor => "minor",
+            Self::Patch => "patch",
+        }
+    }
+}
+
+/// The version a release is published under, as `v<version>`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReleaseVersion {
+    pub version: String,
+    pub kind: ReleaseKind,
+}
+
+/// A releasable version is exactly `0.MINOR.PATCH` in plain decimal. A pre-release
+/// or build suffix is valid semver but names no release; `1.0` and later wait for
+/// a decision on the policy itself.
+pub fn parse_release_version(version: &str) -> Result<ReleaseVersion> {
+    let number = |part: &str| {
+        !part.is_empty()
+            && part.len() <= 9
+            && part.bytes().all(|byte| byte.is_ascii_digit())
+            && (part == "0" || !part.starts_with('0'))
+    };
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() != 3 || !parts.iter().all(|part| number(part)) {
+        return fail(format!(
+            "Version {version:?} is not a releasable semantic version: MAJOR.MINOR.PATCH in plain digits, with no pre-release or build suffix."
+        ));
+    }
+    if parts[0] != "0" {
+        return fail(format!(
+            "Version {version} is 1.0 or later; the release policy covers 0.y.z only and needs a decision before a 1.0 release."
+        ));
+    }
+    let kind = if parts[2] == "0" {
+        ReleaseKind::Minor
+    } else {
+        ReleaseKind::Patch
+    };
+    Ok(ReleaseVersion {
+        version: version.to_owned(),
+        kind,
+    })
+}
+
+/// The version of the workspace package (`Cargo.toml`), checked against the policy.
+pub fn release_version(root: &Path) -> Result<ReleaseVersion> {
+    let text = fs::read_to_string(root.join("Cargo.toml")).context("cannot read Cargo.toml")?;
+    let manifest: toml::Table = text.parse().context("Cargo.toml is not valid TOML")?;
+    let version = manifest
+        .get("package")
+        .and_then(|package| package.get("version"))
+        .and_then(toml::Value::as_str)
+        .context("Cargo.toml has no package version")?;
+    parse_release_version(version)
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Verify the checkout against the exact CI source and print its identity.
@@ -122,8 +197,11 @@ pub enum Command {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Print the explicit supported release targets.
+    /// Print the explicit release targets of this version.
     Platforms,
+    /// Print the release version and its kind (`minor` or `patch`), or refuse a
+    /// version that names no release.
+    Version,
 }
 
 fn platform_names() -> Vec<&'static str> {
@@ -171,6 +249,10 @@ pub fn execute(root: &Path, env: &Env, command: &Command) -> Result<()> {
     match command {
         Command::Platforms => {
             println!("{}", release_platforms(root)?.join("\n"));
+        }
+        Command::Version => {
+            let release = release_version(root)?;
+            println!("{} {}", release.version, release.kind.name());
         }
         Command::Source { output } => {
             let (identity, _) = source(root, env)?;
@@ -227,6 +309,10 @@ pub fn execute(root: &Path, env: &Env, command: &Command) -> Result<()> {
 }
 
 /// Explicit source policy; available artifacts never choose release scope.
+///
+/// `.agent/release-platforms.txt` declares every platform the project supports. A
+/// release holds all of them when its version is `0.y.0` and Linux `x86_64` alone
+/// when it is `0.y.z` with `z > 0`: the version decides, nothing else.
 pub fn release_platforms(root: &Path) -> Result<Vec<String>> {
     let text = fs::read_to_string(root.join(".agent/release-platforms.txt"))
         .context("cannot read .agent/release-platforms.txt")?;
@@ -241,7 +327,10 @@ pub fn release_platforms(root: &Path) -> Result<Vec<String>> {
             "Invalid release platform policy; unique known targets including Linux x86_64 are required.",
         );
     }
-    Ok(platforms)
+    Ok(match release_version(root)?.kind {
+        ReleaseKind::Minor => platforms,
+        ReleaseKind::Patch => vec!["linux-x86_64".to_owned()],
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -806,7 +895,10 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
         }
         receipts.insert(file, file_sha256(&path)?);
     }
+    let version = release_version(root)?;
     let mut manifest = identity.map();
+    manifest.insert("version".into(), json!(version.version));
+    manifest.insert("release_kind".into(), json!(version.kind.name()));
     manifest.insert("platforms".into(), json!(platforms));
     manifest.insert("platform_states".into(), Value::Object(states.clone()));
     manifest.insert("receipts".into(), json!(receipts));
@@ -815,6 +907,7 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
         &output.join("runtime-manifest.json"),
         &json!({
             "schema": 1,
+            "version": version.version,
             "runtime_id": identity.runtime_id,
             "cargo_lock_sha256": identity.cargo_lock_sha256,
             "platforms": runtimes,

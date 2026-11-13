@@ -6,7 +6,9 @@ tested and released; the workflows are rendered from `.ci/ccid.toml` by `ccid`
 dispatch of one exact commit. The GitHub mirror runs `.github/workflows/ci.yml`
 for pull requests only, on GitHub's free public runners, and never on our own
 pushes. Private downstream data and credential-bearing jobs stay on trusted
-internal workers.
+internal workers. A release is a deliberate and rare dispatch
+(semantic versioning, see the [release policy](releases.md#release-policy-semantic-versioning-released-sparingly));
+per-commit CI is the Linux `verify` job alone.
 
 | Workflow | Checks | Notes |
 |---|---|---|
@@ -14,7 +16,7 @@ internal workers.
 | `downstream-check` | `downstream-check` | a private downstream repository only; see [private downstream](private-downstream.md) |
 | `skill-eval` | `skill-eval-build`, `skill-eval` | public `main` only; credential-bearing |
 | `release` | `release-*` stages | see [Releases](releases.md) |
-| `release-promote` | `release-promote` | makes the drafts public and copies them downstream |
+| `release-promote` | `release-promote` | makes the draft the public release `v<version>` and copies it downstream |
 
 On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 

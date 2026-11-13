@@ -91,14 +91,10 @@ else
     echo "The forge answered $code reading the asset $name." >&2
     return 2
   }
-  # The workspace release names the runtime release through the receipt's identity.
+  # The one draft of this commit (`build-<commit>`) holds the receipt and the executable alike.
   release_json "build-$sha"
-  fetch_asset "ccvl-$platform.receipt.json"
-  runtime_id="$(jq -er '.runtime_id' "$assets/ccvl-$platform.receipt.json")"
-  [[ "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || { echo 'The receipt carries no runtime identity.' >&2; exit 2; }
-  release_json "runtime-$runtime_id"
-  for name in "$exe_name" "$exe_name.sha256" "$exe_name.runtime-id"; do fetch_asset "$name"; done
-  printf 'Assets of release build-%s and runtime-%s (draft or public).\n' "${sha:0:12}" "${runtime_id:0:12}"
+  for name in "ccvl-$platform.receipt.json" "$exe_name" "$exe_name.sha256" "$exe_name.runtime-id"; do fetch_asset "$name"; done
+  printf 'Assets of release build-%s (draft).\n' "${sha:0:12}"
 fi
 
 # The file that runs must be the file the receipt names: receipt, checksum file and bytes agree.
@@ -110,6 +106,7 @@ receipt_sha="$(jq -er --arg name "$exe_name" '.assets[$name]' "$receipt")"
 recorded_sha="$(cut -d ' ' -f 1 "$assets/$exe_name.sha256")"
 actual_sha="$(sha256sum "$assets/$exe_name" | cut -d ' ' -f 1)"
 runtime_id="$(jq -er '.runtime_id' "$receipt")"
+[[ "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || { echo 'The receipt carries no runtime identity.' >&2; exit 2; }
 [[ "$receipt_sha" == "$recorded_sha" && "$recorded_sha" == "$actual_sha" ]] || {
   echo "The executable does not match its receipt: receipt $receipt_sha, checksum file $recorded_sha, bytes $actual_sha." >&2; exit 2
 }

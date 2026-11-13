@@ -41,6 +41,11 @@ release_evidence() {
 printf 'Release evidence directory: %s\n' "$CCVL_RELEASE_DIR"
 case "$action" in
   rust|lint)
+    if [[ $action == rust ]]; then
+      # The first stage: a version that names no release, or one released already,
+      # stops the run before anything is built.
+      bash .agent/scripts/publish-release.sh --preflight
+    fi
     bash .agent/scripts/ci-check.sh "$action"
     release_evidence gate "$action" --output "$CCVL_RELEASE_DIR"
     ;;
@@ -49,12 +54,20 @@ case "$action" in
     bash .agent/scripts/native-release.sh "${CCVL_RELEASE_PLATFORM:-linux-x86_64}" "$CCVL_RELEASE_DIR"
     ;;
   cross)
-    # Built here for platforms nothing here can run: ARM64 (never run anywhere
+    # Built here for the platforms nothing here can run: ARM64 (never run anywhere
     # yet), and x86_64 Windows until its test executor exists. macOS waits for
-    # the macOS build clone and stays pending.
+    # the macOS build clone and stays pending. Which of them this release holds
+    # follows from its version (`ccvl release-evidence platforms`): a patch release
+    # holds Linux x86_64 alone and builds nothing here.
+    mapfile -t wanted < <(release_evidence platforms)
+    built=0
     for platform in linux-aarch64 windows-x86_64 windows-arm64; do
-      bash .agent/scripts/cross-release.sh "$platform" "$CCVL_RELEASE_DIR"
+      if printf '%s\n' "${wanted[@]}" | grep -Fxq -- "$platform"; then
+        bash .agent/scripts/cross-release.sh "$platform" "$CCVL_RELEASE_DIR"
+        built=$((built + 1))
+      fi
     done
+    printf 'Cross stage: %s platform(s) built; this release holds: %s.\n' "$built" "${wanted[*]}"
     ;;
   linux-deep)
     [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo 'Linux x86_64 verification worker required.' >&2; exit 2; }
@@ -74,11 +87,11 @@ case "$action" in
     release_evidence check --output "$CCVL_RELEASE_DIR"
     ;;
   publish)
-    # Complete DRAFT releases on the forge; publishing them is the promote stage.
+    # The complete DRAFT release on the forge; publishing it is the promote stage.
     bash .agent/scripts/publish-release.sh "$CCVL_RELEASE_DIR"
     ;;
   promote)
-    # Make the verified drafts of this exact commit public, then copy downstream.
+    # Make the verified draft of this exact commit the public release v<version>, then copy downstream.
     bash .agent/scripts/publish-release.sh --promote "$CCVL_RELEASE_DIR"
     ;;
   windows)

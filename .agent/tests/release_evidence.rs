@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use ccvl::archive::{sha256_hex, write_with_comment};
-use ccvl::release_evidence::{GATES, PLATFORMS};
+use ccvl::release_evidence::{GATES, PLATFORMS, ReleaseKind, parse_release_version};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -53,7 +53,18 @@ fn release_platforms() -> Vec<String> {
         .collect()
 }
 
+/// The platforms a release of that version holds: all of the declared set for `0.y.0`,
+/// Linux `x86_64` alone for `0.y.z` with `z > 0`.
+fn platforms_of(version: &str) -> Vec<String> {
+    if version.ends_with(".0") {
+        release_platforms()
+    } else {
+        vec!["linux-x86_64".to_owned()]
+    }
+}
+
 struct Release {
+    version: String,
     temp: TempDir,
     root: PathBuf,
     output: PathBuf,
@@ -64,6 +75,10 @@ struct Release {
 
 impl Release {
     fn new() -> Self {
+        Self::with_version("0.1.0")
+    }
+
+    fn with_version(version: &str) -> Self {
         let temp = tempfile::Builder::new()
             .prefix("ccvl-release-test-")
             .tempdir()
@@ -75,7 +90,8 @@ impl Release {
         let mut files: Vec<(String, Vec<u8>)> = vec![
             (
                 "Cargo.toml".into(),
-                b"[package]\nrust-version=\"1.94\"\n".to_vec(),
+                format!("[package]\nname=\"ccvl\"\nversion=\"{version}\"\nrust-version=\"1.94\"\n")
+                    .into_bytes(),
             ),
             ("Cargo.lock".into(), b"fixture lock\n".to_vec()),
             (
@@ -145,6 +161,7 @@ impl Release {
             ("SOURCE_SHA256".to_owned(), file_hash(&archive)),
         ];
         let mut release = Self {
+            version: version.to_owned(),
             temp,
             root,
             output,
@@ -204,7 +221,7 @@ impl Release {
     }
 
     fn populate(&self) {
-        for platform in release_platforms() {
+        for platform in platforms_of(&self.version) {
             // The macOS build clone does not exist yet: those platforms stay pending.
             if platform.starts_with("macos-") {
                 continue;
@@ -446,6 +463,108 @@ fn artifact_availability_cannot_expand_release_scope() {
         &release.check(),
         "outside the explicit release platform policy",
     );
+}
+
+#[test]
+fn the_version_alone_names_the_release_kind() {
+    for (version, kind) in [
+        ("0.0.0", ReleaseKind::Minor),
+        ("0.1.0", ReleaseKind::Minor),
+        ("0.12.0", ReleaseKind::Minor),
+        ("0.0.1", ReleaseKind::Patch),
+        ("0.1.1", ReleaseKind::Patch),
+        ("0.3.10", ReleaseKind::Patch),
+    ] {
+        let parsed = parse_release_version(version).unwrap();
+        assert_eq!((parsed.version.as_str(), parsed.kind), (version, kind));
+    }
+    // Valid semantic versions that name no release, and strings that are not versions.
+    for version in [
+        "1.0.0",
+        "1.2.3",
+        "10.0.0",
+        "0.1",
+        "0.1.0.0",
+        "0.1.0-rc.1",
+        "0.1.0+build.5",
+        "0.01.0",
+        "0.1.00",
+        "v0.1.0",
+        "0.1.x",
+        "0..1",
+        "",
+        " 0.1.0",
+    ] {
+        assert!(parse_release_version(version).is_err(), "{version:?}");
+    }
+}
+
+#[test]
+fn a_patch_release_holds_linux_x86_64_alone() {
+    let release = Release::with_version("0.1.1");
+    let platforms = release.run(&["platforms"], &[]);
+    assert!(platforms.status.success(), "{}", text(&platforms));
+    assert_eq!(String::from_utf8_lossy(&platforms.stdout), "linux-x86_64\n");
+    let version = release.run(&["version"], &[]);
+    assert_eq!(String::from_utf8_lossy(&version.stdout), "0.1.1 patch\n");
+    let result = release.check();
+    assert!(result.status.success(), "{}", text(&result));
+    let manifest = read_json(&release.output.join("manifest.json"));
+    assert_eq!(manifest["platforms"], json!(["linux-x86_64"]));
+    assert_eq!(
+        manifest["platform_states"],
+        json!({"linux-x86_64": "tested"})
+    );
+    assert_eq!(manifest["version"], "0.1.1");
+    assert_eq!(manifest["release_kind"], "patch");
+    let runtime = read_json(&release.output.join("runtime-manifest.json"));
+    assert_eq!(runtime["version"], "0.1.1");
+    assert_eq!(runtime["platforms"].as_object().unwrap().len(), 1);
+    // A build of another platform is outside the policy of this version.
+    let minor = Release::new();
+    fs::copy(
+        minor.output.join("ccvl-windows-x86_64.receipt.json"),
+        release.output.join("ccvl-windows-x86_64.receipt.json"),
+    )
+    .unwrap();
+    assert_refused(
+        &release.check(),
+        "Native evidence outside the explicit release platform policy.",
+    );
+}
+
+#[test]
+fn a_minor_release_holds_every_declared_platform() {
+    let release = Release::with_version("0.2.0");
+    let version = release.run(&["version"], &[]);
+    assert_eq!(String::from_utf8_lossy(&version.stdout), "0.2.0 minor\n");
+    let result = release.check();
+    assert!(result.status.success(), "{}", text(&result));
+    let manifest = read_json(&release.output.join("manifest.json"));
+    assert_eq!(manifest["platforms"], json!(release_platforms()));
+    assert_eq!(manifest["release_kind"], "minor");
+    assert_eq!(manifest["version"], "0.2.0");
+}
+
+#[test]
+fn a_version_that_names_no_release_fails_the_command_and_the_check() {
+    for version in ["1.0.0", "0.1.0-rc.1"] {
+        let release = Release::with_version(version);
+        for arguments in [
+            vec!["version"],
+            vec!["platforms"],
+            vec!["check", "--output", release.output.to_str().unwrap()],
+        ] {
+            let result = release.run(&arguments, &[]);
+            assert!(!result.status.success(), "{version} {arguments:?}");
+            assert!(
+                text(&result).contains("releasable semantic version")
+                    || text(&result).contains("1.0 or later"),
+                "{version}: {}",
+                text(&result)
+            );
+        }
+    }
 }
 
 #[test]
@@ -871,6 +990,7 @@ mod maintainer_scripts {
     struct ForgeRelease {
         id: u64,
         tag: String,
+        title: String,
         draft: bool,
         prerelease: bool,
         target: String,
@@ -888,6 +1008,7 @@ mod maintainer_scripts {
         json!({
             "id": release.id,
             "tag_name": release.tag,
+            "name": release.title,
             "draft": release.draft,
             "prerelease": release.prerelease,
             "target_commitish": release.target,
@@ -1015,6 +1136,7 @@ mod maintainer_scripts {
                 let release = ForgeRelease {
                     id: state.next,
                     tag: request["tag_name"].as_str().unwrap().to_owned(),
+                    title: request["name"].as_str().unwrap().to_owned(),
                     draft: true,
                     prerelease: request["prerelease"].as_bool().unwrap(),
                     target: request["target_commitish"].as_str().unwrap().to_owned(),
@@ -1077,6 +1199,14 @@ mod maintainer_scripts {
                     ("PATCH", None) => {
                         let request: Value = serde_json::from_slice(body).unwrap();
                         let release = &mut state.releases[index];
+                        // A draft has no tag yet, so a promotion may rename it.
+                        if let Some(tag) = request["tag_name"].as_str() {
+                            assert!(release.draft, "only a draft is renamed");
+                            tag.clone_into(&mut release.tag);
+                        }
+                        if let Some(title) = request["name"].as_str() {
+                            title.clone_into(&mut release.title);
+                        }
                         if let Some(draft) = request["draft"].as_bool() {
                             release.draft = draft;
                         }
@@ -1187,12 +1317,13 @@ mod maintainer_scripts {
             change(&mut self.forge.lock().unwrap())
         }
 
-        fn runtime_tag(&self) -> String {
-            format!("runtime-{}", self.release.identity_field("runtime_id"))
+        /// The internal name of the draft of this commit.
+        fn draft_tag() -> String {
+            format!("build-{COMMIT}")
         }
 
-        fn workspace_tag() -> String {
-            format!("build-{COMMIT}")
+        fn preflight(&self) -> Output {
+            self.run(&["--preflight"], &[("CI_COMMIT_SHA", COMMIT)])
         }
     }
 
@@ -1205,34 +1336,35 @@ mod maintainer_scripts {
     }
 
     #[test]
-    fn publication_makes_complete_drafts_and_repeat_is_immutable() {
+    fn publication_makes_one_complete_draft_and_repeat_is_immutable() {
         let release = Release::new();
         let publisher = Publisher::new(&release);
         let result = publisher.publish();
         assert!(result.status.success(), "{}", text(&result));
-        // Four built platforms: 13 runtime files and 17 bundle and evidence files.
+        // Four built platforms: 13 runtime files and 17 bundle and evidence files, in one release.
         let first_uploads = publisher.uploads();
         assert_eq!(first_uploads, 30);
         publisher.state(|state| {
-            assert_eq!(state.releases.len(), 2);
-            assert!(state.tags.is_empty(), "drafts create no tag");
-            for release in &state.releases {
-                assert!(release.draft, "{} must stay a draft", release.tag);
-                assert!(
-                    release.body.contains("linux-x86_64 tested")
-                        && release.body.contains("linux-aarch64 built, not tested")
-                        && release.body.contains("windows-arm64 built, not tested")
-                        && release.body.contains("macos-arm64 pending"),
-                    "{}",
-                    release.body
-                );
-            }
-            assert!(state.releases[0].prerelease && !state.releases[1].prerelease);
+            assert_eq!(state.releases.len(), 1);
+            assert!(state.tags.is_empty(), "a draft creates no tag");
+            let draft = &state.releases[0];
+            assert_eq!(draft.tag, Publisher::draft_tag());
+            assert!(draft.draft && !draft.prerelease);
+            assert_eq!(draft.assets.len(), 30);
+            assert!(
+                draft.body.contains("ccvl 0.1.0 (minor release)")
+                    && draft.body.contains("linux-x86_64 tested")
+                    && draft.body.contains("linux-aarch64 built, not tested")
+                    && draft.body.contains("windows-arm64 built, not tested")
+                    && draft.body.contains("macos-arm64 pending"),
+                "{}",
+                draft.body
+            );
         });
         let result = publisher.publish();
         assert!(result.status.success(), "{}", text(&result));
         assert_eq!(publisher.uploads(), first_uploads);
-        let tag = publisher.runtime_tag();
+        let tag = Publisher::draft_tag();
         publisher.state(|state| {
             // Other bytes of the right size: a size mismatch would be a truncated upload.
             release_mut(state, &tag).assets[0].2[0] ^= 1;
@@ -1257,13 +1389,8 @@ mod maintainer_scripts {
         // Thirty files, plus the three attempts the forge reset.
         assert_eq!(publisher.uploads(), 33);
         publisher.state(|state| {
-            assert_eq!(state.releases.len(), 2);
-            let stored: usize = state
-                .releases
-                .iter()
-                .map(|release| release.assets.len())
-                .sum();
-            assert_eq!(stored, 30);
+            assert_eq!(state.releases.len(), 1);
+            assert_eq!(state.releases[0].assets.len(), 30);
         });
         // The forge never recovers: the publisher gives up with a clear message.
         let other = Release::new();
@@ -1311,9 +1438,9 @@ mod maintainer_scripts {
         let other = Release::new();
         let resumed = Publisher::new(&other);
         assert!(resumed.publish().status.success());
-        let runtime = resumed.runtime_tag();
+        let tag = Publisher::draft_tag();
         resumed.state(|state| {
-            let draft = release_mut(state, &runtime);
+            let draft = release_mut(state, &tag);
             let asset = draft
                 .assets
                 .iter_mut()
@@ -1326,7 +1453,7 @@ mod maintainer_scripts {
         assert!(text(&result).contains("Removing the truncated draft asset ccvl-linux-x86_64"));
         // Right size, other bytes: refused, never replaced.
         resumed.state(|state| {
-            let draft = release_mut(state, &runtime);
+            let draft = release_mut(state, &tag);
             let asset = draft
                 .assets
                 .iter_mut()
@@ -1341,23 +1468,12 @@ mod maintainer_scripts {
     }
 
     #[test]
-    fn a_runtime_draft_of_an_interrupted_earlier_commit_follows_the_new_commit() {
+    fn a_draft_of_another_commit_is_never_retargeted() {
         let release = Release::new();
         let publisher = Publisher::new(&release);
         assert!(publisher.publish().status.success());
-        let runtime = publisher.runtime_tag();
-        let workspace = Publisher::workspace_tag();
-        let stale = "b".repeat(40);
-        publisher.state(|state| release_mut(state, &runtime).target = stale.clone());
-        let result = publisher.publish();
-        assert!(result.status.success(), "{}", text(&result));
-        publisher.state(|state| {
-            assert_eq!(release_mut(state, &runtime).target, COMMIT);
-            assert!(release_mut(state, &runtime).body.contains(COMMIT));
-            assert_eq!(release_mut(state, &runtime).assets.len(), 13);
-        });
-        // The workspace draft is bound to its own commit and is never retargeted.
-        publisher.state(|state| release_mut(state, &workspace).target = stale.clone());
+        let draft = Publisher::draft_tag();
+        publisher.state(|state| release_mut(state, &draft).target = "b".repeat(40));
         let result = publisher.publish();
         assert!(!result.status.success());
         assert!(
@@ -1369,15 +1485,16 @@ mod maintainer_scripts {
     }
 
     #[test]
-    fn promotion_checks_the_drafts_again_and_publishes_them() {
+    fn promotion_checks_the_draft_again_and_publishes_it_as_the_version() {
         let release = Release::new();
         let publisher = Publisher::new(&release);
-        // Nothing to promote before the drafts exist.
+        // Nothing to promote before the draft exists.
         assert!(!publisher.promote().status.success());
         assert!(publisher.publish().status.success());
         let result = publisher.promote();
         assert!(result.status.success(), "{}", text(&result));
         let output = text(&result);
+        assert!(output.contains("Promoted build-"), "{output}");
         // No downstream credential exists on this runner: reported, not failed.
         assert!(
             output.contains("downstream github: skipped: no upload token"),
@@ -1388,17 +1505,28 @@ mod maintainer_scripts {
             "{output}"
         );
         publisher.state(|state| {
-            assert!(state.releases.iter().all(|release| !release.draft));
-            assert_eq!(state.tags.len(), 2);
-            assert!(state.tags.values().all(|commit| commit == COMMIT));
+            // One public release, named and tagged by the version, on this commit.
+            assert_eq!(state.releases.len(), 1);
+            let public = &state.releases[0];
+            assert_eq!(public.tag, "v0.1.0");
+            assert_eq!(public.title, "0.1.0");
+            assert!(!public.draft && !public.prerelease);
+            assert_eq!(public.assets.len(), 30);
+            assert!(public.body.contains("ccvl 0.1.0 (minor release)"));
+            assert_eq!(state.tags.len(), 1);
+            assert_eq!(state.tags["v0.1.0"], COMMIT);
         });
         // A repeat verifies and changes nothing.
-        assert!(publisher.promote().status.success());
+        let uploads = publisher.uploads();
+        let result = publisher.promote();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(text(&result).contains("is public already"));
+        assert_eq!(publisher.uploads(), uploads);
         // A corrupted draft never becomes public.
         let other = Release::new();
         let second = Publisher::new(&other);
         assert!(second.publish().status.success());
-        let tag = second.runtime_tag();
+        let tag = Publisher::draft_tag();
         second.state(|state| {
             let asset = release_mut(state, &tag)
                 .assets
@@ -1408,7 +1536,127 @@ mod maintainer_scripts {
             asset.2 = b"swapped binary".to_vec();
         });
         assert!(!second.promote().status.success());
-        second.state(|state| assert!(state.releases.iter().all(|release| release.draft)));
+        second.state(|state| {
+            assert!(state.releases.iter().all(|release| release.draft));
+            assert!(state.tags.is_empty());
+        });
+    }
+
+    #[test]
+    fn a_version_is_released_once() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.preflight().status.success());
+        assert!(publisher.publish().status.success());
+        assert!(publisher.promote().status.success());
+        let uploads = publisher.uploads();
+        // The same version again: refused before anything is created or uploaded.
+        for result in [publisher.preflight(), publisher.publish()] {
+            assert!(!result.status.success());
+            assert!(
+                text(&result).contains("Release v0.1.0 exists"),
+                "{}",
+                text(&result)
+            );
+        }
+        assert_eq!(publisher.uploads(), uploads);
+        // A draft named for the version blocks it too.
+        let other = Release::new();
+        let drafted = Publisher::new(&other);
+        drafted.state(|state| {
+            state.releases.push(ForgeRelease {
+                id: 900,
+                tag: "v0.1.0".to_owned(),
+                title: "0.1.0".to_owned(),
+                draft: true,
+                prerelease: false,
+                target: COMMIT.to_owned(),
+                body: String::new(),
+                assets: Vec::new(),
+            });
+        });
+        let result = drafted.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("Release v0.1.0 exists"),
+            "{}",
+            text(&result)
+        );
+        // So does a stray tag without a release.
+        let third = Release::new();
+        let tagged = Publisher::new(&third);
+        tagged.state(|state| {
+            state.tags.insert("v0.1.0".to_owned(), "b".repeat(40));
+        });
+        let result = tagged.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("A tag v0.1.0 exists"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(tagged.uploads(), 0);
+        assert!(
+            !tagged
+                .requests()
+                .iter()
+                .any(|request| request.starts_with("POST"))
+        );
+    }
+
+    #[test]
+    fn a_version_that_names_no_release_is_refused_before_the_forge_is_asked() {
+        for version in ["1.0.0", "0.1", "0.1.0-rc.1", "0.1.0+build.5", "0.01.0"] {
+            let release = Release::with_version(version);
+            let publisher = Publisher::new(&release);
+            let result = publisher.preflight();
+            assert!(!result.status.success(), "{version}: {}", text(&result));
+            assert!(
+                text(&result).contains("releasable semantic version")
+                    || text(&result).contains("1.0 or later"),
+                "{version}: {}",
+                text(&result)
+            );
+            assert!(publisher.requests().is_empty(), "{version}");
+        }
+    }
+
+    #[test]
+    fn a_patch_release_drafts_and_promotes_linux_x86_64_alone() {
+        let release = Release::with_version("0.1.1");
+        let publisher = Publisher::new(&release);
+        let preflight = publisher.preflight();
+        assert!(preflight.status.success(), "{}", text(&preflight));
+        assert!(
+            text(&preflight).contains("v0.1.1 (patch release)")
+                && text(&preflight).contains("Platforms: linux-x86_64."),
+            "{}",
+            text(&preflight)
+        );
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        // linux-x86_64: 3 runtime files, 2 bundle files, its receipt, the two manifests and four gates.
+        assert_eq!(publisher.uploads(), 12);
+        let result = publisher.promote();
+        assert!(result.status.success(), "{}", text(&result));
+        publisher.state(|state| {
+            assert_eq!(state.releases.len(), 1);
+            assert_eq!(state.releases[0].tag, "v0.1.1");
+            assert_eq!(state.tags["v0.1.1"], COMMIT);
+            let names: Vec<&str> = state.releases[0]
+                .assets
+                .iter()
+                .map(|(_, name, _)| name.as_str())
+                .collect();
+            assert!(
+                names.iter().all(|name| !name.contains("windows")
+                    && !name.contains("aarch64")
+                    && !name.contains("arm64")
+                    && !name.contains("macos")),
+                "{names:?}"
+            );
+            assert!(state.releases[0].body.contains("(patch release)"));
+        });
     }
 
     #[test]
@@ -1428,9 +1676,8 @@ mod maintainer_scripts {
     fn existing_wrong_tag_prevents_any_publication() {
         let release = Release::new();
         let publisher = Publisher::new(&release);
-        let tag = publisher.runtime_tag();
         publisher.state(|state| {
-            state.tags.insert(tag, "b".repeat(40));
+            state.tags.insert(Publisher::draft_tag(), "b".repeat(40));
         });
         let result = publisher.publish();
         assert!(!result.status.success());
@@ -1440,47 +1687,6 @@ mod maintainer_scripts {
             text(&result)
         );
         assert_eq!(publisher.uploads(), 0);
-    }
-
-    #[test]
-    fn published_gap_is_not_repaired_and_runtime_may_reuse_earlier_source() {
-        let release = Release::new();
-        let publisher = Publisher::new(&release);
-        assert!(publisher.publish().status.success());
-        assert!(publisher.promote().status.success());
-        // A matching immutable runtime of an earlier source is reused...
-        let runtime = publisher.runtime_tag();
-        publisher.state(|state| {
-            release_mut(state, &runtime).target = "b".repeat(40);
-            state.tags.insert(runtime.clone(), "b".repeat(40));
-        });
-        let result = publisher.publish();
-        assert!(result.status.success(), "{}", text(&result));
-        // ...a workspace release of another source is not.
-        let workspace = Publisher::workspace_tag();
-        publisher.state(|state| {
-            release_mut(state, &workspace).target = "b".repeat(40);
-            state.tags.insert(workspace.clone(), "b".repeat(40));
-        });
-        let result = publisher.publish();
-        assert!(!result.status.success());
-        assert!(
-            text(&result).contains("targets a different source commit"),
-            "{}",
-            text(&result)
-        );
-        // A published release missing an asset is incomplete, and nothing repairs it.
-        publisher.state(|state| {
-            let release = release_mut(state, &workspace);
-            release.target = COMMIT.to_owned();
-            release.assets.pop();
-            state.tags.insert(workspace.clone(), COMMIT.to_owned());
-        });
-        let uploads = publisher.uploads();
-        let result = publisher.publish();
-        assert!(!result.status.success());
-        assert!(text(&result).contains("is incomplete"), "{}", text(&result));
-        assert_eq!(publisher.uploads(), uploads);
     }
 
     #[test]
