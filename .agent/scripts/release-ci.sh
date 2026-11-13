@@ -5,7 +5,7 @@ repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
-action="${1:?Usage: release-ci.sh rust|lint|native|cross|linux-deep|archive|check|publish|promote}"
+action="${1:?Usage: release-ci.sh rust|lint|native|cross|linux-deep|archive|check|publish|promote|windows}"
 if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   [[ ${GITHUB_REPOSITORY:-} == corbet-fsl/ccvl && ${GITHUB_REF_NAME:-} == main ]] || {
     echo 'Forgejo release stages require public ccvl main.' >&2; exit 2;
@@ -80,6 +80,11 @@ case "$action" in
   promote)
     # Make the verified drafts of this exact commit public, then copy downstream.
     bash .agent/scripts/publish-release.sh --promote "$CCVL_RELEASE_DIR"
+    ;;
+  windows)
+    # Its own run, after the release run has left the drafts: the Windows x86_64
+    # executable of this commit, as shipped, tested in the offline Windows clone.
+    bash .agent/scripts/windows-test.sh
     ;;
   *) echo "Unknown release stage: $action" >&2; exit 2 ;;
 esac

@@ -89,6 +89,12 @@ kind = "commands"
 cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "release-promote"]]
 
+# The shipped Windows x86_64 executable, tested in the offline Windows clone.
+[checks.release-windows]
+kind = "commands"
+cache = false
+commands = [["bash", ".agent/scripts/ci-check.sh", "release-windows"]]
+
 [checks.core-package]
 kind = "commands"
 commands = [["bash", ".agent/scripts/ci-check.sh", "core-package"]]
@@ -152,4 +158,16 @@ runs_on = "linux"
 checks = ["release-promote"]
 workflow = "release-promote"
 command = ["bash", ".ci/run-release.sh"]
+events = ["manual"]
+
+# The Windows test is its own explicit run, after a release run has left the drafts of
+# the same commit. It builds nothing: it fetches ccvl-windows-x86_64.exe from the draft,
+# proves it is the file the receipt names and runs that file in the offline Windows
+# clone, which the job of the label `windows` owns for its length.
+[jobs.release-windows]
+scheduler = "forgejo"
+runs_on = "windows"
+checks = ["release-windows"]
+workflow = "release-windows"
+command = ["bash", ".ci/run-windows.sh"]
 events = ["manual"]

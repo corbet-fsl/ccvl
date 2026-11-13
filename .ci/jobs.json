@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "51b5a8603f86940400723194fd7d96404d64f9443e09a7863d7937cef7024492",
+  "manifest_sha256": "468fb0f9884a38456d9a116b8f35ffc6aa48c0b761ce929909ff2982a11918ec",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -56,6 +56,23 @@
         ".ci/run-release.sh"
       ],
       "runs_on": "linux",
+      "events": [
+        "manual"
+      ],
+      "archive_inputs": true
+    },
+    "release-windows": {
+      "job": "release-windows",
+      "scheduler": "forgejo",
+      "checks": [
+        "release-windows"
+      ],
+      "workflow": "release-windows",
+      "command": [
+        "bash",
+        ".ci/run-windows.sh"
+      ],
+      "runs_on": "windows",
       "events": [
         "manual"
       ],

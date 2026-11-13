@@ -24,14 +24,21 @@ mkdir -p "$state" "$toolchains"
 exec 9>"$state/release-lock"
 flock -w "${CI_TIMEOUT:-2700}" 9
 # Tools come from the pinned nixpkgs of the verify job (substituted, never built):
-# the lint and PDF gates' tools, and zig with cargo-zigbuild for every release
-# build (Linux x86_64 against a glibc 2.39 baseline; the cross targets).
+# the lint and PDF gates' tools, and zig with cargo-zigbuild for the Linux builds
+# (x86_64 and aarch64, against a glibc 2.39 baseline).
 tool_source=github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436?narHash=sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=
 tool_paths=$(nix build --no-link --print-out-paths \
   "$tool_source#actionlint" "$tool_source#shellcheck" "$tool_source#reuse" \
   "$tool_source#poppler" "$tool_source#qpdf" "$tool_source#file" "$tool_source#jq" \
   "$tool_source#zig" "$tool_source#cargo-zigbuild")
 for path in $tool_paths; do PATH="$path/bin:$PATH"; done
+# Both Windows targets use one ABI, gnullvm, linked by llvm-mingw (clang, lld, the
+# mingw-w64 UCRT runtime). nixpkgs has no such package: .ci/llvm-mingw.nix is the
+# upstream release archive, pinned by hash and only patched for the Nix loader.
+llvm_mingw=$(bash "$PWD/.ci/llvm-mingw.sh" "$tool_source")
+# Last on PATH: the Windows tools are all target-prefixed, and its unprefixed clang and
+# lld must never shadow the host toolchain of the Linux builds.
+PATH="$PATH:$llvm_mingw/bin"
 export RUSTUP_HOME="$toolchains/rustup"
 shared_cargo_home=${CARGO_HOME:-}
 export CARGO_HOME="$toolchains/cargo"
@@ -43,11 +50,11 @@ export CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-always}"
 export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-0}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-0}"
 export RUST_TOOLCHAIN="${RUST_TOOLCHAIN:-stable}"
-# The shared toolchain lock, with the three cross targets of the release.
+# The shared toolchain lock, with the three cross targets of the release (the two Windows targets share the gnullvm ABI).
 TOOLCHAIN_LOCK_FILE="$toolchains/install.lock"
 TOOLCHAIN_LOCK_TIMEOUT="${CI_TIMEOUT:-2700}"
 TOOLCHAIN_WANT_NIGHTLY=0
-TOOLCHAIN_WASM_TARGETS='stable:aarch64-unknown-linux-gnu stable:x86_64-pc-windows-gnu stable:aarch64-pc-windows-gnullvm'
+TOOLCHAIN_WASM_TARGETS='stable:aarch64-unknown-linux-gnu stable:x86_64-pc-windows-gnullvm stable:aarch64-pc-windows-gnullvm'
 # shellcheck source=toolchain-lock.sh
 source "$(dirname "${BASH_SOURCE[0]}")/toolchain-lock.sh"
 toolchain_ensure
@@ -60,6 +67,7 @@ rustc -vV
 cargo --version
 zig version
 cargo-zigbuild --version
+x86_64-w64-mingw32-clang --version | head -1
 # ccid runs the declared checks in order under the verified Cargo target lock
 # (CARGO_TARGET_DIR with CCID_TARGET_LOCK_HELD) that the release stages require.
 exec "$CCID_BIN" check --repo "$PWD" --check "$CHECKS"

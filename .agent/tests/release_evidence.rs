@@ -692,7 +692,7 @@ fn native_packaging_flow_produces_checkable_evidence() {
     .unwrap();
     for (platform, host) in [
         ("linux-aarch64", "aarch64-unknown-linux-gnu"),
-        ("windows-x86_64", "x86_64-pc-windows-gnu"),
+        ("windows-x86_64", "x86_64-pc-windows-gnullvm"),
         ("windows-arm64", "aarch64-pc-windows-gnullvm"),
     ] {
         let result = release.run(
@@ -764,18 +764,21 @@ fn cross_packaging_records_a_built_receipt_and_refuses_false_claims() {
         )
     };
     assert_refused(
-        &cross("windows-x86_64", &foreign, "x86_64-pc-windows-gnu"),
+        &cross("windows-x86_64", &foreign, "x86_64-pc-windows-gnullvm"),
         "does not embed the verified source identity",
     );
-    assert_refused(
-        &cross("windows-x86_64", &binary, "x86_64-pc-windows-msvc"),
-        "Rust compiler host does not match",
-    );
+    // One Windows ABI for both targets: neither the MSVC nor the old GNU triple is accepted.
+    for other in ["x86_64-pc-windows-msvc", "x86_64-pc-windows-gnu"] {
+        assert_refused(
+            &cross("windows-x86_64", &binary, other),
+            "Rust compiler host does not match",
+        );
+    }
     assert_refused(
         &cross("linux-x86_64", &binary, "x86_64-unknown-linux-gnu"),
         "requires native evidence",
     );
-    let result = cross("windows-x86_64", &binary, "x86_64-pc-windows-gnu");
+    let result = cross("windows-x86_64", &binary, "x86_64-pc-windows-gnullvm");
     assert!(result.status.success(), "{}", text(&result));
     for name in [
         "ccvl-windows-x86_64.exe",

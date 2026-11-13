@@ -34,8 +34,10 @@ pub enum Plan {
 }
 
 /// Release platform names, the Rust target triple each is built for, and the
-/// evidence each holds. Windows is built for the GNU ABI (zig links it without
-/// the Microsoft SDK); the MSVC ABI would need that SDK on the runner.
+/// evidence each holds. Both Windows platforms are built for the one `gnullvm`
+/// ABI (clang and lld with the mingw-w64 UCRT runtime, from llvm-mingw): free
+/// licences, no Microsoft SDK on the runner, and the x86_64 executable that is
+/// tested in the Windows clone is the very file that ships.
 pub const PLATFORMS: [(&str, &str, Plan); 6] = [
     ("linux-x86_64", "x86_64-unknown-linux-gnu", Plan::Native),
     (
@@ -51,7 +53,7 @@ pub const PLATFORMS: [(&str, &str, Plan); 6] = [
     ("macos-arm64", "aarch64-apple-darwin", Plan::BuiltOnly),
     (
         "windows-x86_64",
-        "x86_64-pc-windows-gnu",
+        "x86_64-pc-windows-gnullvm",
         Plan::NativeWhenAvailable,
     ),
     (
@@ -101,7 +103,8 @@ pub enum Command {
         rustc: String,
         #[arg(long)]
         cargo: String,
-        /// Identity of the cross toolchain (for example `cargo-zigbuild 0.20 zig 0.16`).
+        /// Identity of the cross toolchain (for example `cargo-zigbuild 0.20 zig 0.16`
+        /// or `llvm-mingw 20261104 clang 23.1.5`).
         #[arg(long)]
         tool: String,
         #[arg(long)]

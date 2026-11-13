@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Cross-build one release platform with cargo-zigbuild and package it with its
-# receipt. The result is built, never run here: ARM64 has no native executor and is
-# never emulated, and Windows x86_64 waits for its test executor.
+# Cross-build one release platform and package it with its receipt. Linux aarch64 is
+# linked by cargo-zigbuild; both Windows platforms are built for the one gnullvm ABI
+# with clang and lld and the mingw-w64 UCRT runtime of llvm-mingw (plain cargo build,
+# no Microsoft SDK, free licences). The result is built, never run here: ARM64 has no
+# native executor and is never emulated, and the Windows x86_64 executable is run
+# later, as this very file, in its Windows clone (.agent/scripts/windows-test.sh).
 set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
@@ -15,15 +18,21 @@ if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   }
 fi
 exe=ccvl
+driver=zigbuild
 case "$platform" in
   linux-aarch64) triple=aarch64-unknown-linux-gnu; zig_target="$triple.2.39" ;;
-  windows-x86_64) triple=x86_64-pc-windows-gnu; zig_target="$triple"; exe=ccvl.exe ;;
-  windows-arm64) triple=aarch64-pc-windows-gnullvm; zig_target="$triple"; exe=ccvl.exe ;;
+  windows-x86_64) triple=x86_64-pc-windows-gnullvm; driver=llvm-mingw; mingw_cc=x86_64-w64-mingw32-clang; exe=ccvl.exe ;;
+  windows-arm64) triple=aarch64-pc-windows-gnullvm; driver=llvm-mingw; mingw_cc=aarch64-w64-mingw32-clang; exe=ccvl.exe ;;
   macos-*) echo "$platform waits for the macOS build clone and stays pending." >&2; exit 2 ;;
   linux-x86_64) echo 'Linux x86_64 is built and run natively: native-release.sh.' >&2; exit 2 ;;
   *) echo "Unknown cross platform: $platform" >&2; exit 2 ;;
 esac
-for tool in cargo-zigbuild zig; do
+if [[ $driver == zigbuild ]]; then
+  needed=(cargo-zigbuild zig)
+else
+  needed=("$mingw_cc" llvm-objdump)
+fi
+for tool in "${needed[@]}"; do
   command -v "$tool" >/dev/null || { echo "Missing cross toolchain: $tool" >&2; exit 2; }
 done
 # shellcheck source=.agent/scripts/rust-toolchain.sh
@@ -39,16 +48,38 @@ if [[ ! -d $sysroot/lib/rustlib/$triple/lib ]]; then
     echo "The Rust toolchain has no $triple standard library and cannot add one." >&2; exit 2
   fi
 fi
-"${CCVL_CARGO_COMMAND[@]}" zigbuild --locked --release \
-  --config .cargo/release-profile.toml --target "$zig_target"
+if [[ $driver == zigbuild ]]; then
+  "${CCVL_CARGO_COMMAND[@]}" zigbuild --locked --release \
+    --config .cargo/release-profile.toml --target "$zig_target"
+  tool="cargo-zigbuild $(cargo-zigbuild --version | awk '{print $NF}'), zig $(zig version)"
+else
+  # clang is the linker of the gnullvm targets; naming it keeps the choice off PATH order.
+  linker_variable="CARGO_TARGET_$(printf '%s' "$triple" | tr 'a-z-' 'A-Z_')_LINKER"
+  export "$linker_variable=$(command -v "$mingw_cc")"
+  "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
+    --config .cargo/release-profile.toml --target "$triple"
+  clang_version="$("$mingw_cc" --version | sed -n '1s/.*clang version \([0-9][0-9.]*\).*/\1/p')"
+  package="$(basename "$(dirname "$(dirname "$(readlink -f "$(command -v "$mingw_cc")")")")")"
+  if [[ $package == *llvm-mingw-* ]]; then mingw_release="${package##*llvm-mingw-}"; else mingw_release=unknown; fi
+  tool="llvm-mingw $mingw_release, clang ${clang_version:-unknown}"
+fi
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$triple/release/$exe"
+if [[ $driver == llvm-mingw ]]; then
+  # A Windows executable of this ABI imports Windows system libraries only. A mingw
+  # runtime DLL (libunwind, libc++, libwinpthread) is not on a clean Windows, and an ARM64
+  # build is never run here, so this is the one place that can tell.
+  imports="$(llvm-objdump -p "$binary" | sed -n 's/^[[:space:]]*DLL Name: //p')"
+  [[ -n $imports ]] || { echo "No import table read from $binary." >&2; exit 2; }
+  if grep -i -E '^(lib|msys|mingw)' <<<"$imports" >&2; then
+    echo "$binary imports a mingw runtime DLL that a clean Windows does not have." >&2; exit 2
+  fi
+fi
 # The tested native executable of this run serves the evidence command when it
 # exists; otherwise the command runs from the checkout.
 if [[ -x "$output/ccvl-linux-x86_64" ]]; then export CCVL_RELEASE_EVIDENCE_BIN="$output/ccvl-linux-x86_64"; fi
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
 ccvl_prepare_release_evidence
-tool="cargo-zigbuild $(cargo-zigbuild --version | awk '{print $NF}'), zig $(zig version)"
 "${CCVL_RELEASE_EVIDENCE_COMMAND[@]}" cross \
   --platform "$platform" --binary "$binary" --host "$triple" \
   --rustc "$("${CCVL_RUSTC_COMMAND[@]}" --version)" \
