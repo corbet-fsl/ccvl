@@ -31,7 +31,7 @@ outputs/<document>/                      flyers, web, videos, presentations, por
 opportunities/<organisation>/<position>/ one concrete job and its documents
 ```
 
-`.github/` contains the GitHub mirror's pull-request checks and `LICENSES/` contains the complete
+`.github/` contains contributor and security policy files and `LICENSES/` contains the complete
 legal texts. There is no separate market map. General preferences discovered
 with the user belong in `inputs/interviews/`; company and role research belongs beside
 the concrete job in `opportunities/`.

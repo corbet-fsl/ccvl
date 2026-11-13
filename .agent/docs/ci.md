@@ -3,9 +3,9 @@
 Forgejo Actions on our own `linux` runners is the only place ccvl is built,
 tested and released; the workflows are rendered from `.ci/ccid.toml` by `ccid`
 (edit the manifest, never `.forgejo/workflows/*.yml`). Every workflow is a manual
-dispatch of one exact commit. The GitHub mirror runs `.github/workflows/ci.yml`
-for pull requests only, on GitHub's free public runners, and never on our own
-pushes. Private downstream data and credential-bearing jobs stay on trusted
+dispatch of one exact commit. Copies on other forges (GitHub, GitLab) run no CI at
+all (operating model R6, R7); an outside change is checked locally with the
+documented command and reaches our CI once it is taken in. Private downstream data and credential-bearing jobs stay on trusted
 internal workers. A release is a deliberate and rare dispatch
 (semantic versioning, see the [release policy](releases.md#release-policy-semantic-versioning-released-sparingly));
 per-commit CI is the Linux `verify` job alone.
@@ -21,7 +21,7 @@ On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 | Check | Coverage |
 |---|---|
 | `rust` (default) | Stable Rust formatting, Clippy and locked unit/document tests, including the release evidence, publisher and private downstream guard fixtures |
-| `lint` | Actionlint, ShellCheck, REUSE and the CI script behavior tests with preinstalled tools |
+| `lint` | ShellCheck, REUSE and the CI script behavior tests with preinstalled tools |
 | `documents` | Locked Linux release build and independent PDF/text/layout verification |
 | `styles` | The same optimized release build as `documents` (thin LTO and one codegen unit, so the two checks share one graph build and target directory), then `public-check` limited to the space-separated `<doc>/<style>` list in `CCVL_CHECK_STYLES` (every style when unset) |
 | `downstream-check` | Manual private downstream route: builds the checked-out source's `private-check` command and runs it against that checkout (see [private downstream](private-downstream.md)) |
@@ -47,8 +47,7 @@ actual native platform.
 `ci` always runs all four checks: a content-keyed result is reused when its
 inputs are unchanged, so a change that touches only prose or one style re-runs
 only the checks whose declared inputs changed. A false skip is worse than a slow
-run; there is no path-based selector. The GitHub mirror's pull-request workflow
-runs the Rust, document and lint jobs for every pull request.
+run; there is no path-based selector.
 
 Engine tests run on the synthetic workspace in
 `.agent/tests/fixtures/workspace` and never read the showcase styles, shared
@@ -105,7 +104,7 @@ command, never a CI workflow; see below.
 workflow. The Forgejo and GitHub skill-eval workflows are removed: hosted
 evaluation would need a provider key on someone else's runner, and Julian
 declined a Groq key for it (ds-groqdrop, 2026-11-13), so no runner provides
-`CCVL_GROQ_API_KEY_FILE` and the GitHub mirror holds no `GROQ_API_KEY` secret.
+`CCVL_GROQ_API_KEY_FILE` and no copy on another forge holds a `GROQ_API_KEY` secret.
 Run the evaluation locally as documented in
 [testing](testing.md#small-model-skill-evaluation), with only the checked-in
 public synthetic `.agent/tests/skill-cases.json` cases and `.agent/skills`

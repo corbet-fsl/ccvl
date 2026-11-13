@@ -21,7 +21,7 @@ The workflow has four product domains:
 - `.agent/` owns skills, schemas, scaffolds, implementation, tests, scripts,
   internal documentation, and the Typst engine.
 
-`.github/` is platform metadata and `LICENSES/` contains legal texts. Do not
+`.github/` holds contributor and security policy files and `LICENSES/` contains legal texts. Do not
 create another product-data root. There is no target or market-map domain:
 general facts and preferences learned about the user belong in
 `inputs/interviews/`, while company and role research belongs to its concrete
@@ -105,14 +105,14 @@ compiled bundles for the version's platform set (Linux x86_64 tested; Windows x8
 cross-built and tested by `release-windows` in the offline Windows clone; macOS x86_64
 built and tested by `release-macos` in the macOS build clone; Linux, Windows and macOS
 ARM64 cross-built; the legs of a minor release follow by themselves, ordered by the
-workflow) and `release-promote` publishes them on Forgejo once every leg has passed (GitHub
-and GitLab pull the release). A source push alone is not delivery. Every
+workflow) and `release-promote` publishes them on Forgejo once every leg has passed (the
+copies on other forges receive the files by an upload from the primary's side). A source push alone is not delivery. Every
 advertised platform requires its real evidence and all shared publication gates. Never install a
 stale rolling binary or silently compile on a normal user's machine. Developer
 source builds require `setup --from-source`. Other platform source paths remain
 available for development, without a verified binary release claim.
 Forgejo Actions on our own runners builds, verifies and publishes independently;
-the GitHub mirror only checks pull requests. A minor release is promoted only when its
+a copy on another forge runs no CI. A minor release is promoted only when its
 platform legs have passed; a patch release holds Linux x86_64 alone.
 
 For a new or uncertain environment, route to `ccvl-install`. Use

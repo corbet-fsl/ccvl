@@ -18,7 +18,7 @@ inputs/ -> outputs/cvl/ -> opportunities/<organisation>/<position>/
    +-- verified facts --+
 ```
 
-`.github/` contains the GitHub mirror's pull-request checks and contributor metadata, and
+`.github/` contains contributor and security policy files, and
 `LICENSES/` contains complete legal texts. Neither is a product-data domain.
 
 ## `inputs/interviews/`: user knowledge

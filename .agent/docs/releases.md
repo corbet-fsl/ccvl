@@ -15,12 +15,10 @@ Forgejo is the single source and the only place a release is built. The release 
 release of the exact `main` commit (`.ci/release-build.sh`); for a minor release the
 platform legs (below) run after it on their own runners; `release-promote` then makes
 the verified draft the public release `v<version>` on Forgejo and does nothing else:
-GitHub and GitLab fetch the release themselves (the mirror workflows `ccid render`
-writes into the repository pull the tag, verify it against `SHA256SUMS` and publish
-the same bytes, see "Mirrors" below). The run is a manual action, dispatched
-deliberately, never per commit. The
-GitHub mirror runs the checks of pull requests on GitHub's own compute and never
-builds or publishes a release.
+the files reach the copies on GitHub and GitLab by an upload from the primary's side
+(see "Mirrors" below). The run is a manual action, dispatched
+deliberately, never per commit. No copy on another forge runs CI, so none builds or
+publishes a release.
 Current stable Rust is selected without an exact compiler pin; the runner keeps
 it in persistent storage and every receipt records the actual compiler version.
 
@@ -332,16 +330,15 @@ on the first run, 2026-11-13: 23 minutes in all, of which the test suite took 5,
 release build 8, the cold macos-arm64 cross build 10 and the upload of 12 files (210 MB) 4; a
 leg with a warm cache is shorter.
 
-### Mirrors: GitHub and GitLab pull the release
+### Mirrors: the files are uploaded from the primary's side
 
 Promotion publishes on Forgejo and nothing else, and ccvl holds no credential for any other
-host. GitHub and GitLab fetch the release themselves: the mirror workflows `ccid render`
-writes into the repository (`.github/workflows/release-mirror.yml`, `.gitlab-ci.yml`) run
-when the tag `v<version>` arrives, read the Forgejo release, download every asset, verify
-each against its checksum and publish the same bytes under the same name; an asset without
-a checksum entry fails the job. `SHA256SUMS` therefore lists every other asset of the
-release (coreutils format, byte order, itself excluded); the promotion writes it last, so it
-covers the manifests as published. Bitbucket has no releases and is a git mirror.
+host. No job runs on a copy (operating model R6, R7): the release files reach the GitHub and
+GitLab copies through each forge's API, uploaded from the primary's side (R45), and nothing
+in this repository renders a mirror workflow. `SHA256SUMS` lists every other asset of the
+release (coreutils format, byte order, itself excluded), so a copy can be verified against it;
+the promotion writes it last, so it covers the manifests as published. Bitbucket has no
+releases and is a git mirror.
 
 An already provisioned sandbox can be selected for `release-archive` with the
 paired `ARCHIVE_EXECUTOR` and `ARCHIVE_EXECUTOR_SHA256` inputs. The workflow
@@ -380,7 +377,7 @@ One release per version, and the other names are identities, not releases:
   (`ccvl-<platform>.tar.gz` with checksums, the user-facing download including
   current templates and documents), the native/gate receipts, the manifests
   (`manifest.json`, `runtime-manifest.json`) and `SHA256SUMS`, the checksums of every
-  other asset, which the mirrors verify.
+  other asset, which a copy can verify against.
 - `build-<git-commit>` is the internal name of the draft of one run's commit. It
   never turns public as such: it is renamed to `v<version>` by `release-promote`
   (a draft has no git tag yet, so the rename is the publication, and the tag
@@ -464,8 +461,7 @@ repeat a cold build.
 
 Release binaries are built once per platform per run and retained for later
 gates and publication under the run's release directory. Published downloads
-remain release assets. The GitHub mirror's pull-request checks use GitHub's free
-public runners. Private downstream content stays on trusted internal workers,
+remain release assets. Private downstream content stays on trusted internal workers,
 with its own ownership and document gates.
 
 Linux independent verification runs one public check and retains its freshly
