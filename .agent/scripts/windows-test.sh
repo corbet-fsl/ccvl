@@ -133,8 +133,16 @@ printf 'Test suite: %s with %s (the executable: %s).\n' "$test_rustc" "$test_too
 [[ $test_rustc == "$built_rustc" ]] || echo "Note: the test suite is built with another compiler than the executable; the ABI is the same."
 build_json="$scratch/test-build.json"
 suite_started=$SECONDS
+# ctypst declares crate-type ["cdylib", "rlib"], and cargo builds the DLL for every target
+# of a dependency. A cdylib that exports no C symbol gets an empty export list from rustc,
+# and ld.lld (MinGW mode) then exports EVERY symbol, 108,000 of them at opt-level 0, past the
+# 65,535 a PE file holds ("too many exported symbols"). The release profile escapes by
+# optimising most of them away; the dev profile of a test build does not. Nothing here uses
+# that DLL, so the linker is told not to export anything automatically.
 "${CCVL_CARGO_COMMAND[@]}" test --locked --workspace --all-features --no-run \
-  --target "$expected_host" --message-format=json-render-diagnostics > "$build_json"
+  --target "$expected_host" \
+  --config "target.$expected_host.rustflags=[\"-C\", \"link-arg=-Wl,--exclude-all-symbols\"]" \
+  --message-format=json-render-diagnostics > "$build_json"
 jq -r 'select(.reason == "compiler-artifact" and .profile.test == true and .executable != null) | .executable' "$build_json" | sort -u > "$scratch/tests.txt"
 test_count="$(wc -l < "$scratch/tests.txt")"
 ((test_count > 0)) || { echo 'The build produced no test executable.' >&2; exit 2; }

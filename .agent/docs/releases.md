@@ -212,7 +212,9 @@ Otherwise it has three parts, all for the one ABI, `x86_64-pc-windows-gnullvm`.
    and `public-check` renders and verifies every document from the source of the same commit.
 2. **The suite that vouches for it.** The same script builds the test executables of the
    workspace (`cargo test --locked --workspace --all-features --no-run --target
-   x86_64-pc-windows-gnullvm`) on the runner, with the tools that built the executable:
+   x86_64-pc-windows-gnullvm`, with `-Wl,--exclude-all-symbols` because the dev profile of
+   ctypst's `cdylib` would otherwise export more symbols than a DLL can hold) on the
+   runner, with the tools that built the executable:
    `.ci/windows-env.sh` provisions llvm-mingw from `.ci/llvm-mingw.sh` and the Rust
    toolchain with the gnullvm standard library, and `llvm-mingw-env.sh` names the linker
    and the per-target `CC_`, `CXX_` and `AR_` tools, the very file `cross-release.sh` uses.
