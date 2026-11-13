@@ -500,7 +500,9 @@ fn source(root: &Path, env: &Env) -> Result<(Identity, SourceFiles)> {
             let mode = metadata
                 .as_ref()
                 .map_or(0, |metadata| metadata.permissions().mode());
-            if (mode & 0o111) != (member.mode & 0o111) {
+            // Git records one bit: executable or not. The group and other bits of a checkout
+            // are whatever the umask of its owner made them (the macOS clone's user has 077).
+            if (mode & 0o111 != 0) != (member.mode & 0o111 != 0) {
                 return fail(format!("Source executable mode changed: {}", member.name));
             }
         }

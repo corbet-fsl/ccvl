@@ -18,6 +18,12 @@ use tempfile::TempDir;
 const BIN: &str = env!("CARGO_BIN_EXE_ccvl");
 const COMMIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const LFS_FILE: &str = "inputs/assets/lfs.bin";
+/// The one source file the fixture commits as executable.
+const EXECUTABLE: &str = ".agent/scripts/publish-release.sh";
+
+fn source_mode(name: &str) -> u32 {
+    if name == EXECUTABLE { 0o755 } else { 0o644 }
+}
 
 fn repository() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -143,7 +149,7 @@ impl Release {
             let path = root.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, if name == LFS_FILE { &object } else { payload }).unwrap();
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(source_mode(name))).unwrap();
         }
         let archive = temp.path().join("source.tar");
         fs::write(
@@ -152,7 +158,7 @@ impl Release {
                 Some(COMMIT),
                 files
                     .iter()
-                    .map(|(name, payload)| (name.as_str(), 0o644, payload.as_slice())),
+                    .map(|(name, payload)| (name.as_str(), source_mode(name), payload.as_slice())),
             ),
         )
         .unwrap();
@@ -1006,6 +1012,22 @@ fn executable_source_mode_change_refused() {
         fs::Permissions::from_mode(0o755),
     )
     .unwrap();
+    assert_refused(&release.run(&["source"], &[]), "executable mode");
+}
+
+#[test]
+fn only_whether_a_source_file_is_executable_matters_not_its_group_and_other_bits() {
+    let release = Release::new();
+    let script = release.root.join(EXECUTABLE);
+    // A checkout made under a restrictive umask: the macOS clone's user has 077.
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+    let result = release.run(&["source"], &[]);
+    assert!(result.status.success(), "{}", text(&result));
+    // The identity is the one the archive names, whatever bits the checkout carries.
+    let identity: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(identity, release.identity);
+    // Not executable at all is a change, whoever's umask it was.
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o600)).unwrap();
     assert_refused(&release.run(&["source"], &[]), "executable mode");
 }
 
