@@ -1,7 +1,7 @@
 //! Source-bound native packages and release receipts shared by CI providers.
 //!
 //! Maintainer route, hidden from the normal help: `ccvl release-evidence
-//! <source|native|check|gate|platforms>`. The release scripts call it; see
+//! <source|native|cross|attest|gate|check|platforms>`. The release scripts call it; see
 //! `.agent/docs/releases.md`.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -67,6 +67,16 @@ pub const PLATFORMS: [(&str, &str, Plan); 6] = [
 /// release still completes; remove them from this list when the executor exists.
 pub const PENDING_ALLOWED: [&str; 2] = ["macos-x86_64", "macos-arm64"];
 pub const GATES: [&str; 4] = ["rust", "lint", "linux-deep", "archive"];
+/// What the native executor of a platform that this host can not run reports about the
+/// executable that ships (`attest`): one entry per id, every one of them `ok`.
+pub const NATIVE_RESULT_CHECKS: [&str; 6] = [
+    "sha256",
+    "architecture",
+    "version",
+    "runtime-id",
+    "public-check",
+    "test-suite",
+];
 
 /// What a release holds, derived from its version alone (no input, no knob).
 ///
@@ -182,6 +192,18 @@ pub enum Command {
         /// or `llvm-mingw 20261104 clang 23.1.5`).
         #[arg(long)]
         tool: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Turn the cross receipt of a platform into a native one, after its executable ran
+    /// and passed in the native executor of that platform (the Windows clone).
+    Attest {
+        #[arg(long, value_parser = platform_names())]
+        platform: String,
+        /// The executor's report (`ccvl-<platform>.native-result.json` is made of it).
+        #[arg(long)]
+        result: PathBuf,
+        /// The directory holding the cross-built package of the platform and its receipt.
         #[arg(long)]
         output: PathBuf,
     },
@@ -302,6 +324,11 @@ pub fn execute(root: &Path, env: &Env, command: &Command) -> Result<()> {
                 tool: Some(tool),
             },
         )?,
+        Command::Attest {
+            platform,
+            result,
+            output,
+        } => attest(root, env, platform, result, output)?,
         Command::Gate { gate: name, output } => gate(root, env, name, output)?,
         Command::Check { output } => check(root, env, output)?,
     }
@@ -737,6 +764,194 @@ fn native(root: &Path, env: &Env, arguments: &NativeArguments) -> Result<()> {
     )
 }
 
+/// The executable and the archive a receipt names are in `output`, with the checksum
+/// files and the runtime identity of this source. Returns the executable's sha256.
+fn verify_package(
+    output: &Path,
+    platform: &str,
+    receipt: &Value,
+    identity: &Identity,
+) -> Result<String> {
+    let name = format!(
+        "ccvl-{platform}{}",
+        if windows(platform) { ".exe" } else { "" }
+    );
+    let expected_names: BTreeSet<String> = [name.clone(), format!("ccvl-{platform}.tar.gz")].into();
+    let assets = receipt
+        .get("assets")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    if assets.keys().cloned().collect::<BTreeSet<_>>() != expected_names {
+        return fail(format!("Unexpected native asset list: {platform}"));
+    }
+    for (filename, checksum) in &assets {
+        let actual = file_sha256(&output.join(filename))?;
+        if checksum.as_str() != Some(actual.as_str()) {
+            return fail(format!("Artifact checksum mismatch: {filename}"));
+        }
+        let recorded = fs::read_to_string(output.join(format!("{filename}.sha256")))?;
+        if recorded != format!("{actual}  {filename}\n") {
+            return fail(format!("Checksum file mismatch: {filename}"));
+        }
+    }
+    let runtime = fs::read_to_string(output.join(format!("{name}.runtime-id")))?;
+    if runtime.trim() != identity.runtime_id {
+        return fail(format!("Runtime identity mismatch: {platform}"));
+    }
+    Ok(assets[&name].as_str().unwrap_or_default().to_owned())
+}
+
+fn native_result_name(platform: &str) -> String {
+    format!("ccvl-{platform}.native-result.json")
+}
+
+/// The report of the native executor is about this very executable and this source,
+/// and every check in it passed, the test suite among them.
+fn native_result_matches(
+    result: &Value,
+    platform: &str,
+    binary_sha256: &str,
+    identity: &Identity,
+) -> Result<()> {
+    let text = |name: &str| result.get(name).and_then(Value::as_str);
+    if result.get("schema") != Some(&json!(1))
+        || text("platform") != Some(platform)
+        || text("rust_host") != host_of(platform)
+        || text("source_commit") != Some(identity.source_commit.as_str())
+    {
+        return fail(format!(
+            "The native executor's report is not about this platform and source: {platform}"
+        ));
+    }
+    if text("executable_sha256") != Some(binary_sha256) {
+        return fail(format!(
+            "The native executor ran a different executable: {platform}"
+        ));
+    }
+    if text("runtime_id") != Some(identity.runtime_id.as_str()) {
+        return fail(format!(
+            "The native executor reports a different runtime identity: {platform}"
+        ));
+    }
+    let checks = result
+        .get("checks")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice);
+    for id in NATIVE_RESULT_CHECKS {
+        let mut entries = checks
+            .iter()
+            .filter(|entry| entry.get("id").and_then(Value::as_str) == Some(id));
+        match (entries.next(), entries.next()) {
+            (Some(entry), None) if entry.get("ok") == Some(&json!(true)) => {}
+            _ => {
+                return fail(format!("The native executor did not pass {id}: {platform}"));
+            }
+        }
+    }
+    let count = |name: &str| {
+        result
+            .pointer(&format!("/tests/{name}"))
+            .and_then(Value::as_u64)
+    };
+    if count("passed").is_none_or(|passed| passed == 0) || count("failed") != Some(0) {
+        return fail(format!(
+            "The native test suite did not pass completely: {platform}"
+        ));
+    }
+    Ok(())
+}
+
+/// A native receipt of a platform this host can not run names the executor's report
+/// (`native_result`), which sits next to it with the checksum the receipt records.
+fn verify_native_result(
+    output: &Path,
+    platform: &str,
+    receipt: &Value,
+    binary_sha256: &str,
+    identity: &Identity,
+) -> Result<()> {
+    let name = native_result_name(platform);
+    let path = output.join(&name);
+    if receipt.get("native_result").and_then(Value::as_str) != Some(name.as_str()) || !path.exists()
+    {
+        return fail(format!(
+            "Missing native executor report: {platform} (ccvl release-evidence attest)"
+        ));
+    }
+    if receipt.get("native_result_sha256").and_then(Value::as_str)
+        != Some(file_sha256(&path)?.as_str())
+    {
+        return fail(format!("Native executor report checksum mismatch: {name}"));
+    }
+    native_result_matches(&load(&path)?, platform, binary_sha256, identity)
+}
+
+/// Re-issue the cross receipt of `platform` as a native one. The executable was built
+/// here and ran in the native executor of its platform (for Windows `x86_64`: the offline
+/// Windows clone), which reported on exactly that file; the report is kept next to the
+/// receipt and the receipt records its checksum. Needs the package of the cross build in
+/// `output`; replaces its cross receipt.
+fn attest(root: &Path, env: &Env, platform: &str, result: &Path, output: &Path) -> Result<()> {
+    let (identity, _) = source(root, env)?;
+    if plan_of(platform) != Some(Plan::NativeWhenAvailable) {
+        return fail(format!(
+            "This platform has no native executor to attest: {platform}"
+        ));
+    }
+    let host = host_of(platform).unwrap_or_default();
+    let receipt_path = output.join(format!("ccvl-{platform}.receipt.json"));
+    let cross = load(&receipt_path)?;
+    identity_equal(&cross, &identity)?;
+    let field = |name: &str| cross.get(name).and_then(Value::as_str);
+    if field("kind") != Some("cross")
+        || (field("platform"), field("rust_host")) != (Some(platform), Some(host))
+        || cross.get("checks") != Some(&json!(["cross-build"]))
+        || cross.get("tested") != Some(&json!(false))
+        || !truthy(cross.get("tool"))
+        || !has_provenance(&cross)
+    {
+        return fail(format!(
+            "Only the cross-build receipt of {platform} can be attested."
+        ));
+    }
+    let binary_sha256 = verify_package(output, platform, &cross, &identity)?;
+    let report = fs::read(result).with_context(|| format!("cannot read {}", result.display()))?;
+    let report_value: Value = serde_json::from_slice(&report)
+        .with_context(|| format!("invalid JSON in {}", result.display()))?;
+    native_result_matches(&report_value, platform, &binary_sha256, &identity)?;
+    let report_path = output.join(native_result_name(platform));
+    if report_path.exists() && fs::read(&report_path)? != report {
+        return fail(format!(
+            "Refusing to replace differing evidence: {}",
+            report_path.display()
+        ));
+    }
+    fs::write(&report_path, &report)
+        .with_context(|| format!("cannot write {}", report_path.display()))?;
+    let mut receipt = cross
+        .as_object()
+        .cloned()
+        .context("The cross receipt is not an object.")?;
+    receipt.remove("tested");
+    // The run that built stays on record; the run that tested is the provenance now.
+    receipt.insert("built_by_run".into(), cross["run"].clone());
+    receipt.insert(
+        "cross_receipt_sha256".into(),
+        file_sha256(&receipt_path)?.into(),
+    );
+    receipt.extend(provenance(env)?);
+    receipt.insert("kind".into(), "native".into());
+    receipt.insert("checks".into(), json!(["public-check", "native-runtime"]));
+    receipt.insert("native_result".into(), native_result_name(platform).into());
+    receipt.insert(
+        "native_result_sha256".into(),
+        file_sha256(&report_path)?.into(),
+    );
+    fs::remove_file(&receipt_path)?;
+    write_json(&receipt_path, &Value::Object(receipt))
+}
+
 fn gate(root: &Path, env: &Env, name: &str, output: &Path) -> Result<()> {
     let (identity, _) = source(root, env)?;
     let mut receipt = identity.map();
@@ -838,39 +1053,17 @@ fn check(root: &Path, env: &Env, output: &Path) -> Result<()> {
         if !has_provenance(&receipt) {
             return fail(format!("Missing native run provenance: {platform}"));
         }
-        let name = format!(
-            "ccvl-{platform}{}",
-            if windows(platform) { ".exe" } else { "" }
-        );
-        let expected_names: BTreeSet<String> =
-            [name.clone(), format!("ccvl-{platform}.tar.gz")].into();
-        let assets = receipt
-            .get("assets")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
-        if assets.keys().cloned().collect::<BTreeSet<_>>() != expected_names {
-            return fail(format!("Unexpected native asset list: {platform}"));
-        }
-        for (filename, checksum) in &assets {
-            let actual = file_sha256(&output.join(filename))?;
-            if checksum.as_str() != Some(actual.as_str()) {
-                return fail(format!("Artifact checksum mismatch: {filename}"));
-            }
-            let recorded = fs::read_to_string(output.join(format!("{filename}.sha256")))?;
-            if recorded != format!("{actual}  {filename}\n") {
-                return fail(format!("Checksum file mismatch: {filename}"));
-            }
-        }
-        let runtime = fs::read_to_string(output.join(format!("{name}.runtime-id")))?;
-        if runtime.trim() != identity.runtime_id {
-            return fail(format!("Runtime identity mismatch: {platform}"));
+        let binary_sha256 = verify_package(output, platform, &receipt, &identity)?;
+        if kind == "native" && windows(platform) {
+            // This host can not run a Windows executable: the receipt stands on the
+            // report of the executor that did (see `attest`).
+            verify_native_result(output, platform, &receipt, &binary_sha256, &identity)?;
         }
         receipts.insert(file, file_sha256(&path)?);
         states.insert(platform.clone(), json!(state));
         runtimes.insert(
             platform.clone(),
-            json!({"binary_sha256": assets[&name], "rust_host": host, "state": state}),
+            json!({"binary_sha256": binary_sha256, "rust_host": host, "state": state}),
         );
     }
     for name in GATES {

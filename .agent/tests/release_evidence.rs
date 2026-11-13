@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use ccvl::archive::{sha256_hex, write_with_comment};
-use ccvl::release_evidence::{GATES, PLATFORMS, ReleaseKind, parse_release_version};
+use ccvl::release_evidence::{
+    GATES, NATIVE_RESULT_CHECKS, PLATFORMS, ReleaseKind, parse_release_version,
+};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -220,6 +222,46 @@ impl Release {
         self.write(name, &data);
     }
 
+    /// What the Windows clone reports about the shipped `x86_64` executable.
+    fn clone_result(&self) -> Value {
+        let checks: Vec<Value> = NATIVE_RESULT_CHECKS
+            .iter()
+            .map(|id| json!({"id": id, "name": id, "ok": true, "detail": "fixture"}))
+            .collect();
+        json!({
+            "schema": 1,
+            "platform": "windows-x86_64",
+            "rust_host": host_of("windows-x86_64"),
+            "source_commit": COMMIT,
+            "executable_sha256": file_hash(&self.output.join("ccvl-windows-x86_64.exe")),
+            "runtime_id": self.identity_field("runtime_id"),
+            "tests": {"executables": 5, "passed": 227, "failed": 0, "ignored": 0},
+            "checks": checks,
+        })
+    }
+
+    /// `attest` the Windows platform with `result` as the clone's report, in run `run`.
+    fn attest_as(&self, platform: &str, result: &Value, run: &str) -> Output {
+        let path = self.temp.path().join("clone-result.json");
+        fs::write(&path, serde_json::to_vec_pretty(result).unwrap()).unwrap();
+        self.run(
+            &[
+                "attest",
+                "--platform",
+                platform,
+                "--result",
+                path.to_str().unwrap(),
+                "--output",
+                self.output.to_str().unwrap(),
+            ],
+            &[("GITHUB_RUN_ID", run)],
+        )
+    }
+
+    fn attest(&self, result: &Value) -> Output {
+        self.attest_as("windows-x86_64", result, "456")
+    }
+
     fn populate(&self) {
         for platform in platforms_of(&self.version) {
             // The macOS build clone does not exist yet: those platforms stay pending.
@@ -391,16 +433,225 @@ fn built_platforms_never_claim_tests_and_native_never_hides_a_cross_build() {
     release.write("ccvl-windows-arm64.receipt.json", &data);
     assert_refused(&release.check(), "Incomplete cross-build evidence");
     release.populate();
-    // x86_64 Windows becomes tested when its executor reports a native receipt.
+    // x86_64 Windows is tested only on the report of the executor that ran it: a receipt
+    // edited by hand into a native one holds no such report.
     let mut data = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
     data["kind"] = json!("native");
     data["checks"] = json!(["public-check", "native-runtime"]);
     data.as_object_mut().unwrap().remove("tested");
     data.as_object_mut().unwrap().remove("tool");
     release.write("ccvl-windows-x86_64.receipt.json", &data);
-    assert!(release.check().status.success());
+    assert_refused(&release.check(), "Missing native executor report");
+}
+
+#[test]
+fn a_windows_executable_that_passed_in_its_clone_is_tested() {
+    let release = Release::new();
+    let cross = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
+    let result = release.attest(&release.clone_result());
+    assert!(result.status.success(), "{}", text(&result));
+    let report = release
+        .output
+        .join("ccvl-windows-x86_64.native-result.json");
+    let receipt = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
+    assert_eq!(receipt["kind"], "native");
+    assert_eq!(receipt["checks"], json!(["public-check", "native-runtime"]));
+    assert!(receipt.get("tested").is_none());
+    // The run that tested is the provenance; the run that built and its receipt stay on record.
+    assert_eq!(
+        (receipt["provider"].as_str(), receipt["run"].as_str()),
+        (Some("forgejo"), Some("456"))
+    );
+    assert_eq!(receipt["built_by_run"], "123");
+    assert_eq!(receipt["tool"], cross["tool"]);
+    assert_eq!(receipt["assets"], cross["assets"]);
+    assert_eq!(
+        receipt["native_result"],
+        "ccvl-windows-x86_64.native-result.json"
+    );
+    assert_eq!(receipt["native_result_sha256"], file_hash(&report));
+    assert_eq!(read_json(&report)["tests"]["passed"], 227);
+    // The manifests say so; nothing else changes state.
+    let check = release.check();
+    assert!(check.status.success(), "{}", text(&check));
     let manifest = read_json(&release.output.join("manifest.json"));
-    assert_eq!(manifest["platform_states"]["windows-x86_64"], "tested");
+    assert_eq!(
+        manifest["platform_states"],
+        json!({
+            "linux-x86_64": "tested",
+            "linux-aarch64": "built",
+            "windows-x86_64": "tested",
+            "windows-arm64": "built",
+            "macos-x86_64": "pending",
+            "macos-arm64": "pending",
+        })
+    );
+    let runtime = read_json(&release.output.join("runtime-manifest.json"));
+    assert_eq!(runtime["platforms"]["windows-x86_64"]["state"], "tested");
+    assert_eq!(runtime["platform_states"]["windows-x86_64"], "tested");
+    // Byte stable: a repeat verifies and rewrites nothing.
+    assert!(release.check().status.success());
+}
+
+#[test]
+fn the_executors_report_must_vouch_for_this_executable_and_pass_everything() {
+    let release = Release::new();
+    let refused = |result: &Value, message: &str| {
+        assert_refused(&release.attest(result), message);
+        // A refusal leaves the cross receipt and the release as they were.
+        let cross = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
+        assert_eq!(cross["kind"], "cross");
+        assert!(
+            !release
+                .output
+                .join("ccvl-windows-x86_64.native-result.json")
+                .exists()
+        );
+    };
+    let other = "b".repeat(64);
+    for (field, value, message) in [
+        ("executable_sha256", json!(other), "different executable"),
+        ("runtime_id", json!(other), "different runtime identity"),
+        (
+            "source_commit",
+            json!(other),
+            "not about this platform and source",
+        ),
+        (
+            "platform",
+            json!("windows-arm64"),
+            "not about this platform and source",
+        ),
+        (
+            "rust_host",
+            json!("x86_64-pc-windows-msvc"),
+            "not about this platform and source",
+        ),
+        ("schema", json!(2), "not about this platform and source"),
+    ] {
+        let mut result = release.clone_result();
+        result[field] = value;
+        refused(&result, message);
+    }
+    for id in NATIVE_RESULT_CHECKS {
+        let failing = |mutate: &dyn Fn(&mut Vec<Value>, usize)| {
+            let mut result = release.clone_result();
+            let checks = result["checks"].as_array_mut().unwrap();
+            let index = checks.iter().position(|entry| entry["id"] == id).unwrap();
+            mutate(checks, index);
+            result
+        };
+        let message = format!("did not pass {id}");
+        refused(
+            &failing(&|checks, index| checks[index]["ok"] = json!(false)),
+            &message,
+        );
+        refused(
+            &failing(&|checks, index| {
+                checks.remove(index);
+            }),
+            &message,
+        );
+        refused(
+            &failing(&|checks, index| {
+                let copy = checks[index].clone();
+                checks.push(copy);
+            }),
+            &message,
+        );
+    }
+    for tests in [
+        json!({"passed": 227, "failed": 1}),
+        json!({"passed": 0, "failed": 0}),
+        json!({"failed": 0}),
+        json!({}),
+    ] {
+        let mut result = release.clone_result();
+        result["tests"] = tests;
+        refused(&result, "did not pass completely");
+    }
+    let mut result = release.clone_result();
+    result.as_object_mut().unwrap().remove("tests");
+    refused(&result, "did not pass completely");
+    // Where no executor exists or can not be attested, nothing is re-issued.
+    for platform in ["linux-aarch64", "windows-arm64", "linux-x86_64"] {
+        let message = "no native executor to attest";
+        assert_refused(
+            &release.attest_as(platform, &release.clone_result(), "456"),
+            message,
+        );
+    }
+}
+
+#[test]
+fn only_the_cross_receipt_of_the_executable_in_the_package_is_attested() {
+    let release = Release::new();
+    // An executable other than the one the receipt names.
+    let exe = release.output.join("ccvl-windows-x86_64.exe");
+    let kept = fs::read(&exe).unwrap();
+    fs::write(&exe, "another executable").unwrap();
+    assert_refused(
+        &release.attest(&release.clone_result()),
+        "Artifact checksum mismatch",
+    );
+    fs::write(&exe, kept).unwrap();
+    // A receipt that already claims a test, or is not the cross receipt of the platform.
+    let mut tampered = read_json(&release.output.join("ccvl-windows-x86_64.receipt.json"));
+    tampered["tested"] = json!(true);
+    release.write("ccvl-windows-x86_64.receipt.json", &tampered);
+    assert_refused(
+        &release.attest(&release.clone_result()),
+        "Only the cross-build receipt",
+    );
+    release.populate();
+    release.change(
+        "ccvl-windows-x86_64.receipt.json",
+        "source_commit",
+        &"b".repeat(40),
+    );
+    assert_refused(&release.attest(&release.clone_result()), "source_commit");
+    release.populate();
+    // Attested once, a native receipt is not attested again.
+    assert!(release.attest(&release.clone_result()).status.success());
+    assert_refused(
+        &release.attest(&release.clone_result()),
+        "Only the cross-build receipt",
+    );
+}
+
+#[test]
+fn a_native_windows_receipt_stands_on_its_report_as_recorded() {
+    let release = Release::new();
+    assert!(release.attest(&release.clone_result()).status.success());
+    assert!(release.check().status.success());
+    let report = release
+        .output
+        .join("ccvl-windows-x86_64.native-result.json");
+    let receipt_name = "ccvl-windows-x86_64.receipt.json";
+    let kept = fs::read(&report).unwrap();
+    // The report is altered, or missing: the receipt records its checksum.
+    let mut edited = read_json(&report);
+    edited["tests"]["failed"] = json!(3);
+    release.write("ccvl-windows-x86_64.native-result.json", &edited);
+    assert_refused(&release.check(), "report checksum mismatch");
+    fs::remove_file(&report).unwrap();
+    assert_refused(&release.check(), "Missing native executor report");
+    // Report and receipt both edited to agree: the report still has to pass.
+    release.write("ccvl-windows-x86_64.native-result.json", &edited);
+    release.change(receipt_name, "native_result_sha256", &file_hash(&report));
+    assert_refused(&release.check(), "did not pass completely");
+    // A report of another executable, with a matching checksum.
+    let mut other = release.clone_result();
+    other["executable_sha256"] = json!("b".repeat(64));
+    release.write("ccvl-windows-x86_64.native-result.json", &other);
+    release.change(receipt_name, "native_result_sha256", &file_hash(&report));
+    assert_refused(&release.check(), "different executable");
+    // Restored, it passes again; a receipt that names another report does not.
+    fs::write(&report, kept).unwrap();
+    release.change(receipt_name, "native_result_sha256", &file_hash(&report));
+    assert!(release.check().status.success());
+    release.change(receipt_name, "native_result", "elsewhere.json");
+    assert_refused(&release.check(), "Missing native executor report");
 }
 
 #[test]
