@@ -2,6 +2,7 @@ version = 1
 
 [[annotations]]
 path = [
+  ".gitlab-ci.yml",
   ".ci/ccid.toml",
   ".agent/AGENT.md",
   ".agent/build.rs",
