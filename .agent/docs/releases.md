@@ -8,15 +8,17 @@ neither Git nor Rust is required.
 
 ## Required delivery path
 
-Forgejo is the single source and the only place a release is built. The `release`
-workflow of `corbet-fsl/ccvl` runs on our own `linux` runners: it builds, verifies
-and drafts the release of the exact `main` commit; for a minor release it ends by
-starting the platform legs (below). The separate `release-promote` workflow then
-makes the verified draft the public release `v<version>` on Forgejo and does
-nothing else: GitHub and GitLab fetch the release themselves (the mirror workflows
-`ccid render` writes into the repository pull the tag, verify it against
-`SHA256SUMS` and publish the same bytes, see "Mirrors" below). `release` and
-`release-promote` are manual actions, run deliberately, never per commit. The
+Forgejo is the single source and the only place a release is built. The release is the
+`[release]` table of `.ci/ccid.toml` and the one workflow `ccid render` writes from it,
+`.forgejo/workflows/release.yml` (ccid `docs/release.md`): one run, four jobs ordered by
+`needs`. `release` runs on our own `linux` runners: it builds, verifies and drafts the
+release of the exact `main` commit (`.ci/release-build.sh`); for a minor release the
+platform legs (below) run after it on their own runners; `release-promote` then makes
+the verified draft the public release `v<version>` on Forgejo and does nothing else:
+GitHub and GitLab fetch the release themselves (the mirror workflows `ccid render`
+writes into the repository pull the tag, verify it against `SHA256SUMS` and publish
+the same bytes, see "Mirrors" below). The run is a manual action, dispatched
+deliberately, never per commit. The
 GitHub mirror runs the checks of pull requests on GitHub's own compute and never
 builds or publishes a release.
 Current stable Rust is selected without an exact compiler pin; the runner keeps
@@ -59,13 +61,14 @@ it.
 
 To release: raise `version` in `Cargo.toml` on `main` (the version is part of the
 runtime identity, so the bump is the commit that is released) and dispatch `release`
-on that commit. A minor release then runs to the end of its legs by itself: the
-release run starts `release-windows`, which starts `release-macos` when it has left
-its evidence (`dispatch-leg.sh`: a chain of dispatches; nothing polls, nothing waits,
-there is no input to set). Check the draft, then dispatch `release-promote`. It
-refuses a minor release whose platform legs have not left their final evidence, so
-a failed leg is a draft that can not be promoted: repair the leg (dispatch its
-workflow again; it is idempotent) and promote. A patch release has no legs.
+on that commit. The run goes to the end by itself: a minor release runs `release-windows`
+and then `release-macos` after `release` (the workflow's `needs`; nothing polls, nothing is
+dispatched, there is no input to set), and `release-promote` runs when every leg that ran
+has passed. It refuses a minor release whose platform legs have not left their final
+evidence (the `release-seal` check), so a failed leg stops the run with a draft that can
+not be promoted: repair the cause and dispatch `release` again on the same commit (the
+draft is resumed; `ccid release discard` clears one whose bytes cannot match). A patch
+release has no legs.
 
 The declared platform set is `.agent/release-platforms.txt`; a release holds all of
 it or, for a patch, `linux-x86_64`, as listed by `ccvl release-evidence platforms`.
@@ -172,9 +175,9 @@ next run (its receipts name the run that made them): delete it, by hand, and rel
 again.
 
 The release publishes more than 400 MB over the home uplink, which has run anywhere from
-a few KB/s to 0.8 MB/s. The stages of the `release` run therefore share a deadline of two
-hours (`CI_TIMEOUT` in `.ci/run-release.sh`; ccid's default is 45 minutes), and one upload
-may take 600 s plus one second per 20 KB of the file, in the publisher and in the legs. Incomplete published releases, different bytes,
+a few KB/s to 0.8 MB/s. The checks of a release therefore get a deadline of two hours (ccid
+sets it; its default for other checks is 45 minutes), and one upload may take 600 s plus one
+second per 20 KB of the file, in `ccid release` (the release job and the legs). Incomplete published releases, different bytes,
 missing native results, platform legs that have not passed and superseded main
 revisions fail closed. The release carries the executables, the workspace bundles,
 the full native/gate receipts, a runtime manifest that binds the version, the
@@ -219,31 +222,30 @@ never the generated `.forgejo/workflows/*.yml`. Each one is a thin shim that
 hands over to `ccid job-run`, which stages the exact commit, takes the persistent
 Cargo target lock and runs the job command.
 
-| Workflow | Action | Runner requirement |
+| Job of `release.yml` | Check (from `[release]`) | Runner requirement |
 |---|---|---|
-| `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, `release-legs`, in this order, never reused from a cache; the first stage refuses a version that names no release or is released already; the cross stage builds the platforms the version holds; the last stage starts the Windows leg of a minor release | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
-| `release-promote` | re-check the draft of this commit as complete (every platform leg has passed), derive the manifests and `SHA256SUMS`, make it the public release `v<version>`; nothing is copied anywhere | `linux` runner |
-| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested`; starts the macOS leg | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
-| `release-macos` | build, test and package macOS in the macOS clone (below). Hand-written, not rendered by ccid | `macos` runner (the macOS build clone); the runner's read credential |
+| `release` | `release-build` (`.ci/release-build.sh`): the stages `rust`, `lint`, `native`, `cross`, `linux-deep`, `archive`, `check` in this order, never reused from a cache; before it `ccid release build` refuses a version that names no release or is released already, a source that is not `main` and a red verdict, and refreshes the third-party locks; after it ccid drafts the release and uploads every file | `linux` runner |
+| `release-windows` | `release-windows` (`.ci/run-windows.sh`): fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested` | `windows` runner (an ordinary slot that owns the offline clone for the job) |
+| `release-macos` | `release-macos` (`.agent/scripts/macos-leg.sh`): build, test and package macOS in the macOS clone (below) | `macos` runner (the macOS build clone); the runner's read credential |
+| `release-promote` | `release-seal` (`.agent/scripts/release-seal.sh`): re-check the draft of this commit as complete (every platform leg has passed) and derive the two manifests; then ccid writes `SHA256SUMS` and makes it the public release `v<version>`; nothing is copied anywhere | `linux` runner |
 
-`.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
+`.ci/release-build.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
 lint and PDF tools) and the three cross targets in the runner's persistent storage, then runs
-each stage through `bash .agent/scripts/ci-check.sh release-<stage>`, which calls
-`release-ci.sh <stage>`. All stages share one directory under the locked Cargo
-target, keyed by source commit and run (`CCVL_RELEASE_DIR`). The native stage uses
+each stage through `bash .agent/scripts/release-ci.sh <stage>`. All stages share one directory,
+`$CCID_RELEASE_DIR` (`CCVL_RELEASE_DIR`): what is in it when they are done is the release, and
+`ccid release build` uploads it to the draft. The native stage uses
 `bash .agent/scripts/native-release.sh PLATFORM OUTPUT` and the cross stage
 `bash .agent/scripts/cross-release.sh PLATFORM OUTPUT`; a future platform is
-added to the release policy before it is advertised. The publisher,
-`.agent/scripts/publish-release.sh`, speaks the Forgejo release API with the
-job's own token and treats an existing asset as described above.
+added to the release policy before it is advertised. The draft, its uploads (checked by size on
+the release, resumable) and the promotion are `ccid release` (ccid `docs/release.md`); the legs
+read the draft with `ccid release fetch` and leave their evidence with `ccid release put`.
 
 ### The Windows test: the file that ships and the suite that vouches for it
 
-`release-windows` is its own run on the same `main` commit: the `release` run starts it
-once it has left the draft (a minor release only), and it ends by starting the macOS leg.
-It always runs before `release-promote` renames the draft, and it can be dispatched by
-hand to repair a failed run. A patch release holds no Windows executable: the run says
-so and ends green without building anything.
+`release-windows` is the second job of the same run, on the same `main` commit: it starts
+once `release` has left the draft (a minor release only; a patch release has no leg and the
+job is skipped). It always runs before `release-promote` renames the draft. A patch release
+holds no Windows executable.
 Otherwise it has three parts, all for the one ABI, `x86_64-pc-windows-gnullvm`.
 
 1. **The file that ships.** `windows-test.sh` reads the `build-<commit>` draft for the
@@ -292,17 +294,18 @@ rehearsal of a `cross-release.sh` output); it writes the report and attests noth
 
 ### The macOS leg: built, tested and packaged where it runs
 
-`release-macos` is the macOS twin of the Windows leg, started by it. It is the one release
-workflow written by hand (`.forgejo/workflows/release-macos.yml`, not rendered by ccid):
-ccid ships no macOS build, and the shim of a rendered workflow starts by finding one. The
-job of the label `macos` runs inside the macOS build clone as the user `ci` (bash 3.2, the
-BSD userland, the Command Line Tools, Rust and the compile cache on the clone's persistent
-disk, no git-lfs, no node) and the clone is rolled back after it. The workflow puts the exact
-commit at a stable path on that disk and runs `.agent/scripts/macos-leg.sh`:
+`release-macos` is the macOS twin of the Windows leg, the third job of the run. It is rendered
+like the others (it needs a macOS ccid on the tool channel, which the runner's tool environment
+names: the hand-written workflow it replaces existed only because ccid had none). The job of the
+label `macos` runs inside the macOS build clone as the user `ci` (bash 3.2, the BSD userland,
+the Command Line Tools, Rust and the compile cache on the clone's persistent disk, no git-lfs,
+no node) and the clone is rolled back after it. `ccid job-run` puts the exact commit at the
+stable source path of that disk (`CCID_SOURCE_ROOT`) and `ccid release leg macos` runs
+`.agent/scripts/macos-leg.sh`:
 
-1. **Before any work**: the commit must still be `main`, the draft `build-<commit>` must
-   exist and be a draft, and its manifest must say that this release holds macOS (a patch
-   release does not). A leg dispatched for anything else ends in seconds.
+1. **Before any work**: `ccid release leg macos` has checked that the commit is still `main`
+   and that the draft `build-<commit>` exists and is a draft; the leg itself checks that the
+   release holds macOS (`$CCID_RELEASE_PLATFORMS`; a patch release does not).
 2. **The source.** `git archive` of the commit is the source archive of the evidence (the
    committed LFS pointers, as the Linux run stages it), and `lfs-fetch.sh` puts the LFS
    objects over the pointers without git-lfs (the LFS API, each object checked against
@@ -320,9 +323,9 @@ commit at a stable path on that disk and runs `.agent/scripts/macos-leg.sh`:
    runtime identity before anything is uploaded.
 7. **The draft.** The executables, their checksums and runtime identities, the bundles and
    the receipts of both platforms go into the draft, the receipt of a platform last. A
-   file the draft holds with other bytes is replaced, the same is left; the manifests
-   are not touched here (the promotion derives them).
-8. `dispatch-leg.sh` says what is left.
+   file the draft holds with other bytes is replaced, the same is left (`ccid release put`);
+   the manifests are not touched here (the promotion derives them).
+8. The workflow orders the next job; nothing is dispatched.
 
 The suite and the builds share the clone's compile cache (kache with the srv remote). Measured
 on the first run, 2026-11-13: 23 minutes in all, of which the test suite took 5, the macos-x86_64

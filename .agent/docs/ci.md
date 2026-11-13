@@ -14,10 +14,7 @@ per-commit CI is the Linux `verify` job alone.
 |---|---|---|
 | `ci` (job `verify`) | `rust`, `documents`, `lint`, `styles` | content-keyed result reuse through `ccid cached` |
 | `downstream-check` | `downstream-check` | a private downstream repository only; see [private downstream](private-downstream.md) |
-| `release` | `release-*` stages | see [Releases](releases.md) |
-| `release-windows` | `release-windows` | started by the release run (minor releases): the shipped Windows executable and the test suite in the offline Windows clone |
-| `release-macos` | (hand-written) | started by the Windows leg: macOS built, tested and packaged in the macOS clone; see [Releases](releases.md) |
-| `release-promote` | `release-promote` | makes the draft the public release `v<version>` once every platform leg has passed; GitHub and GitLab pull it |
+| `release` (jobs `release`, `release-windows`, `release-macos`, `release-promote`; rendered from `[release]`) | `release-build`; `release-windows`; `release-macos`; `release-seal` | one run, jobs ordered by `needs`: the draft, the platform legs of a minor release (the shipped Windows executable and the test suite in the offline Windows clone; macOS built, tested and packaged in the macOS clone), then the public release `v<version>` once every leg has passed; GitHub and GitLab pull it; see [Releases](releases.md) |
 
 On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 
@@ -90,8 +87,7 @@ freshness, and cleans its owned source scratch. Worker package-cache settings
 remain authoritative. `CI_JOBS`, `CI_TEST_THREADS`, `CI_MEMORY_MB` and
 `CI_TIMEOUT` permit explicit bounded overrides; memory admission still applies.
 
-These checks provide source validation. The `release` and `release-promote`
-workflows provide the complete released path; see [Releases](releases.md). They
+These checks provide source validation. The `release` workflow provides the complete released path; see [Releases](releases.md). They
 require the native evidence of the tested platform, the cross-build evidence of
 the built ones and all four shared gates. Linux evidence does not prove macOS,
 Windows or ARM behavior. A registry dependency that is not published still blocks

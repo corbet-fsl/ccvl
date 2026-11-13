@@ -12,7 +12,7 @@
 # brings a nixpkgs that does. NOT a forge mirror: the source stays upstream.
 #
 # Pins: the nixpkgs input is the SAME revision the .ci jobs build their tools from
-# (tool_source in .ci/run-cached.sh and .ci/run-release.sh). Bump both together.
+# (tool_source in .ci/run-cached.sh and .ci/release-build.sh). Bump both together.
 # A new upstream llvm-mingw release is adopted deliberately: edit the
 # llvm-mingw-dist URL below, then `nix flake lock --update-input llvm-mingw-dist`.
 # No hand pin in shell, no new mechanism: the lock is the pin.

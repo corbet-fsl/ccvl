@@ -2,8 +2,9 @@
 # The macOS leg of a minor release: build, test and package the macOS platforms in the macOS
 # build clone and leave them in the draft of the commit.
 #
-#   macos-leg.sh        from the root of the checkout of the exact commit (the workflow
-#                       .forgejo/workflows/release-macos.yml checks it out)
+#   macos-leg.sh        from the root of the checkout of the exact commit: the `release-macos` job of the
+#                       rendered release workflow (`ccid release leg macos`, from [release] legs)
+#                       checks it out and runs this as the leg's one check
 #
 #   macos-x86_64   built natively in the clone, tested there (the whole Rust test suite, then the
 #                  public check and the runtime checks of native-release.sh), packaged with a
@@ -14,7 +15,7 @@
 # The leg leaves exactly these files in the draft `build-<commit>`, and nothing else: the
 # executables, their checksums and runtime identities, the workspace bundles and the receipts.
 # The manifests and the checksum file are derived from the receipts when the release is
-# promoted. It starts no other leg; it ends with dispatch-leg.sh, which says what is left.
+# promoted. It starts no other leg: the workflow orders them.
 #
 # The clone is a Mac of 2026: bash 3.2 (no mapfile, no associative arrays), the BSD userland, no
 # git-lfs and no node. Everything below runs there as it is. The job owns the clone for its
@@ -48,29 +49,17 @@ printf 'macOS %s, %s, commit %s\n' "$(sw_vers -productVersion)" "$(uname -m)" "$
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/ccvl-macos-leg.XXXXXXXX")"
 trap 'find "$scratch" -delete' EXIT
 
-# 2. The draft this leg adds to, and what the release holds, before anything is built: a
-# leg dispatched for another commit, or for a release without macOS, ends here.
-stage 'The draft'
-# shellcheck source=.agent/scripts/forge-draft.sh
-source .agent/scripts/forge-draft.sh
-forge_setup
-forge_call GET "$api/repos/$repository/branches/main"
-[[ $(jq -r '.commit.id' "$scratch/response") == "$sha" ]] \
-  || refuse "Source $sha is no longer main; its draft is stale and nothing is added to it."
-draft="$scratch/draft.json"
-status=0
-forge_release "build-$sha" "$draft" || status=$?
-[[ $status == 0 ]] || refuse "There is no draft build-$sha: the release run has not left one."
-[[ $(jq -r '.draft' "$draft") == true ]] || refuse "build-$sha is public: its evidence is final."
-forge_fetch_asset "$draft" manifest.json "$scratch/manifest.json" || refuse "The draft has no manifest.json to read the release from."
-version="$(jq -er '.version' "$scratch/manifest.json")"
-kind="$(jq -er '.release_kind' "$scratch/manifest.json")"
-if [[ $kind != minor ]] || ! jq -e '.platforms | any(. == "macos-x86_64")' "$scratch/manifest.json" >/dev/null; then
+# 2. What the release holds, before anything is built: a leg for a release without macOS ends here.
+# (`ccid release leg macos` has checked that the draft of this commit is there and is main's.)
+stage 'The release'
+: "${CCID_BIN:?the ccid that runs this leg}"
+version="${CCID_RELEASE_VERSION:?}"
+kind="${CCID_RELEASE_CLASS:?}"
+if ! printf '%s\n' "${CCID_RELEASE_PLATFORMS:-}" | tr ' ' '\n' | grep -Fxq macos-x86_64; then
   printf 'ccvl %s is a %s release: it holds no macOS platform, nothing to do.\n' "$version" "$kind"
   exit 0
 fi
-printf 'ccvl %s, a %s release; the draft build-%s holds %s asset(s).\n' "$version" "$kind" "${sha:0:12}" \
-  "$(jq -r '.assets | length' "$draft")"
+printf 'ccvl %s, a %s release; the draft is build-%s.\n' "$version" "$kind" "${sha:0:12}"
 
 # 3. The source: the committed pointers are the archive (as the Linux run stages it), the LFS
 # objects they name are in the checkout (the clone has no git-lfs).
@@ -119,7 +108,9 @@ bash .agent/scripts/cross-release.sh macos-arm64 "$package"
 
 # 7. The evidence must be that of the Linux run: one source, one lock, one runtime identity.
 stage 'Evidence'
-if forge_fetch_asset "$draft" ccvl-linux-x86_64.receipt.json "$scratch/linux.receipt.json"; then
+mkdir -p "$scratch/draft"
+if "$CCID_BIN" release fetch ccvl-linux-x86_64.receipt.json --into "$scratch/draft" 2>/dev/null; then
+  mv -- "$scratch/draft/ccvl-linux-x86_64.receipt.json" "$scratch/linux.receipt.json"
   identity='{schema, repository, source_commit, source_sha256, cargo_lock_sha256, runtime_id}'
   jq -S "$identity" "$scratch/linux.receipt.json" > "$scratch/linux.identity"
   for platform in macos-x86_64 macos-arm64; do
@@ -138,25 +129,14 @@ jq -e '.kind == "cross" and .tested == false and .platform == "macos-arm64" and 
 
 # 8. Into the draft: the files first, the receipt of a platform last (a receipt means the
 # platform is complete). A file the draft holds with other bytes is replaced; the same is left.
+# `ccid release put` checks every upload by size on the release itself.
 stage 'The draft: upload'
 for platform in macos-x86_64 macos-arm64; do
   for name in "ccvl-$platform" "ccvl-$platform.sha256" "ccvl-$platform.runtime-id" \
     "ccvl-$platform.tar.gz" "ccvl-$platform.tar.gz.sha256" "ccvl-$platform.receipt.json"; do
-    forge_put "$draft" "build-$sha" "$package/$name"
-  done
-done
-forge_release "build-$sha" "$draft"
-for platform in macos-x86_64 macos-arm64; do
-  for name in "ccvl-$platform" "ccvl-$platform.sha256" "ccvl-$platform.runtime-id" \
-    "ccvl-$platform.tar.gz" "ccvl-$platform.tar.gz.sha256" "ccvl-$platform.receipt.json"; do
-    held="$(forge_held "$draft" "$name")"
-    [[ -n $held && ${held#* } == "$(forge_size "$package/$name")" ]] || refuse "The draft does not hold $name as it should."
+    "$CCID_BIN" release put "$package/$name"
   done
 done
 printf 'macos-x86_64: tested in the clone (%s tests, public check, runtime checks), sha256 %s\n' \
   "${passed_failed% *}" "$(sha256 "$package/ccvl-macos-x86_64")"
 printf 'macos-arm64: built, never run, sha256 %s\n' "$(sha256 "$package/ccvl-macos-arm64")"
-
-# 9. Whatever is left to run.
-stage 'What is left'
-bash .agent/scripts/dispatch-leg.sh

@@ -26,6 +26,7 @@ cd "$repo_root"
 report="${1:-}"
 platform=windows-x86_64
 exe_name="ccvl-$platform.exe"
+sha="${CI_COMMIT_SHA:-}"
 # Must equal the Rust target of this platform in release_evidence.rs (PLATFORMS).
 expected_host=x86_64-pc-windows-gnullvm
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the Windows test.' >&2; exit 2; }
@@ -43,20 +44,15 @@ if [[ -n ${CCVL_WINDOWS_ASSET_DIR:-} ]]; then
   done
   printf 'Assets from %s (rehearsal).\n' "$CCVL_WINDOWS_ASSET_DIR"
 else
-  # shellcheck source=.agent/scripts/forge-draft.sh
-  source .agent/scripts/forge-draft.sh
-  forge_setup
+  : "${CCID_BIN:?Missing the ccid that runs this leg}" "${CI_COMMIT_SHA:?Missing the source commit}"
   # The one draft of this commit (`build-<commit>`) holds the receipt and the executable alike.
-  forge_release "build-$sha" "$scratch/build-release.json"
-  if ! jq -e --arg name "ccvl-$platform.receipt.json" 'any(.assets[]; .name == $name)' "$scratch/build-release.json" >/dev/null; then
+  # `ccid release leg windows` runs this only when the version holds the platform; the receipt says it again.
+  if ! "$CCID_BIN" release fetch "ccvl-$platform.receipt.json" --into "$assets" 2>/dev/null; then
     # The platform set follows the version: a patch release holds Linux x86_64 alone.
-    printf 'The release build-%s does not hold %s (%s); there is nothing to test.\n' "${sha:0:12}" "$platform" \
-      "$(jq -r '[.assets[].name | select(test("^ccvl-.*\\.receipt\\.json$")) | sub("^ccvl-"; "") | sub("\\.receipt\\.json$"; "")] | join(", ")' "$scratch/build-release.json")"
+    printf 'The release build-%s does not hold %s; there is nothing to test.\n' "${sha:0:12}" "$platform"
     exit 0
   fi
-  for name in "ccvl-$platform.receipt.json" "$exe_name" "$exe_name.sha256" "$exe_name.runtime-id"; do
-    forge_fetch_asset "$scratch/build-release.json" "$name" "$assets/$name"
-  done
+  "$CCID_BIN" release fetch "$exe_name" "$exe_name.sha256" "$exe_name.runtime-id" --into "$assets"
   printf 'Assets of release build-%s (draft).\n' "${sha:0:12}"
 fi
 

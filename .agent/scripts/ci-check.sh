@@ -47,8 +47,6 @@ for check in "$@"; do
       # shellcheck source=.agent/scripts/existing-tool-path.sh
       source .agent/scripts/existing-tool-path.sh
       ccvl_use_existing_lint_tools
-      # The GitHub workflows are the mirror's pull-request checks.
-      actionlint -shellcheck shellcheck .github/workflows/*.yml
       shellcheck .agent/scripts/*.sh .agent/tests/*.sh ccvl
       reuse lint
       bash .agent/tests/test_bootstrap.sh

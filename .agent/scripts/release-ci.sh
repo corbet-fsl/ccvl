@@ -5,7 +5,7 @@ repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
-action="${1:?Usage: release-ci.sh rust|lint|native|cross|linux-deep|archive|check|publish|legs|promote|windows}"
+action="${1:?Usage: release-ci.sh rust|lint|native|cross|linux-deep|archive|check|windows}"
 if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   [[ ${GITHUB_REPOSITORY:-} == corbet-fsl/ccvl && ${GITHUB_REF_NAME:-} == main ]] || {
     echo 'Forgejo release stages require public ccvl main.' >&2; exit 2;
@@ -36,11 +36,8 @@ release_evidence() {
 printf 'Release evidence directory: %s\n' "$CCVL_RELEASE_DIR"
 case "$action" in
   rust|lint)
-    if [[ $action == rust ]]; then
-      # The first stage: a version that names no release, or one released already,
-      # stops the run before anything is built.
-      bash .agent/scripts/publish-release.sh --preflight
-    fi
+    # The version and its preflight (a version that names no release, or one released already,
+    # stops the run before anything is built) are `ccid release build`'s, before this stage runs.
     bash .agent/scripts/ci-check.sh "$action"
     release_evidence gate "$action" --output "$CCVL_RELEASE_DIR"
     ;;
@@ -81,30 +78,14 @@ case "$action" in
   check)
     release_evidence check --output "$CCVL_RELEASE_DIR"
     ;;
-  publish)
-    # The complete DRAFT release on the forge; publishing it is the promote stage.
-    bash .agent/scripts/publish-release.sh "$CCVL_RELEASE_DIR"
-    ;;
-  legs)
-    # A minor release holds platforms that only their own executors can run. The draft is
-    # complete when the legs have left their evidence: this run starts the first one, each
-    # leg starts the next, and a patch release has none. Nothing waits and nothing polls.
-    bash .agent/scripts/dispatch-leg.sh
-    ;;
-  promote)
-    # Make the verified draft of this exact commit the public release v<version>, then copy downstream.
-    bash .agent/scripts/publish-release.sh --promote "$CCVL_RELEASE_DIR"
-    ;;
   windows)
-    # Its own run, after the release run has left the drafts: the Windows x86_64
+    # The Windows leg, after the release job has left the draft: the Windows x86_64
     # executable of this commit, as shipped, and the test suite built for the same ABI,
-    # tested in the offline Windows clone; then the drafts say `tested` for the platform.
+    # tested in the offline Windows clone; then the draft says `tested` for the platform.
     report="$CCVL_RELEASE_DIR/windows-x86_64.clone-report.json"
     bash .agent/scripts/windows-test.sh "$report"
     # A release that does not hold the platform (a patch release) leaves no report.
     if [[ -s $report ]]; then bash .agent/scripts/windows-attest.sh "$report"; fi
-    # The next leg starts when this one has left its evidence.
-    bash .agent/scripts/dispatch-leg.sh
     ;;
   *) echo "Unknown release stage: $action" >&2; exit 2 ;;
 esac

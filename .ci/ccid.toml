@@ -38,64 +38,31 @@ kind = "commands"
 cache = false
 commands = [["bash", ".agent/scripts/ci-check.sh", "downstream-check"]]
 
-[checks.release-rust]
+# The release (render_schema = 3, [release] below): one run builds the draft, the Windows and macOS
+# legs test it on their own runners, promotion makes it public. Release checks never use a result
+# cache: each run proves its own commit.
+[checks.release-build]
 kind = "commands"
 cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-rust"]]
-
-[checks.release-lint]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-lint"]]
-
-[checks.release-native]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-native"]]
-
-[checks.release-linux-deep]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-linux-deep"]]
-
-[checks.release-cross]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-cross"]]
-
-[checks.release-archive]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-archive"]]
-
-[checks.release-check]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-check"]]
-
-[checks.release-publish]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-publish"]]
-
-# The last stage of the release run: a minor release holds platforms that only their own
-# executors can run, so it starts the first platform leg (release-windows), which starts the
-# next (release-macos) when it has left its evidence. A patch release has no legs.
-[checks.release-legs]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-legs"]]
-
-[checks.release-promote]
-kind = "commands"
-cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-promote"]]
+commands = [["bash", ".ci/release-build.sh"]]
 
 # The shipped Windows x86_64 executable, tested in the offline Windows clone.
 [checks.release-windows]
 kind = "commands"
 cache = false
-commands = [["bash", ".agent/scripts/ci-check.sh", "release-windows"]]
+commands = [["bash", ".ci/run-windows.sh"]]
+
+# macOS x86_64 built and tested natively in the macOS build clone, macOS arm64 cross-built there.
+[checks.release-macos]
+kind = "commands"
+cache = false
+commands = [["bash", ".agent/scripts/macos-leg.sh"]]
+
+# Promotion: the two manifests are derived from the receipts of every leg.
+[checks.release-seal]
+kind = "commands"
+cache = false
+commands = [["bash", ".agent/scripts/release-seal.sh"]]
 
 [checks.core-package]
 kind = "commands"
@@ -116,14 +83,14 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package
 # lint).
 
 [render]
-render_schema = 2
+render_schema = 3
+
 [jobs.verify]
 scheduler = "forgejo"
 runs_on = "linux"
 checks = ["rust", "documents", "lint", "styles"]
 workflow = "ci"
 command = ["bash", ".ci/run-cached.sh"]
-events = ["push", "pull_request", "manual"]
 
 [jobs.downstream-check]
 scheduler = "forgejo"
@@ -131,46 +98,16 @@ runs_on = "linux"
 checks = ["downstream-check"]
 command = ["ccid:run-declared-checks"]
 workflow = "downstream-check"
-events = ["manual"]
 
-# Release stages never use a result cache (cache = false): each run proves its own commit.
-# One run builds, verifies and drafts the release of the exact main commit; the
-# stages run in this order on one runner and are never reused from a cache.
-[jobs.release]
-scheduler = "forgejo"
-runs_on = "linux"
-checks = ["release-rust", "release-lint", "release-native", "release-cross", "release-linux-deep", "release-archive", "release-check", "release-publish", "release-legs"]
-workflow = "release"
-command = ["bash", ".ci/run-release.sh"]
-events = ["manual"]
-
-# Promotion is its own explicit run: it re-checks the draft (the evidence of every platform
-# leg must be final), re-derives the manifests from the receipts and makes it the public
-# release. Nothing is built here.
-[jobs.release-promote]
-scheduler = "forgejo"
-runs_on = "linux"
-checks = ["release-promote"]
-workflow = "release-promote"
-command = ["bash", ".ci/run-release.sh"]
-events = ["manual"]
-
-# The Windows leg of a minor release. The release run starts it (its last stage,
-# release-legs) and it starts the macOS leg when it has left its evidence; nobody starts it
-# by hand, but it can be dispatched for a repair. It does not build the executable: it
-# fetches ccvl-windows-x86_64.exe from the draft, proves it is the file the receipt names and
-# runs that file, with the test suite built for the same ABI, in the offline Windows clone,
-# which the job of the label `windows` owns for its length.
-[jobs.release-windows]
-scheduler = "forgejo"
-runs_on = "windows"
-checks = ["release-windows"]
-workflow = "release-windows"
-command = ["bash", ".ci/run-windows.sh"]
-events = ["manual"]
-
-# The macOS leg has no job here: .forgejo/workflows/release-macos.yml is written by hand,
-# because ccid ships no macOS build (its tool channel is Linux only) and the shim a rendered
-# job starts with needs one. The leg runs in the macOS build clone of the label `macos`,
-# builds, tests and packages macos-x86_64 there and cross-builds macos-arm64 (never run), then
-# leaves both in the draft (.agent/scripts/macos-leg.sh). The Windows leg starts it.
+# The release surface is rendered from this table (docs: ccid docs/release.md). The jobs release,
+# release-windows, release-macos and release-promote are planned from it, not declared.
+# Version: Cargo.toml [package]; a patch release holds linux-x86_64 alone, any other version every
+# platform of .agent/release-platforms.txt.
+[release]
+kind = "binary"
+version = "Cargo.toml"
+platforms = ["linux-x86_64", "linux-aarch64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64"]
+build = ["release-build"]
+legs = { windows = "release-windows", macos = "release-macos" }
+seal = ["release-seal"]
+manifests = ["manifest.json", "runtime-manifest.json"]

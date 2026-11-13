@@ -14,9 +14,9 @@ toolchains=${CI_TOOLCHAIN_ROOT:-$cache_root/ccid-cached/toolchains}
 [[ $toolchains = /* ]] || { echo 'CI_TOOLCHAIN_ROOT must be absolute' >&2; exit 2; }
 mkdir -p "$toolchains"
 # The pinned nixpkgs of the release job is the one definition of where the tools come from.
-tool_source=$(sed -n 's/^tool_source=//p' "$PWD/.ci/run-release.sh")
+tool_source=$(sed -n 's/^tool_source=//p' "$PWD/.ci/release-build.sh")
 [[ $tool_source == github:NixOS/nixpkgs/* && $tool_source != *[[:space:]]* ]] || {
-  echo 'No pinned nixpkgs reference in .ci/run-release.sh.' >&2; exit 2
+  echo 'No pinned nixpkgs reference in .ci/release-build.sh.' >&2; exit 2
 }
 # Last on PATH: llvm-mingw's unprefixed clang and lld must never shadow the host toolchain.
 llvm_mingw=$(bash "$PWD/.ci/llvm-mingw.sh" "$tool_source")
