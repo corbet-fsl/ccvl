@@ -14,7 +14,6 @@ per-commit CI is the Linux `verify` job alone.
 |---|---|---|
 | `ci` (job `verify`) | `rust`, `documents`, `lint`, `styles` | content-keyed result reuse through `ccid cached` |
 | `downstream-check` | `downstream-check` | a private downstream repository only; see [private downstream](private-downstream.md) |
-| `skill-eval` | `skill-eval-build`, `skill-eval` | public `main` only; credential-bearing |
 | `release` | `release-*` stages | see [Releases](releases.md) |
 | `release-windows` | `release-windows` | started by the release run (minor releases): the shipped Windows executable and the test suite in the offline Windows clone |
 | `release-macos` | (hand-written) | started by the Windows leg: macOS built, tested and packaged in the macOS clone; see [Releases](releases.md) |
@@ -29,7 +28,6 @@ On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 | `documents` | Locked Linux release build and independent PDF/text/layout verification |
 | `styles` | The same optimized release build as `documents` (thin LTO and one codegen unit, so the two checks share one graph build and target directory), then `public-check` limited to the space-separated `<doc>/<style>` list in `CCVL_CHECK_STYLES` (every style when unset) |
 | `downstream-check` | Manual private downstream route: builds the checked-out source's `private-check` command and runs it against that checkout (see [private downstream](private-downstream.md)) |
-| `skill-eval-build`, then `skill-eval` | Explicit trusted small-model evaluation; separate credential-free build and credential-bearing evaluation |
 | `release-<stage>` | One release stage; see [Releases](releases.md) |
 
 The command uses existing tools. The shared `ccid` adapter supplies a
@@ -102,43 +100,21 @@ a locked build; a provisional path-patched lock is not release evidence.
 The staged-archive Crow route that fed `.agent/scripts/downstream-sync.sh` is
 retired with Crow and has no Forgejo workflow yet; until one exists, a private
 downstream merges the public upstream by hand (see
-[private downstream](private-downstream.md)). External model evaluation has its
-own manually selected trusted workflow and never runs with routine Rust or lint
-checks.
+[private downstream](private-downstream.md)). Model evaluation is a local
+command, never a CI workflow; see below.
 
 ## Skill evaluation
 
-The manual `skill-eval` workflow runs only for public ccvl `main`. Its first step
-compiles the evaluator with locked dependencies and existing Rust, without
-provider credentials. Its second step reads the Groq API key from the runner
-credential file named by `CCVL_GROQ_API_KEY_FILE` and exports it as
-`GROQ_API_KEY` for the evaluator alone. That credential must be provided by an
-authorized operator before dispatch; adding the workflow does not provision it or
-prove the provider is available. A missing key is a configuration failure, never
-a passing evaluation. The legacy hosted skill job in `.github/workflows` stays
-disabled.
-
-Both steps verify the source and the shared ccid binary, use the same dedicated
-target storage and acquire its lock. The evaluator's recorded SHA-256 and runtime
-identity must still match when the second step starts; its CLI also checks the
-runtime against the extracted source. A concurrent different build fails closed.
-Memory admission and the declared `CI_TIMEOUT` apply through ccid; provider
-execution has an additional 30-minute limit. This workflow does not install
-compilers or run a native release matrix.
-
-Only checked-in public synthetic `.agent/tests/skill-cases.json` cases and
-`.agent/skills` instructions are sent to Groq, with the existing
-`openai/gpt-oss-20b` model. Private profiles, opportunities and document artifacts
-are not evaluator inputs. Verify that the configured account permits this
-evaluation without paid usage before dispatch. The evaluator bounds requests,
-retries and completion tokens; dispatch only when the exact source lacks valid
-provider results. Do not substitute response-file fixtures for provider evidence.
-
-The script retains JSON, Markdown and source/binary/lock identities under
-`$CARGO_TARGET_DIR/ccvl-skill-eval/<commit>/run.<unique>/`, outside disposable
-source scratch. It prints the evidence path and public JSON report to the Forgejo
-run log, including failed or unavailable results. CLI exit codes remain `0` (pass),
-`1` (semantic failure), `2` (configuration failure) and `75` (provider unavailable);
-the ccid adapter reports any nonzero result as a failed check. A timeout or absent
-report also fails and supplies no semantic proof. Lint runs isolated workflow
-guard fixtures only; it neither requires a credential nor calls the model.
+`skill-eval` is a local command for whoever holds a provider key, not a CI
+workflow. The Forgejo and GitHub skill-eval workflows are removed: hosted
+evaluation would need a provider key on someone else's runner, and Julian
+declined a Groq key for it (ds-groqdrop, 2026-11-13), so no runner provides
+`CCVL_GROQ_API_KEY_FILE` and the GitHub mirror holds no `GROQ_API_KEY` secret.
+Run the evaluation locally as documented in
+[testing](testing.md#small-model-skill-evaluation), with only the checked-in
+public synthetic `.agent/tests/skill-cases.json` cases and `.agent/skills`
+instructions as model inputs. Private profiles, opportunities and document
+artifacts are never evaluator inputs. CLI exit codes remain `0` (pass),
+`1` (semantic failure), `2` (configuration failure) and `75` (provider
+unavailable). A timeout or absent report supplies no semantic proof. Do not
+substitute response-file fixtures for provider evidence.

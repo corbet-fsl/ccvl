@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "ec05464d4c7755c39bc8c1f40a684de1cd3364c0480a31bbd438f72361182e7c",
+  "manifest_sha256": "1ea3d67271f12b49678c32ab4ddca8e5b490b17e404817ae780f222202fcce04",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -74,23 +74,6 @@
         ".ci/run-windows.sh"
       ],
       "runs_on": "windows",
-      "events": [
-        "manual"
-      ],
-      "archive_inputs": true
-    },
-    "skill-eval": {
-      "job": "skill-eval",
-      "scheduler": "forgejo",
-      "checks": [
-        "skill-eval-build",
-        "skill-eval"
-      ],
-      "workflow": "skill-eval",
-      "command": [
-        "ccid:run-declared-checks"
-      ],
-      "runs_on": "linux",
       "events": [
         "manual"
       ],

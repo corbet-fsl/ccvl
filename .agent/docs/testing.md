@@ -130,23 +130,23 @@ scaffolds, schemas, `REUSE.toml`, `LICENSES/` and the data-root READMEs.
 
 ## Small-model skill evaluation
 
-The `Skill evaluation` workflow sends its generic decision cases to
-the configured Groq model, defaulting to `openai/gpt-oss-20b`, when account usage
-is authorized. Cases are deterministically batched by canonical skill, with the
+The `skill-eval` command sends its generic decision cases to
+the configured Groq model, defaulting to `openai/gpt-oss-20b`. It is a local
+command for whoever holds a provider key: there is no CI workflow for it (the
+Forgejo and GitHub skill-eval workflows were removed when Julian declined a
+Groq key for hosted evaluation, ds-groqdrop 2026-11-13). Cases are
+deterministically batched by canonical skill, with the
 complete matching skill and the descriptions of all declared skills supplied
 to each low-context call. Both the
 expected routing and answer key are withheld. A deterministic evaluator then
 requires the correct skill, every expected action, no forbidden action, and a
 valid response structure. Every option needs an explicit assessment, including
-options the model excludes. It publishes all assessments, concise reasons, provider
-finish status, and token usage as a workflow artifact.
+options the model excludes.
 
-The credential-bearing workflow is currently disabled and restricted to a
-trusted self-hosted runner. It never runs with secrets on hosted runners, pull
-requests, or forks. A rate limit or provider outage is reported distinctly and
+A rate limit or provider outage is reported distinctly and
 fails evaluation; it is never presented as a semantic pass.
 
-To run the same evaluation outside Actions, set `GROQ_API_KEY` without writing
+To run the evaluation, set `GROQ_API_KEY` without writing
 it to the repository, then run:
 
 ```sh

@@ -35,15 +35,6 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "downstream-check"]]
 cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
 cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 
-# Manual trusted workflow only; credentials are absent from the build step.
-[checks.skill-eval-build]
-kind = "commands"
-commands = [["bash", ".agent/scripts/ci-check.sh", "skill-eval-build"]]
-
-[checks.skill-eval]
-kind = "commands"
-commands = [["bash", ".agent/scripts/ci-check.sh", "skill-eval"]]
-
 [checks.release-rust]
 kind = "commands"
 cache = false
@@ -116,7 +107,7 @@ commands = [["bash", ".agent/scripts/ci-check.sh", "rust", "lint", "core-package
 # (`bash .agent/scripts/ci-check.sh styles`) is the exact path CI's documents
 # job runs (with CCVL_CHECK_STYLES selection). jobs.verify lists the Linux
 # verify set; dispatch-only, secret-bearing, disabled, and
-# release/downstream/skill-eval gates stay defined but separate.
+# release/downstream gates stay defined but separate.
 # cache_tools pins the tool identities each script arm resolves
 # (rustc/cargo for the build arms; shellcheck/actionlint/reuse for
 # lint).
@@ -137,14 +128,6 @@ runs_on = "linux"
 checks = ["downstream-check"]
 command = ["ccid:run-declared-checks"]
 workflow = "downstream-check"
-events = ["manual"]
-
-[jobs.skill-eval]
-scheduler = "forgejo"
-runs_on = "linux"
-checks = ["skill-eval-build", "skill-eval"]
-command = ["ccid:run-declared-checks"]
-workflow = "skill-eval"
 events = ["manual"]
 
 # Release stages never use a result cache (cache = false): each run proves its own commit.

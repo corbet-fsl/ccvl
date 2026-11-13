@@ -121,7 +121,6 @@ jobs:
           bash .agent/tests/test_bootstrap.sh
           bash .agent/tests/test_ci_toolchain.sh
           bash .agent/tests/test_downstream_sync.sh
-          bash .agent/tests/test_skill_eval_ci.sh
 
       - name: Check REUSE licensing
         uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
