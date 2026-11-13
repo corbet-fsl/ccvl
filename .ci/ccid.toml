@@ -120,7 +120,7 @@ runs_on = "linux"
 checks = ["rust", "documents", "lint", "styles"]
 workflow = "ci"
 command = ["bash", ".ci/run-cached.sh"]
-events = ["manual"]
+events = ["push", "pull_request", "manual"]
 
 [jobs.downstream-check]
 scheduler = "forgejo"

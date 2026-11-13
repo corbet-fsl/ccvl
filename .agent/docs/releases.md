@@ -155,6 +155,10 @@ the receipts afresh (the legs ran after the draft was made, so the draft's copie
 be older: where they differ they are replaced in the draft), adds `SHA256SUMS` and
 makes it the public release `v<version>`.
 
+The promotion rule: promote may replace ONLY the manifests (`manifest.json`,
+`runtime-manifest.json`) and `SHA256SUMS`, ONLY while the release is a draft,
+nothing else.
+
 How assets are written, as the code does it. A published release is never changed.
 On a DRAFT, the `release` run's publisher removes an asset whose size differs from
 our file of that name (the forge keeps the part of an interrupted upload) and

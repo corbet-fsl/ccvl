@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "1ea3d67271f12b49678c32ab4ddca8e5b490b17e404817ae780f222202fcce04",
+  "manifest_sha256": "2b0c23cbdfb5c90662a6c6050a1a840ed6755bc60ec2683fd20205ea7caea25e",
   "jobs": {
     "downstream-check": {
       "job": "downstream-check",
@@ -95,6 +95,8 @@
       ],
       "runs_on": "linux",
       "events": [
+        "push",
+        "pull_request",
         "manual"
       ],
       "archive_inputs": true
