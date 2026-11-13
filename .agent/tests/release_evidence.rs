@@ -3,15 +3,10 @@
 //! command and the real release scripts against a synthetic source tree.
 #![cfg(unix)]
 
-use std::collections::BTreeMap;
 use std::fs;
-use std::io::{BufRead as _, BufReader, Read as _, Write as _};
-use std::net::TcpListener;
-use std::os::unix::fs::{PermissionsExt as _, symlink};
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::sync::{Arc, Mutex};
-use std::thread;
 
 use ccvl::archive::{sha256_hex, write_with_comment};
 use ccvl::release_evidence::{GATES, PLATFORMS};
@@ -835,670 +830,688 @@ fn a_run_identity_is_required_for_new_evidence() {
     assert_refused(&result, "A Forgejo Actions run identity is required.");
 }
 
-/// A Forgejo that keeps its releases in memory: just enough of the API for the
-/// publisher, plus faults a real forge produces.
-#[derive(Default)]
-struct ForgeState {
-    head: String,
-    next: u64,
-    next_asset: u64,
-    releases: Vec<ForgeRelease>,
-    tags: BTreeMap<String, String>,
-    list_error: bool,
-    /// Uploads the forge accepts the whole body of and then resets, before storing it.
-    drop_uploads: usize,
-    /// Uploads of which the forge stores half the body and then resets.
-    truncate_uploads: usize,
-    requests: Vec<String>,
-}
+/// The maintainers' publication scripts (`publish-release.sh`, `downstream-release.sh`,
+/// `archive-gate.sh`) run on the Linux release host only: they need bash 4 (`mapfile`),
+/// GNU `sha256sum --check --strict` and GNU `stat -c`, none of which macOS ships. Their
+/// fixtures therefore run where the scripts do. Nothing here covers behaviour that is
+/// cross-platform: the `ccvl release-evidence` command and its fixtures above run everywhere
+/// this file does, and a macOS run of the guards below would only pass or fail on the host's
+/// userland.
+#[cfg(target_os = "linux")]
+mod maintainer_scripts {
+    use std::collections::BTreeMap;
+    use std::io::{BufRead as _, BufReader, Read as _, Write as _};
+    use std::net::TcpListener;
+    use std::os::unix::fs::symlink;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
 
-struct ForgeRelease {
-    id: u64,
-    tag: String,
-    draft: bool,
-    prerelease: bool,
-    target: String,
-    body: String,
-    assets: Vec<(u64, String, Vec<u8>)>,
-}
+    use super::*;
 
-type Forge = Arc<Mutex<ForgeState>>;
-
-const FORGE_TOKEN: &str = "fixture-job-token";
-/// The runner's read-only credential: it can read the assets of a draft, which the job token can not.
-const READ_TOKEN: &str = "fixture-read-token";
-
-fn release_json(release: &ForgeRelease, port: u16) -> Value {
-    json!({
-        "id": release.id,
-        "tag_name": release.tag,
-        "draft": release.draft,
-        "prerelease": release.prerelease,
-        "target_commitish": release.target,
-        "body": release.body,
-        "assets": release.assets.iter().map(|(id, name, bytes)| json!({
-            "id": id,
-            "uuid": id.to_string(),
-            "name": name,
-            "size": bytes.len(),
-            "browser_download_url": format!("https://forge.example.invalid:{port}/attachments/{id}"),
-        })).collect::<Vec<_>>(),
-    })
-}
-
-fn serve(state: Forge) -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            let Ok(mut stream) = stream else { continue };
-            let mut reader = BufReader::new(stream.try_clone().unwrap());
-            let mut request_line = String::new();
-            if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
-                continue;
-            }
-            let mut length = 0usize;
-            let mut role = Role::None;
-            loop {
-                let mut line = String::new();
-                reader.read_line(&mut line).unwrap();
-                if line.trim().is_empty() {
-                    break;
-                }
-                let lower = line.to_ascii_lowercase();
-                if let Some(value) = lower.strip_prefix("content-length:") {
-                    length = value.trim().parse().unwrap();
-                }
-                if lower.trim() == format!("authorization: token {FORGE_TOKEN}") {
-                    role = Role::Job;
-                } else if lower.trim() == format!("authorization: token {READ_TOKEN}") {
-                    role = Role::Reader;
-                }
-            }
-            let mut body = vec![0; length];
-            reader.read_exact(&mut body).unwrap();
-            let mut parts = request_line.split_whitespace();
-            let method = parts.next().unwrap().to_owned();
-            let target = parts.next().unwrap().to_owned();
-            let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
-            let mut state = state.lock().unwrap();
-            state.requests.push(format!("{method} {path}"));
-            let (status, payload): (u16, Vec<u8>) = match role {
-                Role::None => (401, b"{}".to_vec()),
-                Role::Reader if method != "GET" => (403, b"{}".to_vec()),
-                _ => respond(&mut state, port, role, &method, path, query, &body),
-            };
-            if status == 0 {
-                // A reset: the connection closes without an answer.
-                continue;
-            }
-            let header = format!(
-                "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
-                payload.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(&payload);
-        }
-    });
-    port
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Role {
-    None,
-    Job,
-    Reader,
-}
-
-fn respond(
-    state: &mut ForgeState,
-    port: u16,
-    role: Role,
-    method: &str,
-    path: &str,
-    query: &str,
-    body: &[u8],
-) -> (u16, Vec<u8>) {
-    let ok = |value: Value| (200, value.to_string().into_bytes());
-    let base = "/api/v1/repos/corbet-fsl/ccvl";
-    if let Some(id) = path.strip_prefix("/attachments/") {
-        let id: u64 = id.parse().unwrap();
-        // The assets of a draft are for the read credential alone.
-        return state
-            .releases
-            .iter()
-            .filter(|release| !release.draft || role == Role::Reader)
-            .flat_map(|release| &release.assets)
-            .find(|(asset, _, _)| *asset == id)
-            .map_or((404, b"{}".to_vec()), |(_, _, bytes)| (200, bytes.clone()));
+    /// A Forgejo that keeps its releases in memory: just enough of the API for the
+    /// publisher, plus faults a real forge produces.
+    #[derive(Default)]
+    struct ForgeState {
+        head: String,
+        next: u64,
+        next_asset: u64,
+        releases: Vec<ForgeRelease>,
+        tags: BTreeMap<String, String>,
+        list_error: bool,
+        /// Uploads the forge accepts the whole body of and then resets, before storing it.
+        drop_uploads: usize,
+        /// Uploads of which the forge stores half the body and then resets.
+        truncate_uploads: usize,
+        requests: Vec<String>,
     }
-    let Some(rest) = path.strip_prefix(base) else {
-        return (404, b"{}".to_vec());
-    };
-    match (method, rest) {
-        ("GET", "/branches/main") => ok(json!({"commit": {"id": state.head}})),
-        ("GET", "/releases") => {
-            if state.list_error {
-                return (500, b"{}".to_vec());
-            }
-            let page = if query.contains("page=1") {
-                state
-                    .releases
-                    .iter()
-                    .map(|release| release_json(release, port))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            ok(Value::Array(page))
-        }
-        ("POST", "/releases") => {
-            let request: Value = serde_json::from_slice(body).unwrap();
-            assert_eq!(request["draft"], true, "releases are created as drafts");
-            state.next += 1;
-            let release = ForgeRelease {
-                id: state.next,
-                tag: request["tag_name"].as_str().unwrap().to_owned(),
-                draft: true,
-                prerelease: request["prerelease"].as_bool().unwrap(),
-                target: request["target_commitish"].as_str().unwrap().to_owned(),
-                body: request["body"].as_str().unwrap().to_owned(),
-                assets: Vec::new(),
-            };
-            let answer = release_json(&release, port);
-            state.releases.push(release);
-            (201, answer.to_string().into_bytes())
-        }
-        ("GET", tag) if tag.starts_with("/tags/") => state
-            .tags
-            .get(&tag[6..])
-            .map_or((404, b"{}".to_vec()), |commit| {
-                ok(json!({"commit": {"sha": commit}}))
-            }),
-        (_, release) if release.starts_with("/releases/") => {
-            let mut pieces = release["/releases/".len()..].split('/');
-            let id: u64 = pieces.next().unwrap().parse().unwrap();
-            let Some(index) = state.releases.iter().position(|release| release.id == id) else {
-                return (404, b"{}".to_vec());
-            };
-            match (method, pieces.next()) {
-                ("POST", Some("assets")) => {
-                    if state.drop_uploads > 0 {
-                        state.drop_uploads -= 1;
-                        return (0, Vec::new());
+
+    struct ForgeRelease {
+        id: u64,
+        tag: String,
+        draft: bool,
+        prerelease: bool,
+        target: String,
+        body: String,
+        assets: Vec<(u64, String, Vec<u8>)>,
+    }
+
+    type Forge = Arc<Mutex<ForgeState>>;
+
+    const FORGE_TOKEN: &str = "fixture-job-token";
+    /// The runner's read-only credential: it can read the assets of a draft, which the job token can not.
+    const READ_TOKEN: &str = "fixture-read-token";
+
+    fn release_json(release: &ForgeRelease, port: u16) -> Value {
+        json!({
+            "id": release.id,
+            "tag_name": release.tag,
+            "draft": release.draft,
+            "prerelease": release.prerelease,
+            "target_commitish": release.target,
+            "body": release.body,
+            "assets": release.assets.iter().map(|(id, name, bytes)| json!({
+                "id": id,
+                "uuid": id.to_string(),
+                "name": name,
+                "size": bytes.len(),
+                "browser_download_url": format!("https://forge.example.invalid:{port}/attachments/{id}"),
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    fn serve(state: Forge) -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut request_line = String::new();
+                if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
+                    continue;
+                }
+                let mut length = 0usize;
+                let mut role = Role::None;
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if line.trim().is_empty() {
+                        break;
                     }
-                    let name = query.strip_prefix("name=").unwrap().to_owned();
-                    if state.truncate_uploads > 0 {
-                        state.truncate_uploads -= 1;
+                    let lower = line.to_ascii_lowercase();
+                    if let Some(value) = lower.strip_prefix("content-length:") {
+                        length = value.trim().parse().unwrap();
+                    }
+                    if lower.trim() == format!("authorization: token {FORGE_TOKEN}") {
+                        role = Role::Job;
+                    } else if lower.trim() == format!("authorization: token {READ_TOKEN}") {
+                        role = Role::Reader;
+                    }
+                }
+                let mut body = vec![0; length];
+                reader.read_exact(&mut body).unwrap();
+                let mut parts = request_line.split_whitespace();
+                let method = parts.next().unwrap().to_owned();
+                let target = parts.next().unwrap().to_owned();
+                let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
+                let mut state = state.lock().unwrap();
+                state.requests.push(format!("{method} {path}"));
+                let (status, payload): (u16, Vec<u8>) = match role {
+                    Role::None => (401, b"{}".to_vec()),
+                    Role::Reader if method != "GET" => (403, b"{}".to_vec()),
+                    _ => respond(&mut state, port, role, &method, path, query, &body),
+                };
+                if status == 0 {
+                    // A reset: the connection closes without an answer.
+                    continue;
+                }
+                let header = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
+                    payload.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(&payload);
+            }
+        });
+        port
+    }
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Role {
+        None,
+        Job,
+        Reader,
+    }
+
+    fn respond(
+        state: &mut ForgeState,
+        port: u16,
+        role: Role,
+        method: &str,
+        path: &str,
+        query: &str,
+        body: &[u8],
+    ) -> (u16, Vec<u8>) {
+        let ok = |value: Value| (200, value.to_string().into_bytes());
+        let base = "/api/v1/repos/corbet-fsl/ccvl";
+        if let Some(id) = path.strip_prefix("/attachments/") {
+            let id: u64 = id.parse().unwrap();
+            // The assets of a draft are for the read credential alone.
+            return state
+                .releases
+                .iter()
+                .filter(|release| !release.draft || role == Role::Reader)
+                .flat_map(|release| &release.assets)
+                .find(|(asset, _, _)| *asset == id)
+                .map_or((404, b"{}".to_vec()), |(_, _, bytes)| (200, bytes.clone()));
+        }
+        let Some(rest) = path.strip_prefix(base) else {
+            return (404, b"{}".to_vec());
+        };
+        match (method, rest) {
+            ("GET", "/branches/main") => ok(json!({"commit": {"id": state.head}})),
+            ("GET", "/releases") => {
+                if state.list_error {
+                    return (500, b"{}".to_vec());
+                }
+                let page = if query.contains("page=1") {
+                    state
+                        .releases
+                        .iter()
+                        .map(|release| release_json(release, port))
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                ok(Value::Array(page))
+            }
+            ("POST", "/releases") => {
+                let request: Value = serde_json::from_slice(body).unwrap();
+                assert_eq!(request["draft"], true, "releases are created as drafts");
+                state.next += 1;
+                let release = ForgeRelease {
+                    id: state.next,
+                    tag: request["tag_name"].as_str().unwrap().to_owned(),
+                    draft: true,
+                    prerelease: request["prerelease"].as_bool().unwrap(),
+                    target: request["target_commitish"].as_str().unwrap().to_owned(),
+                    body: request["body"].as_str().unwrap().to_owned(),
+                    assets: Vec::new(),
+                };
+                let answer = release_json(&release, port);
+                state.releases.push(release);
+                (201, answer.to_string().into_bytes())
+            }
+            ("GET", tag) if tag.starts_with("/tags/") => state
+                .tags
+                .get(&tag[6..])
+                .map_or((404, b"{}".to_vec()), |commit| {
+                    ok(json!({"commit": {"sha": commit}}))
+                }),
+            (_, release) if release.starts_with("/releases/") => {
+                let mut pieces = release["/releases/".len()..].split('/');
+                let id: u64 = pieces.next().unwrap().parse().unwrap();
+                let Some(index) = state.releases.iter().position(|release| release.id == id) else {
+                    return (404, b"{}".to_vec());
+                };
+                match (method, pieces.next()) {
+                    ("POST", Some("assets")) => {
+                        if state.drop_uploads > 0 {
+                            state.drop_uploads -= 1;
+                            return (0, Vec::new());
+                        }
+                        let name = query.strip_prefix("name=").unwrap().to_owned();
+                        if state.truncate_uploads > 0 {
+                            state.truncate_uploads -= 1;
+                            state.next_asset += 1;
+                            let asset = 1000 + state.next_asset;
+                            let release = &mut state.releases[index];
+                            release
+                                .assets
+                                .push((asset, name, body[..body.len() / 2].to_vec()));
+                            return (0, Vec::new());
+                        }
                         state.next_asset += 1;
                         let asset = 1000 + state.next_asset;
                         let release = &mut state.releases[index];
-                        release
+                        assert!(
+                            release
+                                .assets
+                                .iter()
+                                .all(|(_, existing, _)| *existing != name),
+                            "{name} uploaded twice"
+                        );
+                        release.assets.push((asset, name, body.to_vec()));
+                        (201, b"{}".to_vec())
+                    }
+                    ("DELETE", Some("assets")) => {
+                        let asset: u64 = pieces.next().unwrap().parse().unwrap();
+                        state.releases[index]
                             .assets
-                            .push((asset, name, body[..body.len() / 2].to_vec()));
-                        return (0, Vec::new());
+                            .retain(|(existing, _, _)| *existing != asset);
+                        (204, Vec::new())
                     }
-                    state.next_asset += 1;
-                    let asset = 1000 + state.next_asset;
-                    let release = &mut state.releases[index];
-                    assert!(
-                        release
-                            .assets
-                            .iter()
-                            .all(|(_, existing, _)| *existing != name),
-                        "{name} uploaded twice"
-                    );
-                    release.assets.push((asset, name, body.to_vec()));
-                    (201, b"{}".to_vec())
+                    ("PATCH", None) => {
+                        let request: Value = serde_json::from_slice(body).unwrap();
+                        let release = &mut state.releases[index];
+                        if let Some(draft) = request["draft"].as_bool() {
+                            release.draft = draft;
+                        }
+                        if let Some(prerelease) = request["prerelease"].as_bool() {
+                            release.prerelease = prerelease;
+                        }
+                        if let Some(target) = request["target_commitish"].as_str() {
+                            target.clone_into(&mut release.target);
+                        }
+                        if let Some(notes) = request["body"].as_str() {
+                            notes.clone_into(&mut release.body);
+                        }
+                        let (tag, target) = (release.tag.clone(), release.target.clone());
+                        let answer = release_json(release, port);
+                        if !state.releases[index].draft {
+                            state.tags.insert(tag, target);
+                        }
+                        ok(answer)
+                    }
+                    _ => (404, b"{}".to_vec()),
                 }
-                ("DELETE", Some("assets")) => {
-                    let asset: u64 = pieces.next().unwrap().parse().unwrap();
-                    state.releases[index]
-                        .assets
-                        .retain(|(existing, _, _)| *existing != asset);
-                    (204, Vec::new())
-                }
-                ("PATCH", None) => {
-                    let request: Value = serde_json::from_slice(body).unwrap();
-                    let release = &mut state.releases[index];
-                    if let Some(draft) = request["draft"].as_bool() {
-                        release.draft = draft;
-                    }
-                    if let Some(prerelease) = request["prerelease"].as_bool() {
-                        release.prerelease = prerelease;
-                    }
-                    if let Some(target) = request["target_commitish"].as_str() {
-                        target.clone_into(&mut release.target);
-                    }
-                    if let Some(notes) = request["body"].as_str() {
-                        notes.clone_into(&mut release.body);
-                    }
-                    let (tag, target) = (release.tag.clone(), release.target.clone());
-                    let answer = release_json(release, port);
-                    if !state.releases[index].draft {
-                        state.tags.insert(tag, target);
-                    }
-                    ok(answer)
-                }
-                _ => (404, b"{}".to_vec()),
+            }
+            _ => (404, b"{}".to_vec()),
+        }
+    }
+
+    struct Publisher<'a> {
+        release: &'a Release,
+        forge: Forge,
+        port: u16,
+        read_token_file: PathBuf,
+    }
+
+    impl<'a> Publisher<'a> {
+        fn new(release: &'a Release) -> Self {
+            for tool in ["jq", "curl"] {
+                assert!(
+                    Command::new(tool).arg("--version").output().is_ok(),
+                    "{tool} is required for actual publisher guard fixtures"
+                );
+            }
+            let forge: Forge = Arc::new(Mutex::new(ForgeState {
+                head: COMMIT.to_owned(),
+                ..ForgeState::default()
+            }));
+            let port = serve(Arc::clone(&forge));
+            let read_token_file = release.temp.path().join("read-token");
+            fs::write(&read_token_file, format!("{READ_TOKEN}\n")).unwrap();
+            Self {
+                release,
+                forge,
+                port,
+                read_token_file,
             }
         }
-        _ => (404, b"{}".to_vec()),
-    }
-}
 
-struct Publisher<'a> {
-    release: &'a Release,
-    forge: Forge,
-    port: u16,
-    read_token_file: PathBuf,
-}
-
-impl<'a> Publisher<'a> {
-    fn new(release: &'a Release) -> Self {
-        for tool in ["jq", "curl"] {
-            assert!(
-                Command::new(tool).arg("--version").output().is_ok(),
-                "{tool} is required for actual publisher guard fixtures"
-            );
-        }
-        let forge: Forge = Arc::new(Mutex::new(ForgeState {
-            head: COMMIT.to_owned(),
-            ..ForgeState::default()
-        }));
-        let port = serve(Arc::clone(&forge));
-        let read_token_file = release.temp.path().join("read-token");
-        fs::write(&read_token_file, format!("{READ_TOKEN}\n")).unwrap();
-        Self {
-            release,
-            forge,
-            port,
-            read_token_file,
-        }
-    }
-
-    fn run(&self, arguments: &[&str], changes: &[(&str, &str)]) -> Output {
-        let server = format!("http://127.0.0.1:{}", self.port);
-        for _ in 0..20 {
-            let output = Command::new("bash")
-                .arg(self.release.root.join(".agent/scripts/publish-release.sh"))
-                .args(arguments)
-                .env_clear()
-                .envs(
-                    std::env::vars()
-                        .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
-                )
-                .envs(self.release.env.iter().map(|(key, value)| (key, value)))
-                .env("GITHUB_SERVER_URL", &server)
-                .env("CCID_FORGE_TOKEN", FORGE_TOKEN)
-                .env("GITHUB_TOKEN", FORGE_TOKEN)
-                .env("CCVL_UPLOAD_RETRY_DELAY", "0")
-                .env("CCVL_FORGE_READ_TOKEN_FILE", &self.read_token_file)
-                .env("CCVL_RELEASE_EVIDENCE_BIN", BIN)
-                .envs(changes.iter().copied())
-                .current_dir(&self.release.root)
-                .output();
-            match output {
-                Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+        fn run(&self, arguments: &[&str], changes: &[(&str, &str)]) -> Output {
+            let server = format!("http://127.0.0.1:{}", self.port);
+            for _ in 0..20 {
+                let output = Command::new("bash")
+                    .arg(self.release.root.join(".agent/scripts/publish-release.sh"))
+                    .args(arguments)
+                    .env_clear()
+                    .envs(
+                        std::env::vars()
+                            .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
+                    )
+                    .envs(self.release.env.iter().map(|(key, value)| (key, value)))
+                    .env("GITHUB_SERVER_URL", &server)
+                    .env("CCID_FORGE_TOKEN", FORGE_TOKEN)
+                    .env("GITHUB_TOKEN", FORGE_TOKEN)
+                    .env("CCVL_UPLOAD_RETRY_DELAY", "0")
+                    .env("CCVL_FORGE_READ_TOKEN_FILE", &self.read_token_file)
+                    .env("CCVL_RELEASE_EVIDENCE_BIN", BIN)
+                    .envs(changes.iter().copied())
+                    .current_dir(&self.release.root)
+                    .output();
+                match output {
+                    Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    other => return other.unwrap(),
                 }
-                other => return other.unwrap(),
             }
+            panic!("publisher script stayed busy");
         }
-        panic!("publisher script stayed busy");
-    }
 
-    fn publish(&self) -> Output {
-        self.run(&[self.release.output.to_str().unwrap()], &[])
-    }
-
-    fn promote(&self) -> Output {
-        self.run(&["--promote"], &[("CI_COMMIT_SHA", COMMIT)])
-    }
-
-    fn requests(&self) -> Vec<String> {
-        self.forge.lock().unwrap().requests.clone()
-    }
-
-    fn uploads(&self) -> usize {
-        self.requests()
-            .iter()
-            .filter(|request| request.starts_with("POST") && request.ends_with("/assets"))
-            .count()
-    }
-
-    fn state<T>(&self, change: impl FnOnce(&mut ForgeState) -> T) -> T {
-        change(&mut self.forge.lock().unwrap())
-    }
-
-    fn runtime_tag(&self) -> String {
-        format!("runtime-{}", self.release.identity_field("runtime_id"))
-    }
-
-    fn workspace_tag() -> String {
-        format!("build-{COMMIT}")
-    }
-}
-
-fn release_mut<'a>(state: &'a mut ForgeState, tag: &str) -> &'a mut ForgeRelease {
-    state
-        .releases
-        .iter_mut()
-        .find(|release| release.tag == tag)
-        .unwrap()
-}
-
-#[test]
-fn publication_makes_complete_drafts_and_repeat_is_immutable() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    // Four built platforms: 13 runtime files and 17 bundle and evidence files.
-    let first_uploads = publisher.uploads();
-    assert_eq!(first_uploads, 30);
-    publisher.state(|state| {
-        assert_eq!(state.releases.len(), 2);
-        assert!(state.tags.is_empty(), "drafts create no tag");
-        for release in &state.releases {
-            assert!(release.draft, "{} must stay a draft", release.tag);
-            assert!(
-                release.body.contains("linux-x86_64 tested")
-                    && release.body.contains("linux-aarch64 built, not tested")
-                    && release.body.contains("windows-arm64 built, not tested")
-                    && release.body.contains("macos-arm64 pending"),
-                "{}",
-                release.body
-            );
+        fn publish(&self) -> Output {
+            self.run(&[self.release.output.to_str().unwrap()], &[])
         }
-        assert!(state.releases[0].prerelease && !state.releases[1].prerelease);
-    });
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    assert_eq!(publisher.uploads(), first_uploads);
-    let tag = publisher.runtime_tag();
-    publisher.state(|state| {
-        // Other bytes of the right size: a size mismatch would be a truncated upload.
-        release_mut(state, &tag).assets[0].2[0] ^= 1;
-    });
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("No overwrite attempted"),
-        "{}",
-        text(&result)
-    );
-    assert_eq!(publisher.uploads(), first_uploads);
-}
 
-#[test]
-fn an_interrupted_upload_is_retried_and_never_duplicated() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    publisher.state(|state| state.drop_uploads = 3);
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    // Thirty files, plus the three attempts the forge reset.
-    assert_eq!(publisher.uploads(), 33);
-    publisher.state(|state| {
-        assert_eq!(state.releases.len(), 2);
-        let stored: usize = state
+        fn promote(&self) -> Output {
+            self.run(&["--promote"], &[("CI_COMMIT_SHA", COMMIT)])
+        }
+
+        fn requests(&self) -> Vec<String> {
+            self.forge.lock().unwrap().requests.clone()
+        }
+
+        fn uploads(&self) -> usize {
+            self.requests()
+                .iter()
+                .filter(|request| request.starts_with("POST") && request.ends_with("/assets"))
+                .count()
+        }
+
+        fn state<T>(&self, change: impl FnOnce(&mut ForgeState) -> T) -> T {
+            change(&mut self.forge.lock().unwrap())
+        }
+
+        fn runtime_tag(&self) -> String {
+            format!("runtime-{}", self.release.identity_field("runtime_id"))
+        }
+
+        fn workspace_tag() -> String {
+            format!("build-{COMMIT}")
+        }
+    }
+
+    fn release_mut<'a>(state: &'a mut ForgeState, tag: &str) -> &'a mut ForgeRelease {
+        state
             .releases
-            .iter()
-            .map(|release| release.assets.len())
-            .sum();
-        assert_eq!(stored, 30);
-    });
-    // The forge never recovers: the publisher gives up with a clear message.
-    let other = Release::new();
-    let failing = Publisher::new(&other);
-    failing.state(|state| state.drop_uploads = 1000);
-    let result = failing.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("(attempt 4 of 4)"),
-        "{}",
-        text(&result)
-    );
-    assert_eq!(failing.uploads(), 4, "one asset, four attempts");
-}
-
-#[test]
-fn without_the_read_credential_a_draft_can_not_be_verified() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    fs::remove_file(&publisher.read_token_file).unwrap();
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("The forge answered 404 reading the asset"),
-        "{}",
-        text(&result)
-    );
-}
-
-#[test]
-fn a_truncated_draft_asset_is_removed_and_uploaded_again() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    publisher.state(|state| state.truncate_uploads = 2);
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    assert_eq!(publisher.uploads(), 32);
-    let removed = publisher
-        .requests()
-        .iter()
-        .filter(|request| request.starts_with("DELETE"))
-        .count();
-    assert_eq!(removed, 2, "only the two truncated stubs are deleted");
-    // A leftover from an earlier run is cleaned the same way, before anything else.
-    let other = Release::new();
-    let resumed = Publisher::new(&other);
-    assert!(resumed.publish().status.success());
-    let runtime = resumed.runtime_tag();
-    resumed.state(|state| {
-        let draft = release_mut(state, &runtime);
-        let asset = draft
-            .assets
             .iter_mut()
-            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
-            .unwrap();
-        asset.2.truncate(3);
-    });
-    let result = resumed.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    assert!(text(&result).contains("Removing the truncated draft asset ccvl-linux-x86_64"));
-    // Right size, other bytes: refused, never replaced.
-    resumed.state(|state| {
-        let draft = release_mut(state, &runtime);
-        let asset = draft
-            .assets
-            .iter_mut()
-            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
-            .unwrap();
-        let last = asset.2.len() - 1;
-        asset.2[last] ^= 1;
-    });
-    let result = resumed.publish();
-    assert!(!result.status.success());
-    assert!(text(&result).contains("differs"), "{}", text(&result));
-}
+            .find(|release| release.tag == tag)
+            .unwrap()
+    }
 
-#[test]
-fn a_runtime_draft_of_an_interrupted_earlier_commit_follows_the_new_commit() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    assert!(publisher.publish().status.success());
-    let runtime = publisher.runtime_tag();
-    let workspace = Publisher::workspace_tag();
-    let stale = "b".repeat(40);
-    publisher.state(|state| release_mut(state, &runtime).target = stale.clone());
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    publisher.state(|state| {
-        assert_eq!(release_mut(state, &runtime).target, COMMIT);
-        assert!(release_mut(state, &runtime).body.contains(COMMIT));
-        assert_eq!(release_mut(state, &runtime).assets.len(), 13);
-    });
-    // The workspace draft is bound to its own commit and is never retargeted.
-    publisher.state(|state| release_mut(state, &workspace).target = stale.clone());
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("targets a different source commit"),
-        "{}",
-        text(&result)
-    );
-    assert_eq!(publisher.uploads(), 30, "nothing is uploaded twice");
-}
+    #[test]
+    fn publication_makes_complete_drafts_and_repeat_is_immutable() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        // Four built platforms: 13 runtime files and 17 bundle and evidence files.
+        let first_uploads = publisher.uploads();
+        assert_eq!(first_uploads, 30);
+        publisher.state(|state| {
+            assert_eq!(state.releases.len(), 2);
+            assert!(state.tags.is_empty(), "drafts create no tag");
+            for release in &state.releases {
+                assert!(release.draft, "{} must stay a draft", release.tag);
+                assert!(
+                    release.body.contains("linux-x86_64 tested")
+                        && release.body.contains("linux-aarch64 built, not tested")
+                        && release.body.contains("windows-arm64 built, not tested")
+                        && release.body.contains("macos-arm64 pending"),
+                    "{}",
+                    release.body
+                );
+            }
+            assert!(state.releases[0].prerelease && !state.releases[1].prerelease);
+        });
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        assert_eq!(publisher.uploads(), first_uploads);
+        let tag = publisher.runtime_tag();
+        publisher.state(|state| {
+            // Other bytes of the right size: a size mismatch would be a truncated upload.
+            release_mut(state, &tag).assets[0].2[0] ^= 1;
+        });
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("No overwrite attempted"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.uploads(), first_uploads);
+    }
 
-#[test]
-fn promotion_checks_the_drafts_again_and_publishes_them() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    // Nothing to promote before the drafts exist.
-    assert!(!publisher.promote().status.success());
-    assert!(publisher.publish().status.success());
-    let result = publisher.promote();
-    assert!(result.status.success(), "{}", text(&result));
-    let output = text(&result);
-    // No downstream credential exists on this runner: reported, not failed.
-    assert!(
-        output.contains("downstream github: skipped: no upload token"),
-        "{output}"
-    );
-    assert!(
-        output.contains("downstream gitlab: skipped: no upload token"),
-        "{output}"
-    );
-    publisher.state(|state| {
-        assert!(state.releases.iter().all(|release| !release.draft));
-        assert_eq!(state.tags.len(), 2);
-        assert!(state.tags.values().all(|commit| commit == COMMIT));
-    });
-    // A repeat verifies and changes nothing.
-    assert!(publisher.promote().status.success());
-    // A corrupted draft never becomes public.
-    let other = Release::new();
-    let second = Publisher::new(&other);
-    assert!(second.publish().status.success());
-    let tag = second.runtime_tag();
-    second.state(|state| {
-        let asset = release_mut(state, &tag)
-            .assets
-            .iter_mut()
-            .find(|(_, name, _)| name == "ccvl-linux-x86_64")
-            .unwrap();
-        asset.2 = b"swapped binary".to_vec();
-    });
-    assert!(!second.promote().status.success());
-    second.state(|state| assert!(state.releases.iter().all(|release| release.draft)));
-}
+    #[test]
+    fn an_interrupted_upload_is_retried_and_never_duplicated() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        publisher.state(|state| state.drop_uploads = 3);
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        // Thirty files, plus the three attempts the forge reset.
+        assert_eq!(publisher.uploads(), 33);
+        publisher.state(|state| {
+            assert_eq!(state.releases.len(), 2);
+            let stored: usize = state
+                .releases
+                .iter()
+                .map(|release| release.assets.len())
+                .sum();
+            assert_eq!(stored, 30);
+        });
+        // The forge never recovers: the publisher gives up with a clear message.
+        let other = Release::new();
+        let failing = Publisher::new(&other);
+        failing.state(|state| state.drop_uploads = 1000);
+        let result = failing.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("(attempt 4 of 4)"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(failing.uploads(), 4, "one asset, four attempts");
+    }
 
-#[test]
-fn unknown_draft_lookup_never_creates_or_uploads() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    publisher.state(|state| state.list_error = true);
-    assert!(!publisher.publish().status.success());
-    let requests = publisher.requests();
-    assert!(
-        !requests.iter().any(|request| request.starts_with("POST")),
-        "{requests:?}"
-    );
-}
+    #[test]
+    fn without_the_read_credential_a_draft_can_not_be_verified() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        fs::remove_file(&publisher.read_token_file).unwrap();
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("The forge answered 404 reading the asset"),
+            "{}",
+            text(&result)
+        );
+    }
 
-#[test]
-fn existing_wrong_tag_prevents_any_publication() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    let tag = publisher.runtime_tag();
-    publisher.state(|state| {
-        state.tags.insert(tag, "b".repeat(40));
-    });
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("targets a different source commit"),
-        "{}",
-        text(&result)
-    );
-    assert_eq!(publisher.uploads(), 0);
-}
-
-#[test]
-fn published_gap_is_not_repaired_and_runtime_may_reuse_earlier_source() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    assert!(publisher.publish().status.success());
-    assert!(publisher.promote().status.success());
-    // A matching immutable runtime of an earlier source is reused...
-    let runtime = publisher.runtime_tag();
-    publisher.state(|state| {
-        release_mut(state, &runtime).target = "b".repeat(40);
-        state.tags.insert(runtime.clone(), "b".repeat(40));
-    });
-    let result = publisher.publish();
-    assert!(result.status.success(), "{}", text(&result));
-    // ...a workspace release of another source is not.
-    let workspace = Publisher::workspace_tag();
-    publisher.state(|state| {
-        release_mut(state, &workspace).target = "b".repeat(40);
-        state.tags.insert(workspace.clone(), "b".repeat(40));
-    });
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("targets a different source commit"),
-        "{}",
-        text(&result)
-    );
-    // A published release missing an asset is incomplete, and nothing repairs it.
-    publisher.state(|state| {
-        let release = release_mut(state, &workspace);
-        release.target = COMMIT.to_owned();
-        release.assets.pop();
-        state.tags.insert(workspace.clone(), COMMIT.to_owned());
-    });
-    let uploads = publisher.uploads();
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(text(&result).contains("is incomplete"), "{}", text(&result));
-    assert_eq!(publisher.uploads(), uploads);
-}
-
-#[test]
-fn stale_main_and_missing_native_evidence_prevent_any_publication_call() {
-    let release = Release::new();
-    let publisher = Publisher::new(&release);
-    publisher.state(|state| state.head = "b".repeat(40));
-    let result = publisher.publish();
-    assert!(!result.status.success());
-    assert!(
-        text(&result).contains("no longer main"),
-        "{}",
-        text(&result)
-    );
-    assert!(
-        !publisher
+    #[test]
+    fn a_truncated_draft_asset_is_removed_and_uploaded_again() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        publisher.state(|state| state.truncate_uploads = 2);
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        assert_eq!(publisher.uploads(), 32);
+        let removed = publisher
             .requests()
             .iter()
-            .any(|request| request.starts_with("POST"))
-    );
-    publisher.state(|state| state.head = COMMIT.to_owned());
-    fs::remove_file(release.output.join("ccvl-linux-x86_64.receipt.json")).unwrap();
-    let before = publisher.requests().len();
-    assert!(!publisher.publish().status.success());
-    assert_eq!(publisher.requests().len(), before);
-}
+            .filter(|request| request.starts_with("DELETE"))
+            .count();
+        assert_eq!(removed, 2, "only the two truncated stubs are deleted");
+        // A leftover from an earlier run is cleaned the same way, before anything else.
+        let other = Release::new();
+        let resumed = Publisher::new(&other);
+        assert!(resumed.publish().status.success());
+        let runtime = resumed.runtime_tag();
+        resumed.state(|state| {
+            let draft = release_mut(state, &runtime);
+            let asset = draft
+                .assets
+                .iter_mut()
+                .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+                .unwrap();
+            asset.2.truncate(3);
+        });
+        let result = resumed.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(text(&result).contains("Removing the truncated draft asset ccvl-linux-x86_64"));
+        // Right size, other bytes: refused, never replaced.
+        resumed.state(|state| {
+            let draft = release_mut(state, &runtime);
+            let asset = draft
+                .assets
+                .iter_mut()
+                .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+                .unwrap();
+            let last = asset.2.len() - 1;
+            asset.2[last] ^= 1;
+        });
+        let result = resumed.publish();
+        assert!(!result.status.success());
+        assert!(text(&result).contains("differs"), "{}", text(&result));
+    }
 
-#[test]
-fn downstream_without_a_token_or_a_route_is_skipped_and_never_fails() {
-    let release = Release::new();
-    assert!(release.check().status.success());
-    let script = release.root.join(".agent/scripts/downstream-release.sh");
-    // Targets that nothing listens on: no route from this runner.
-    fs::write(
+    #[test]
+    fn a_runtime_draft_of_an_interrupted_earlier_commit_follows_the_new_commit() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        let runtime = publisher.runtime_tag();
+        let workspace = Publisher::workspace_tag();
+        let stale = "b".repeat(40);
+        publisher.state(|state| release_mut(state, &runtime).target = stale.clone());
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        publisher.state(|state| {
+            assert_eq!(release_mut(state, &runtime).target, COMMIT);
+            assert!(release_mut(state, &runtime).body.contains(COMMIT));
+            assert_eq!(release_mut(state, &runtime).assets.len(), 13);
+        });
+        // The workspace draft is bound to its own commit and is never retargeted.
+        publisher.state(|state| release_mut(state, &workspace).target = stale.clone());
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("targets a different source commit"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.uploads(), 30, "nothing is uploaded twice");
+    }
+
+    #[test]
+    fn promotion_checks_the_drafts_again_and_publishes_them() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        // Nothing to promote before the drafts exist.
+        assert!(!publisher.promote().status.success());
+        assert!(publisher.publish().status.success());
+        let result = publisher.promote();
+        assert!(result.status.success(), "{}", text(&result));
+        let output = text(&result);
+        // No downstream credential exists on this runner: reported, not failed.
+        assert!(
+            output.contains("downstream github: skipped: no upload token"),
+            "{output}"
+        );
+        assert!(
+            output.contains("downstream gitlab: skipped: no upload token"),
+            "{output}"
+        );
+        publisher.state(|state| {
+            assert!(state.releases.iter().all(|release| !release.draft));
+            assert_eq!(state.tags.len(), 2);
+            assert!(state.tags.values().all(|commit| commit == COMMIT));
+        });
+        // A repeat verifies and changes nothing.
+        assert!(publisher.promote().status.success());
+        // A corrupted draft never becomes public.
+        let other = Release::new();
+        let second = Publisher::new(&other);
+        assert!(second.publish().status.success());
+        let tag = second.runtime_tag();
+        second.state(|state| {
+            let asset = release_mut(state, &tag)
+                .assets
+                .iter_mut()
+                .find(|(_, name, _)| name == "ccvl-linux-x86_64")
+                .unwrap();
+            asset.2 = b"swapped binary".to_vec();
+        });
+        assert!(!second.promote().status.success());
+        second.state(|state| assert!(state.releases.iter().all(|release| release.draft)));
+    }
+
+    #[test]
+    fn unknown_draft_lookup_never_creates_or_uploads() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        publisher.state(|state| state.list_error = true);
+        assert!(!publisher.publish().status.success());
+        let requests = publisher.requests();
+        assert!(
+            !requests.iter().any(|request| request.starts_with("POST")),
+            "{requests:?}"
+        );
+    }
+
+    #[test]
+    fn existing_wrong_tag_prevents_any_publication() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        let tag = publisher.runtime_tag();
+        publisher.state(|state| {
+            state.tags.insert(tag, "b".repeat(40));
+        });
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("targets a different source commit"),
+            "{}",
+            text(&result)
+        );
+        assert_eq!(publisher.uploads(), 0);
+    }
+
+    #[test]
+    fn published_gap_is_not_repaired_and_runtime_may_reuse_earlier_source() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        assert!(publisher.promote().status.success());
+        // A matching immutable runtime of an earlier source is reused...
+        let runtime = publisher.runtime_tag();
+        publisher.state(|state| {
+            release_mut(state, &runtime).target = "b".repeat(40);
+            state.tags.insert(runtime.clone(), "b".repeat(40));
+        });
+        let result = publisher.publish();
+        assert!(result.status.success(), "{}", text(&result));
+        // ...a workspace release of another source is not.
+        let workspace = Publisher::workspace_tag();
+        publisher.state(|state| {
+            release_mut(state, &workspace).target = "b".repeat(40);
+            state.tags.insert(workspace.clone(), "b".repeat(40));
+        });
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("targets a different source commit"),
+            "{}",
+            text(&result)
+        );
+        // A published release missing an asset is incomplete, and nothing repairs it.
+        publisher.state(|state| {
+            let release = release_mut(state, &workspace);
+            release.target = COMMIT.to_owned();
+            release.assets.pop();
+            state.tags.insert(workspace.clone(), COMMIT.to_owned());
+        });
+        let uploads = publisher.uploads();
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(text(&result).contains("is incomplete"), "{}", text(&result));
+        assert_eq!(publisher.uploads(), uploads);
+    }
+
+    #[test]
+    fn stale_main_and_missing_native_evidence_prevent_any_publication_call() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        publisher.state(|state| state.head = "b".repeat(40));
+        let result = publisher.publish();
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("no longer main"),
+            "{}",
+            text(&result)
+        );
+        assert!(
+            !publisher
+                .requests()
+                .iter()
+                .any(|request| request.starts_with("POST"))
+        );
+        publisher.state(|state| state.head = COMMIT.to_owned());
+        fs::remove_file(release.output.join("ccvl-linux-x86_64.receipt.json")).unwrap();
+        let before = publisher.requests().len();
+        assert!(!publisher.publish().status.success());
+        assert_eq!(publisher.requests().len(), before);
+    }
+
+    #[test]
+    fn downstream_without_a_token_or_a_route_is_skipped_and_never_fails() {
+        let release = Release::new();
+        assert!(release.check().status.success());
+        let script = release.root.join(".agent/scripts/downstream-release.sh");
+        // Targets that nothing listens on: no route from this runner.
+        fs::write(
         release.root.join(".agent/release-downstreams.json"),
         json!({
             "github": {"api": "http://127.0.0.1:1", "uploads": "http://127.0.0.1:1", "repository": "corbet-fsl/ccvl"},
@@ -1507,170 +1520,171 @@ fn downstream_without_a_token_or_a_route_is_skipped_and_never_fails() {
         .to_string(),
     )
     .unwrap();
-    let tokens = release.temp.path().join("tokens.json");
-    fs::write(
-        &tokens,
-        json!({"github": "fixture-github-token", "gitlab": "fixture-gitlab-token"}).to_string(),
-    )
-    .unwrap();
-    for (tokens_file, expected) in [
-        ("", "skipped: no upload token"),
-        (
-            tokens.to_str().unwrap(),
-            "is not reachable from this runner",
-        ),
-    ] {
-        let result = Command::new("bash")
-            .arg(&script)
-            .arg(&release.output)
-            .env_clear()
-            .envs(
-                std::env::vars()
-                    .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
-            )
-            .env("CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE", tokens_file)
-            .current_dir(&release.root)
-            .output()
-            .unwrap();
-        assert!(result.status.success(), "{}", text(&result));
-        let combined = text(&result);
-        assert_eq!(combined.matches(expected).count(), 2, "{combined}");
-        assert!(!combined.contains("fixture-github-token"), "{combined}");
-    }
-}
-
-/// The archive gate selects its minimal executor; the check itself stays the
-/// verified script of the checkout.
-struct ArchiveGate {
-    temp: TempDir,
-    dist: PathBuf,
-    marker: PathBuf,
-    executor: PathBuf,
-}
-
-impl ArchiveGate {
-    fn new() -> Self {
-        let temp = tempfile::Builder::new()
-            .prefix("ccvl-archive-gate-test-")
-            .tempdir()
-            .unwrap();
-        let root = temp.path().to_path_buf();
-        let scripts = root.join("repo/.agent/scripts");
-        fs::create_dir_all(&scripts).unwrap();
-        let dist = root.join("package directory");
-        fs::create_dir_all(&dist).unwrap();
-        fs::copy(
-            repository().join(".agent/scripts/archive-gate.sh"),
-            scripts.join("archive-gate.sh"),
-        )
-        .unwrap();
+        let tokens = release.temp.path().join("tokens.json");
         fs::write(
-            scripts.join("check-release-archive.sh"),
-            "#!/usr/bin/env bash\nset -eu\ntest \"$1\" = \"$EXPECTED_DIST\"\nprintf gate >> \"$GATE_MARKER\"\n",
+            &tokens,
+            json!({"github": "fixture-github-token", "gitlab": "fixture-gitlab-token"}).to_string(),
         )
         .unwrap();
-        // Stands in for the built-in minimal executor: it only records its call.
-        fs::write(
-            scripts.join("archive-executor.sh"),
-            "#!/usr/bin/env bash\nset -eu\nprintf builtin > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
-        )
-        .unwrap();
-        let executor = root.join("external executor");
-        fs::write(
-            &executor,
-            "#!/usr/bin/env bash\nset -eu\ntest \"$0\" != \"$ORIGINAL_EXECUTOR\"\nprintf external > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
-        )
-        .unwrap();
-        Self {
-            marker: root.join("gate-called"),
-            dist,
-            executor,
-            temp,
-        }
-    }
-
-    fn invoke(&self, changes: &[(&str, &str)]) -> Output {
-        let root = self.temp.path();
-        for _ in 0..20 {
-            let output = Command::new("bash")
-                .arg(root.join("repo/.agent/scripts/archive-gate.sh"))
-                .arg(&self.dist)
+        for (tokens_file, expected) in [
+            ("", "skipped: no upload token"),
+            (
+                tokens.to_str().unwrap(),
+                "is not reachable from this runner",
+            ),
+        ] {
+            let result = Command::new("bash")
+                .arg(&script)
+                .arg(&release.output)
                 .env_clear()
                 .envs(
                     std::env::vars()
                         .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
                 )
-                .env("EXPECTED_DIST", &self.dist)
-                .env("GATE_MARKER", &self.marker)
-                .env("EXECUTOR_MARKER", root.join("executor-called"))
-                .env("ORIGINAL_EXECUTOR", &self.executor)
-                .envs(changes.iter().copied())
-                .output();
-            match output {
-                Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
-                other => return other.unwrap(),
+                .env("CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE", tokens_file)
+                .current_dir(&release.root)
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{}", text(&result));
+            let combined = text(&result);
+            assert_eq!(combined.matches(expected).count(), 2, "{combined}");
+            assert!(!combined.contains("fixture-github-token"), "{combined}");
+        }
+    }
+
+    /// The archive gate selects its minimal executor; the check itself stays the
+    /// verified script of the checkout.
+    struct ArchiveGate {
+        temp: TempDir,
+        dist: PathBuf,
+        marker: PathBuf,
+        executor: PathBuf,
+    }
+
+    impl ArchiveGate {
+        fn new() -> Self {
+            let temp = tempfile::Builder::new()
+                .prefix("ccvl-archive-gate-test-")
+                .tempdir()
+                .unwrap();
+            let root = temp.path().to_path_buf();
+            let scripts = root.join("repo/.agent/scripts");
+            fs::create_dir_all(&scripts).unwrap();
+            let dist = root.join("package directory");
+            fs::create_dir_all(&dist).unwrap();
+            fs::copy(
+                repository().join(".agent/scripts/archive-gate.sh"),
+                scripts.join("archive-gate.sh"),
+            )
+            .unwrap();
+            fs::write(
+            scripts.join("check-release-archive.sh"),
+            "#!/usr/bin/env bash\nset -eu\ntest \"$1\" = \"$EXPECTED_DIST\"\nprintf gate >> \"$GATE_MARKER\"\n",
+        )
+        .unwrap();
+            // Stands in for the built-in minimal executor: it only records its call.
+            fs::write(
+            scripts.join("archive-executor.sh"),
+            "#!/usr/bin/env bash\nset -eu\nprintf builtin > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
+        )
+        .unwrap();
+            let executor = root.join("external executor");
+            fs::write(
+            &executor,
+            "#!/usr/bin/env bash\nset -eu\ntest \"$0\" != \"$ORIGINAL_EXECUTOR\"\nprintf external > \"$EXECUTOR_MARKER\"\nexec bash \"$1\" \"$2\"\n",
+        )
+        .unwrap();
+            Self {
+                marker: root.join("gate-called"),
+                dist,
+                executor,
+                temp,
             }
         }
-        panic!("archive gate stayed busy");
+
+        fn invoke(&self, changes: &[(&str, &str)]) -> Output {
+            let root = self.temp.path();
+            for _ in 0..20 {
+                let output = Command::new("bash")
+                    .arg(root.join("repo/.agent/scripts/archive-gate.sh"))
+                    .arg(&self.dist)
+                    .env_clear()
+                    .envs(
+                        std::env::vars()
+                            .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
+                    )
+                    .env("EXPECTED_DIST", &self.dist)
+                    .env("GATE_MARKER", &self.marker)
+                    .env("EXECUTOR_MARKER", root.join("executor-called"))
+                    .env("ORIGINAL_EXECUTOR", &self.executor)
+                    .envs(changes.iter().copied())
+                    .output();
+                match output {
+                    Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    other => return other.unwrap(),
+                }
+            }
+            panic!("archive gate stayed busy");
+        }
+
+        fn executor_called(&self) -> Option<String> {
+            fs::read_to_string(self.temp.path().join("executor-called")).ok()
+        }
     }
 
-    fn executor_called(&self) -> Option<String> {
-        fs::read_to_string(self.temp.path().join("executor-called")).ok()
-    }
-}
-
-#[test]
-fn a_minimal_worker_runs_the_verified_check_directly_and_others_use_the_builtin_executor() {
-    let fixture = ArchiveGate::new();
-    let result = fixture.invoke(&[("CCVL_ARCHIVE_EXECUTOR", "direct")]);
-    assert!(result.status.success(), "{}", text(&result));
-    assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
-    assert_eq!(fixture.executor_called(), None);
-    let result = fixture.invoke(&[]);
-    assert!(result.status.success(), "{}", text(&result));
-    assert_eq!(fixture.executor_called().as_deref(), Some("builtin"));
-}
-
-#[test]
-fn verified_executor_snapshot_receives_unchanged_check_and_package() {
-    let fixture = ArchiveGate::new();
-    let executor = fixture.executor.display().to_string();
-    let result = fixture.invoke(&[
-        ("ARCHIVE_EXECUTOR", &executor),
-        ("ARCHIVE_EXECUTOR_SHA256", &file_hash(&fixture.executor)),
-    ]);
-    assert!(result.status.success(), "{}", text(&result));
-    assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
-    assert_eq!(fixture.executor_called().as_deref(), Some("external"));
-}
-
-#[test]
-fn incomplete_changed_or_untrusted_executor_never_executes() {
-    let fixture = ArchiveGate::new();
-    let checksum = file_hash(&fixture.executor);
-    let executor = fixture.executor.display().to_string();
-    let link = fixture.temp.path().join("executor-link");
-    symlink(&fixture.executor, &link).unwrap();
-    let link = link.display().to_string();
-    let zeros = "0".repeat(64);
-    let cases: Vec<Vec<(&str, &str)>> = vec![
-        vec![("ARCHIVE_EXECUTOR", &executor)],
-        vec![("ARCHIVE_EXECUTOR_SHA256", &checksum)],
-        vec![
-            ("ARCHIVE_EXECUTOR", &executor),
-            ("ARCHIVE_EXECUTOR_SHA256", &zeros),
-        ],
-        vec![
-            ("ARCHIVE_EXECUTOR", &link),
-            ("ARCHIVE_EXECUTOR_SHA256", &checksum),
-        ],
-    ];
-    for inputs in cases {
-        let result = fixture.invoke(&inputs);
-        assert!(!result.status.success(), "{inputs:?}: {}", text(&result));
-        assert!(!fixture.marker.exists());
+    #[test]
+    fn a_minimal_worker_runs_the_verified_check_directly_and_others_use_the_builtin_executor() {
+        let fixture = ArchiveGate::new();
+        let result = fixture.invoke(&[("CCVL_ARCHIVE_EXECUTOR", "direct")]);
+        assert!(result.status.success(), "{}", text(&result));
+        assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
         assert_eq!(fixture.executor_called(), None);
+        let result = fixture.invoke(&[]);
+        assert!(result.status.success(), "{}", text(&result));
+        assert_eq!(fixture.executor_called().as_deref(), Some("builtin"));
+    }
+
+    #[test]
+    fn verified_executor_snapshot_receives_unchanged_check_and_package() {
+        let fixture = ArchiveGate::new();
+        let executor = fixture.executor.display().to_string();
+        let result = fixture.invoke(&[
+            ("ARCHIVE_EXECUTOR", &executor),
+            ("ARCHIVE_EXECUTOR_SHA256", &file_hash(&fixture.executor)),
+        ]);
+        assert!(result.status.success(), "{}", text(&result));
+        assert_eq!(fs::read_to_string(&fixture.marker).unwrap(), "gate");
+        assert_eq!(fixture.executor_called().as_deref(), Some("external"));
+    }
+
+    #[test]
+    fn incomplete_changed_or_untrusted_executor_never_executes() {
+        let fixture = ArchiveGate::new();
+        let checksum = file_hash(&fixture.executor);
+        let executor = fixture.executor.display().to_string();
+        let link = fixture.temp.path().join("executor-link");
+        symlink(&fixture.executor, &link).unwrap();
+        let link = link.display().to_string();
+        let zeros = "0".repeat(64);
+        let cases: Vec<Vec<(&str, &str)>> = vec![
+            vec![("ARCHIVE_EXECUTOR", &executor)],
+            vec![("ARCHIVE_EXECUTOR_SHA256", &checksum)],
+            vec![
+                ("ARCHIVE_EXECUTOR", &executor),
+                ("ARCHIVE_EXECUTOR_SHA256", &zeros),
+            ],
+            vec![
+                ("ARCHIVE_EXECUTOR", &link),
+                ("ARCHIVE_EXECUTOR_SHA256", &checksum),
+            ],
+        ];
+        for inputs in cases {
+            let result = fixture.invoke(&inputs);
+            assert!(!result.status.success(), "{inputs:?}: {}", text(&result));
+            assert!(!fixture.marker.exists());
+            assert_eq!(fixture.executor_called(), None);
+        }
     }
 }
