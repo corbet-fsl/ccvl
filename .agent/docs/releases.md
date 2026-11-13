@@ -117,9 +117,10 @@ Cargo target lock and runs the job command.
 |---|---|---|
 | `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, in this order, never reused from a cache | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
 | `release-promote` | re-check the drafts of this commit, make them public, copy them downstream | `linux` runner; the downstream credential |
+| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the drafts of this commit and run it in the offline Windows clone | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
 
-`.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, the lint and PDF
-tools) and the three cross targets in the runner's persistent storage, then runs
+`.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
+lint and PDF tools) and the three cross targets in the runner's persistent storage, then runs
 each stage through `bash .agent/scripts/ci-check.sh release-<stage>`, which calls
 `release-ci.sh <stage>`. All stages share one directory under the locked Cargo
 target, keyed by source commit and run (`CCVL_RELEASE_DIR`). The native stage uses
@@ -128,6 +129,24 @@ target, keyed by source commit and run (`CCVL_RELEASE_DIR`). The native stage us
 added to the release policy before it is advertised. The publisher,
 `.agent/scripts/publish-release.sh`, speaks the Forgejo release API with the
 job's own token and never replaces an existing asset.
+
+### The Windows test: the file that ships is the file that runs
+
+`release-windows` is its own manual run on the same `main` commit, after a
+`release` run has left the drafts. It builds nothing. `windows-test.sh` reads the
+`build-<commit>` draft for the Windows receipt, then the `runtime-<identity>` draft
+for `ccvl-windows-x86_64.exe`, and stops unless the receipt (platform, Rust host
+`x86_64-pc-windows-gnullvm`), the `.sha256` asset, the `.runtime-id` asset and the
+downloaded bytes all agree. The executable then crosses into the clone (`vm-win`),
+which has no network and none of Julian's shares, and runs from the clone's own
+disk: its SHA-256 is checked once more inside, `--version` and `runtime-id` run
+(the identity compiled into the binary must be the release identity), and
+`public-check` renders and verifies every document from the source of the same
+commit. The job fails if any step fails and prints the executable's SHA-256 and
+the guest's results. A passing run does not yet turn the platform from `built`
+into `tested` in the manifest: that needs the clone's result to feed a `native`
+receipt, which is the next step. `CCVL_WINDOWS_ASSET_DIR=DIR` runs the same checks
+on assets from a directory (a local rehearsal of a `cross-release.sh` output).
 
 ### Downstream copies
 
