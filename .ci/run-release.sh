@@ -33,9 +33,10 @@ tool_paths=$(nix build --no-link --print-out-paths \
   "$tool_source#zig" "$tool_source#cargo-zigbuild")
 for path in $tool_paths; do PATH="$path/bin:$PATH"; done
 # Both Windows targets use one ABI, gnullvm, linked by llvm-mingw (clang, lld, the
-# mingw-w64 UCRT runtime). nixpkgs has no such package: .ci/llvm-mingw.nix is the
-# upstream release archive, pinned by hash and only patched for the Nix loader.
-llvm_mingw=$(bash "$PWD/.ci/llvm-mingw.sh" "$tool_source")
+# mingw-w64 UCRT runtime): the flake package .#llvm-mingw, whose source is the
+# flake input llvm-mingw-dist (flake.lock, cached in Celler like every other
+# toolchain). nixpkgs has no such package.
+llvm_mingw=$(bash "$PWD/.ci/llvm-mingw.sh")
 # Last on PATH: the Windows tools are all target-prefixed, and its unprefixed clang and
 # lld must never shadow the host toolchain of the Linux builds.
 PATH="$PATH:$llvm_mingw/bin"

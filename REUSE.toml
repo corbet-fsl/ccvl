@@ -33,6 +33,8 @@ path = [
   "ccvl.cmd",
   "ccvl.json",
   "ccvl.ps1",
+  "flake.lock",
+  "flake.nix",
   "rust-toolchain.toml",
 ]
 precedence = "override"

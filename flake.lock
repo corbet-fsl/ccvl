@@ -1,0 +1,41 @@
+{
+  "nodes": {
+    "llvm-mingw-dist": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793778196,
+        "narHash": "sha256-R2pbi3MB6/QIP34IN+s1oUpL+eJHFGmWggSnYZi6V1g=",
+        "type": "tarball",
+        "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64.tar.xz"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1785967620,
+        "narHash": "sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b7c2ada94fe99c15b0dbcf4d11fd7850b957a436",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b7c2ada94fe99c15b0dbcf4d11fd7850b957a436",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "llvm-mingw-dist": "llvm-mingw-dist",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

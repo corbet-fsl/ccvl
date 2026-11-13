@@ -93,8 +93,10 @@ ordinary Linux and not only inside the runner's Nix store.
 Both Windows platforms use one ABI, `gnullvm` (`x86_64-pc-windows-gnullvm` and
 `aarch64-pc-windows-gnullvm`): a plain `cargo build --target` linked by the clang
 and lld of llvm-mingw against its mingw-w64 UCRT runtime. The tool is the upstream
-release archive, pinned by hash and only patched for the Nix loader
-(`.ci/llvm-mingw.nix`; `.ci/llvm-mingw.sh` prints its store path): nothing is
+release archive as the flake input `llvm-mingw-dist` (flake.nix, pinned in
+flake.lock and pushed to the srv Celler ci cache on every CI run, so a GitHub
+outage never blocks the build; `.ci/llvm-mingw.nix` only unpacks and patches it
+for the Nix loader, `.ci/llvm-mingw.sh` prints its store path): nothing is
 compiled, every licence is free, no Microsoft SDK is accepted, and it ships the
 `synchronization` import library that Rust's standard library needs. The package
 carries no `libunwind.dll.a`, so Rust's `-lunwind` can only resolve to the static
