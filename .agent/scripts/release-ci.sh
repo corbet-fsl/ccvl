@@ -19,11 +19,6 @@ fi
 if [[ -n ${GH_TOKEN:-} ]]; then
   echo 'Publication credentials are not accepted by the release stages.' >&2; exit 2
 fi
-# The runner-level downstream credential is read by the promote stage only: no
-# build, test or repository script runs with its location in the environment.
-if [[ "$action" != promote ]]; then
-  unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
-fi
 if [[ -z ${CCVL_RELEASE_DIR:-} ]]; then
   : "${CARGO_TARGET_DIR:?Set CCVL_RELEASE_DIR or the locked Cargo target}"
   : "${CI_COMMIT_SHA:?Missing source commit}"

@@ -25,7 +25,6 @@ report="${1:?Usage: windows-attest.sh REPORT.json}"
 [[ -s $report ]] || { echo "No report: $report" >&2; exit 2; }
 platform=windows-x86_64
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the Windows attestation.' >&2; exit 2; }
-unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
 for tool in jq curl sha256sum cmp; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 2; }
 done

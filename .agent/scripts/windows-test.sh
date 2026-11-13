@@ -29,7 +29,6 @@ exe_name="ccvl-$platform.exe"
 # Must equal the Rust target of this platform in release_evidence.rs (PLATFORMS).
 expected_host=x86_64-pc-windows-gnullvm
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the Windows test.' >&2; exit 2; }
-unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
 for tool in jq curl sha256sum tar vm-win; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool (a job of the label windows has it)." >&2; exit 2; }
 done

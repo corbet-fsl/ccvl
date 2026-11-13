@@ -6,9 +6,8 @@ cd "$repo_root"
 platform="${1:?Usage: native-release.sh PLATFORM OUTPUT}"
 output="${2:?Missing package output directory}"
 # The job's own token is always present on a Forgejo runner; no other publication
-# credential, and not the runner-level downstream credential, reaches a build.
+# credential reaches a build.
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the native build.' >&2; exit 2; }
-unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
 if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   [[ -n ${CARGO_TARGET_DIR:-} && ${CCID_TARGET_LOCK_HELD:-} == "$CARGO_TARGET_DIR" ]] || {
     echo 'Forgejo native builds require the verified ccid target lock.' >&2; exit 2;

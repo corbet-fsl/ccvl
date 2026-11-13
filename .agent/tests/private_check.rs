@@ -30,7 +30,7 @@ const CREDENTIALS: [&str; 8] = [
 const FAKE_RUNTIME: &str = r#"#!/usr/bin/env bash
 command="$1"
 printf '%s\n' "$command" >> "$TEST_TRACE"
-[[ -z ${GITHUB_TOKEN:-}${CCID_FORGE_TOKEN:-}${FORGEJO_TOKEN:-}${CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE:-} ]] || exit 97
+[[ -z ${GITHUB_TOKEN:-}${CCID_FORGE_TOKEN:-}${FORGEJO_TOKEN:-} ]] || exit 97
 case "$command" in
   runtime-id)
     if [[ -n ${TEST_WRONG_RUNTIME:-} ]]; then printf '%064d\n' 0; else printf '%s\n' "$TEST_RUNTIME_ID"; fi ;;
@@ -254,10 +254,6 @@ impl Downstream {
             ("GITHUB_TOKEN", TOKEN.to_owned()),
             ("FORGEJO_TOKEN", TOKEN.to_owned()),
             ("ACTIONS_RUNTIME_TOKEN", "runtime-token".to_owned()),
-            (
-                "CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE",
-                "/nonexistent/downstream-tokens".to_owned(),
-            ),
             ("CI_COMMIT_SHA", downstream.commit.clone()),
             ("CCVL_UPSTREAM_FETCH_URL", public.display().to_string()),
             (

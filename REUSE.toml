@@ -9,7 +9,6 @@ path = [
   ".agent/core/**",
   ".agent/kanban.toml",
   ".agent/release-platforms.txt",
-  ".agent/release-downstreams.json",
   ".agent/scripts/**",
   ".agent/skills/**",
   ".agent/schemas/**",

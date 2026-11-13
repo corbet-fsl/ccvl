@@ -301,8 +301,9 @@ if [[ $mode == promote ]]; then
   else
     exit "$status"
   fi
-  # Downstream copies follow the Forgejo release and can not undo it.
-  bash .agent/scripts/downstream-release.sh "$dist"
+  # Promotion publishes on Forgejo and nothing else: GitHub and GitLab fetch the release
+  # themselves (the mirror workflows rendered into the repository pull the tag, verify it
+  # against SHA256SUMS and publish the same bytes).
   exit
 fi
 

@@ -11,7 +11,6 @@ cd "$repo_root"
 platform="${1:?Usage: cross-release.sh PLATFORM OUTPUT}"
 output="${2:?Missing package output directory}"
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the cross build.' >&2; exit 2; }
-unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
 if [[ ${FORGEJO_ACTIONS:-} == true ]]; then
   [[ -n ${CARGO_TARGET_DIR:-} && ${CCID_TARGET_LOCK_HELD:-} == "$CARGO_TARGET_DIR" ]] || {
     echo 'Forgejo cross builds require the verified ccid target lock.' >&2; exit 2;

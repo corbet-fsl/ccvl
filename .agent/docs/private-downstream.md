@@ -102,8 +102,7 @@ Forgejo runner, the event is a manual dispatch and the repository is not the
 public one; it then asks the forge's own API, with the job token, whether the
 repository is private and refuses a public answer. The token reaches only the API
 call and the history fetch, never a published-runtime download or a child process
-that does not need it. Publication credentials are refused outright, and the
-runner-level release credential location is never passed on.
+that does not need it. Publication credentials are refused outright.
 
 The job's checkout is the staged source. The command compares its
 file/content/executable-mode inventory with the committed tree, completes a

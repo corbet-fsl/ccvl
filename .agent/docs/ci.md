@@ -16,7 +16,7 @@ per-commit CI is the Linux `verify` job alone.
 | `downstream-check` | `downstream-check` | a private downstream repository only; see [private downstream](private-downstream.md) |
 | `skill-eval` | `skill-eval-build`, `skill-eval` | public `main` only; credential-bearing |
 | `release` | `release-*` stages | see [Releases](releases.md) |
-| `release-promote` | `release-promote` | makes the draft the public release `v<version>` and copies it downstream |
+| `release-promote` | `release-promote` | makes the draft the public release `v<version>`; GitHub and GitLab pull it |
 
 On a provisioned build worker, use `bash .agent/scripts/ci-check.sh <check>...`:
 

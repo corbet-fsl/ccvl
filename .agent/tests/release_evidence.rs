@@ -119,7 +119,6 @@ impl Release {
         for name in [
             "release-evidence.sh",
             "publish-release.sh",
-            "downstream-release.sh",
             "forge-draft.sh",
             "windows-attest.sh",
         ] {
@@ -1205,7 +1204,8 @@ fn a_run_identity_is_required_for_new_evidence() {
     assert_refused(&result, "A Forgejo Actions run identity is required.");
 }
 
-/// The maintainers' publication scripts (`publish-release.sh`, `downstream-release.sh`,
+/// The maintainers' publication scripts (`publish-release.sh`, `archive-gate.sh`,
+/// `forge-draft.sh`,
 /// `archive-gate.sh`) run on the Linux release host only: they need bash 4 (`mapfile`),
 /// GNU `sha256sum --check --strict` and GNU `stat -c`, none of which macOS ships. Their
 /// fixtures therefore run where the scripts do. Nothing here covers behaviour that is
@@ -1933,15 +1933,7 @@ mod maintainer_scripts {
         assert!(result.status.success(), "{}", text(&result));
         let output = text(&result);
         assert!(output.contains("Promoted build-"), "{output}");
-        // No downstream credential exists on this runner: reported, not failed.
-        assert!(
-            output.contains("downstream github: skipped: no upload token"),
-            "{output}"
-        );
-        assert!(
-            output.contains("downstream gitlab: skipped: no upload token"),
-            "{output}"
-        );
+        assert!(!output.contains("downstream"), "{output}");
         publisher.state(|state| {
             // One public release, named and tagged by the version, on this commit.
             assert_eq!(state.releases.len(), 1);
@@ -2150,53 +2142,6 @@ mod maintainer_scripts {
         let before = publisher.requests().len();
         assert!(!publisher.publish().status.success());
         assert_eq!(publisher.requests().len(), before);
-    }
-
-    #[test]
-    fn downstream_without_a_token_or_a_route_is_skipped_and_never_fails() {
-        let release = Release::new();
-        assert!(release.check().status.success());
-        let script = release.root.join(".agent/scripts/downstream-release.sh");
-        // Targets that nothing listens on: no route from this runner.
-        fs::write(
-        release.root.join(".agent/release-downstreams.json"),
-        json!({
-            "github": {"api": "http://127.0.0.1:1", "uploads": "http://127.0.0.1:1", "repository": "corbet-fsl/ccvl"},
-            "gitlab": {"api": "http://127.0.0.1:1", "project": "corbet-fsl/ccvl"},
-        })
-        .to_string(),
-    )
-    .unwrap();
-        let tokens = release.temp.path().join("tokens.json");
-        fs::write(
-            &tokens,
-            json!({"github": "fixture-github-token", "gitlab": "fixture-gitlab-token"}).to_string(),
-        )
-        .unwrap();
-        for (tokens_file, expected) in [
-            ("", "skipped: no upload token"),
-            (
-                tokens.to_str().unwrap(),
-                "is not reachable from this runner",
-            ),
-        ] {
-            let result = Command::new("bash")
-                .arg(&script)
-                .arg(&release.output)
-                .env_clear()
-                .envs(
-                    std::env::vars()
-                        .filter(|(key, _)| matches!(key.as_str(), "PATH" | "HOME" | "TMPDIR")),
-                )
-                .env("CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE", tokens_file)
-                .current_dir(&release.root)
-                .output()
-                .unwrap();
-            assert!(result.status.success(), "{}", text(&result));
-            let combined = text(&result);
-            assert_eq!(combined.matches(expected).count(), 2, "{combined}");
-            assert!(!combined.contains("fixture-github-token"), "{combined}");
-        }
     }
 
     /// The archive gate selects its minimal executor; the check itself stays the

@@ -39,15 +39,13 @@ const CREDENTIALS: [&str; 8] = [
 /// token this stage may see, and only when every name carries the same value.
 const JOB_TOKENS: [&str; 3] = ["CCID_FORGE_TOKEN", "FORGEJO_TOKEN", "GITHUB_TOKEN"];
 /// Variables no child process of this stage receives: the job's tokens (a child
-/// that needs one gets it explicitly), the runner's artifact and OIDC tokens, and
-/// the path of the runner-level release credential.
-const SCRUBBED: [&str; 6] = [
+/// that needs one gets it explicitly) and the runner's artifact and OIDC tokens.
+const SCRUBBED: [&str; 5] = [
     "CCID_FORGE_TOKEN",
     "FORGEJO_TOKEN",
     "GITHUB_TOKEN",
     "ACTIONS_RUNTIME_TOKEN",
     "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
-    "CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE",
 ];
 
 /// A refusal whose message is safe to show: it names a stage, never content.
@@ -83,7 +81,6 @@ fn is_hex(value: &str, length: usize) -> bool {
 
 /// Execute the check in the current directory; print a receipt or a fixed
 /// failure stage.
-#[must_use]
 pub fn run(root: Option<&Path>) -> ExitCode {
     let outcome = root
         .map_or_else(

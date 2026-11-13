@@ -10,11 +10,14 @@ neither Git nor Rust is required.
 
 Forgejo is the single source and the only place a release is built. The `release`
 workflow of `corbet-fsl/ccvl` runs on our own `linux` runners: it builds, verifies
-and drafts the release of the exact `main` commit. The separate `release-promote`
-workflow then makes the verified draft the public release `v<version>` and copies
-it to GitHub and GitLab. Both are manual actions, run deliberately (below), never
-per commit. The GitHub mirror runs the checks of pull requests on GitHub's own
-compute and never builds or publishes a release.
+and drafts the release of the exact `main` commit. The separate `release-promote` workflow then
+makes the verified draft the public release `v<version>` on Forgejo and does
+nothing else: GitHub and GitLab fetch the release themselves (the mirror workflows
+`ccid render` writes into the repository pull the tag, verify it against
+`SHA256SUMS` and publish the same bytes, see "Mirrors" below). `release` and
+`release-promote` are manual actions, run deliberately, never per commit. The
+GitHub mirror runs the checks of pull requests on GitHub's own compute and never
+builds or publishes a release.
 Current stable Rust is selected without an exact compiler pin; the runner keeps
 it in persistent storage and every receipt records the actual compiler version.
 
@@ -181,7 +184,7 @@ Cargo target lock and runs the job command.
 | Workflow | Action | Runner requirement |
 |---|---|---|
 | `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, in this order, never reused from a cache; the first stage refuses a version that names no release or is released already; the cross stage builds the platforms the version holds | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
-| `release-promote` | re-check the draft of this commit, make it the public release `v<version>`, copy it downstream | `linux` runner; the downstream credential |
+| `release-promote` | re-check the draft of this commit, make it the public release `v<version>`; nothing is copied anywhere | `linux` runner |
 | `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested` | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
 
 `.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
@@ -246,18 +249,16 @@ The job fails if the executable or any test fails, and the draft is then left as
 `CCVL_WINDOWS_ASSET_DIR=DIR` runs the first two parts on assets from a directory (a local
 rehearsal of a `cross-release.sh` output); it writes the report and attests nothing.
 
-### Downstream copies
+### Mirrors: GitHub and GitLab pull the release
 
-`release-promote` ends with `.agent/scripts/downstream-release.sh`, which copies
-the public release to the targets in `.agent/release-downstreams.json` (GitHub and
-GitLab; Bitbucket is a git mirror and has no releases). The upload credentials are
-one runner-level secret, loaded as a systemd credential and named by
-`CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE`; they are not per-organisation Forgejo
-secrets, no build stage ever sees the variable, and the file is never printed. A
-runner without that credential skips the copy with a clear `token missing`
-message and the promotion still succeeds. The calls are few and strictly
-sequential (two releases per copy, one upload per asset) to respect the GitHub
-automation pacing policy, and a copy never replaces an existing asset.
+Promotion publishes on Forgejo and nothing else, and ccvl holds no credential for any other
+host. GitHub and GitLab fetch the release themselves: the mirror workflows `ccid render`
+writes into the repository (`.github/workflows/release-mirror.yml`, `.gitlab-ci.yml`) run
+when the tag `v<version>` arrives, read the Forgejo release, download every asset, verify
+each against its checksum and publish the same bytes under the same name; an asset without
+a checksum entry fails the job. `SHA256SUMS` therefore lists every other asset of the
+release (coreutils format, byte order, itself excluded); the promotion writes it last, so it
+covers the manifests as published. Bitbucket has no releases and is a git mirror.
 
 An already provisioned sandbox can be selected for `release-archive` with the
 paired `ARCHIVE_EXECUTOR` and `ARCHIVE_EXECUTOR_SHA256` inputs. The workflow
