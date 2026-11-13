@@ -30,7 +30,7 @@ esac
 if [[ $driver == zigbuild ]]; then
   needed=(cargo-zigbuild zig)
 else
-  needed=("$mingw_cc" llvm-objdump)
+  needed=("$mingw_cc" "${mingw_cc%-clang}-clang++" "${mingw_cc%-clang}-ar" llvm-objdump)
 fi
 for tool in "${needed[@]}"; do
   command -v "$tool" >/dev/null || { echo "Missing cross toolchain: $tool" >&2; exit 2; }
@@ -53,9 +53,16 @@ if [[ $driver == zigbuild ]]; then
     --config .cargo/release-profile.toml --target "$zig_target"
   tool="cargo-zigbuild $(cargo-zigbuild --version | awk '{print $NF}'), zig $(zig version)"
 else
-  # clang is the linker of the gnullvm targets; naming it keeps the choice off PATH order.
-  linker_variable="CARGO_TARGET_$(printf '%s' "$triple" | tr 'a-z-' 'A-Z_')_LINKER"
-  export "$linker_variable=$(command -v "$mingw_cc")"
+  # clang links the gnullvm targets and compiles their C and assembly (the psm crate, for
+  # one). Name the tools per target: a runner that exports a generic CC (a host cc behind
+  # a compile cache) would otherwise be used for the Windows target too, and cc-rs only
+  # looks for the mingw clang when no CC is set.
+  mingw_prefix="${mingw_cc%-clang}"
+  triple_underscored="${triple//-/_}"
+  export "CARGO_TARGET_${triple_underscored^^}_LINKER=$(command -v "$mingw_cc")"
+  export "CC_$triple_underscored=$(command -v "$mingw_cc")"
+  export "CXX_$triple_underscored=$(command -v "$mingw_prefix-clang++")"
+  export "AR_$triple_underscored=$(command -v "$mingw_prefix-ar")"
   "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
     --config .cargo/release-profile.toml --target "$triple"
   clang_version="$("$mingw_cc" --version | sed -n '1s/.*clang version \([0-9][0-9.]*\).*/\1/p')"
