@@ -73,7 +73,7 @@ shellcheck --version
 reuse --version
 file --version
 qpdf --version
-pdfinfo -v 2>&1 | head -n 2
+pdfinfo -v 2>&1 | sed -n 1,2p
 jq --version
 # Cached checks get the declared environment only, never the runner's credentials
 # (cmnp: "Credentials and arbitrary inherited variables are not handed to
