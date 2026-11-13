@@ -26,7 +26,7 @@ report="${1:?Usage: windows-attest.sh REPORT.json}"
 platform=windows-x86_64
 [[ -z ${GH_TOKEN:-} ]] || { echo 'Publication credentials must not reach the Windows attestation.' >&2; exit 2; }
 unset CCVL_RELEASE_DOWNSTREAM_TOKENS_FILE
-for tool in jq curl sha256sum cmp git; do
+for tool in jq curl sha256sum cmp; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 2; }
 done
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/ccvl-windows-attest.XXXXXXXX")"
@@ -68,14 +68,17 @@ runtime_id="$(jq -er '.runtime_id' "$dist/$receipt_name")"
 [[ "$runtime_id" =~ ^[0-9a-f]{64}$ ]] || { echo 'The receipt carries no runtime identity.' >&2; exit 2; }
 
 # The evidence command is the tested native executable of this very release, as the cross
-# stage uses it: it must run here and carry the identity of this source.
-linux_exe="$dist/ccvl-linux-x86_64"
-(cd "$dist" && sha256sum --check --strict ccvl-linux-x86_64.sha256 >/dev/null)
-chmod 0755 "$linux_exe"
-[[ $(cd "$repo_root" && "$linux_exe" runtime-id) == "$runtime_id" ]] || {
-  echo 'The native Linux executable of the release does not carry the runtime identity of this source.' >&2; exit 2
-}
-export CCVL_RELEASE_EVIDENCE_BIN="$linux_exe"
+# stage uses it: it must run here and carry the identity of this source. (An evidence
+# binary named in the environment is used as it is: release-evidence.sh documents that.)
+if [[ -z ${CCVL_RELEASE_EVIDENCE_BIN:-} ]]; then
+  linux_exe="$dist/ccvl-linux-x86_64"
+  (cd "$dist" && sha256sum --check --strict ccvl-linux-x86_64.sha256 >/dev/null)
+  chmod 0755 "$linux_exe"
+  [[ $(cd "$repo_root" && "$linux_exe" runtime-id) == "$runtime_id" ]] || {
+    echo 'The native Linux executable of the release does not carry the runtime identity of this source.' >&2; exit 2
+  }
+  export CCVL_RELEASE_EVIDENCE_BIN="$linux_exe"
+fi
 # shellcheck source=.agent/scripts/release-evidence.sh
 source .agent/scripts/release-evidence.sh
 ccvl_prepare_release_evidence

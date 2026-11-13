@@ -120,6 +120,8 @@ impl Release {
             "release-evidence.sh",
             "publish-release.sh",
             "downstream-release.sh",
+            "forge-draft.sh",
+            "windows-attest.sh",
         ] {
             files.push((
                 format!(".agent/scripts/{name}"),
@@ -1515,10 +1517,14 @@ mod maintainer_scripts {
         }
 
         fn run(&self, arguments: &[&str], changes: &[(&str, &str)]) -> Output {
+            self.run_script("publish-release.sh", arguments, changes)
+        }
+
+        fn run_script(&self, script: &str, arguments: &[&str], changes: &[(&str, &str)]) -> Output {
             let server = format!("http://127.0.0.1:{}", self.port);
             for _ in 0..20 {
                 let output = Command::new("bash")
-                    .arg(self.release.root.join(".agent/scripts/publish-release.sh"))
+                    .arg(self.release.root.join(".agent/scripts").join(script))
                     .args(arguments)
                     .env_clear()
                     .envs(
@@ -1547,6 +1553,25 @@ mod maintainer_scripts {
 
         fn publish(&self) -> Output {
             self.run(&[self.release.output.to_str().unwrap()], &[])
+        }
+
+        /// The Windows stage's second half, with `report` as what the clone wrote.
+        fn attest_windows(&self, report: &Value, run: &str) -> Output {
+            let path = self.release.temp.path().join("clone-report.json");
+            fs::write(&path, serde_json::to_vec_pretty(report).unwrap()).unwrap();
+            self.run_script(
+                "windows-attest.sh",
+                &[path.to_str().unwrap()],
+                &[("CI_COMMIT_SHA", COMMIT), ("GITHUB_RUN_ID", run)],
+            )
+        }
+
+        /// Uploads and deletions so far: what a stage changed on the forge.
+        fn writes(&self) -> usize {
+            self.requests()
+                .iter()
+                .filter(|request| request.starts_with("POST") || request.starts_with("DELETE"))
+                .count()
         }
 
         fn promote(&self) -> Output {
@@ -1628,6 +1653,168 @@ mod maintainer_scripts {
             text(&result)
         );
         assert_eq!(publisher.uploads(), first_uploads);
+    }
+
+    fn asset(release: &ForgeRelease, name: &str) -> Vec<u8> {
+        let held: Vec<_> = release
+            .assets
+            .iter()
+            .filter(|(_, held, _)| held == name)
+            .collect();
+        assert_eq!(held.len(), 1, "{name} must be on the release exactly once");
+        held[0].2.clone()
+    }
+
+    fn asset_json(release: &ForgeRelease, name: &str) -> Value {
+        serde_json::from_slice(&asset(release, name)).unwrap()
+    }
+
+    #[test]
+    fn the_windows_attestation_makes_the_draft_say_tested_and_promotion_agrees() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        let tag = Publisher::draft_tag();
+        let cross = publisher
+            .state(|state| asset(release_mut(state, &tag), "ccvl-windows-x86_64.receipt.json"));
+        let result = publisher.attest_windows(&release.clone_result(), "456");
+        assert!(result.status.success(), "{}", text(&result));
+        assert!(
+            text(&result).contains("windows-x86_64 is tested"),
+            "{}",
+            text(&result)
+        );
+        publisher.state(|state| {
+            let draft = release_mut(state, &tag);
+            assert!(draft.draft, "nothing is published");
+            // The replaced receipt is kept, the report is kept, the rest is as it was: 30 + 2.
+            assert_eq!(draft.assets.len(), 32);
+            assert_eq!(
+                asset(draft, "ccvl-windows-x86_64.cross-receipt.json"),
+                cross
+            );
+            let receipt = asset_json(draft, "ccvl-windows-x86_64.receipt.json");
+            assert_eq!(
+                (receipt["kind"].as_str(), receipt["run"].as_str()),
+                (Some("native"), Some("456"))
+            );
+            assert_eq!(receipt["built_by_run"], "123");
+            let report = asset(draft, "ccvl-windows-x86_64.native-result.json");
+            assert_eq!(receipt["native_result_sha256"], sha256_hex(&report));
+            for name in ["manifest.json", "runtime-manifest.json"] {
+                assert_eq!(
+                    asset_json(draft, name)["platform_states"]["windows-x86_64"],
+                    "tested",
+                    "{name}"
+                );
+            }
+        });
+        // Promotion checks the whole draft again, writes the manifests again, and agrees.
+        let promoted = publisher.promote();
+        assert!(promoted.status.success(), "{}", text(&promoted));
+        publisher.state(|state| {
+            let public = release_mut(state, "v0.1.0");
+            assert!(!public.draft);
+            assert!(
+                public.body.contains("windows-x86_64 tested"),
+                "{}",
+                public.body
+            );
+            assert!(
+                public.body.contains("windows-arm64 built, not tested"),
+                "{}",
+                public.body
+            );
+        });
+    }
+
+    #[test]
+    fn the_windows_attestation_is_repeatable_and_changes_nothing_it_should_not() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        // A report of a failed clone, a stale main: refused before anything is written.
+        let before = publisher.writes();
+        let mut failed = release.clone_result();
+        failed["checks"][5]["ok"] = json!(false);
+        let result = publisher.attest_windows(&failed, "456");
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("did not pass test-suite"),
+            "{}",
+            text(&result)
+        );
+        publisher.state(|state| state.head = "b".repeat(40));
+        let result = publisher.attest_windows(&release.clone_result(), "456");
+        assert!(!result.status.success());
+        assert!(
+            text(&result).contains("no longer main"),
+            "{}",
+            text(&result)
+        );
+        publisher.state(|state| state.head = COMMIT.to_owned());
+        assert_eq!(publisher.writes(), before, "a refusal writes nothing");
+        // Done once; done again, it says so and writes nothing.
+        assert!(
+            publisher
+                .attest_windows(&release.clone_result(), "456")
+                .status
+                .success()
+        );
+        let done = publisher.writes();
+        let again = publisher.attest_windows(&release.clone_result(), "457");
+        assert!(again.status.success(), "{}", text(&again));
+        assert!(text(&again).contains("already native"), "{}", text(&again));
+        assert_eq!(publisher.writes(), done, "a repeat writes nothing");
+        assert!(publisher.promote().status.success());
+        // A published release is final: its evidence is never touched.
+        let final_writes = publisher.writes();
+        let late = publisher.attest_windows(&release.clone_result(), "459");
+        assert!(!late.status.success());
+        assert_eq!(publisher.writes(), final_writes);
+    }
+
+    #[test]
+    fn a_stage_that_died_between_removing_and_uploading_the_receipt_starts_from_its_copy() {
+        let release = Release::new();
+        let publisher = Publisher::new(&release);
+        assert!(publisher.publish().status.success());
+        let tag = Publisher::draft_tag();
+        // What the forge holds after the stage removed the old receipt and died: the copy
+        // it kept under another name, and no receipt.
+        publisher.state(|state| {
+            let draft = release_mut(state, &tag);
+            let position = draft
+                .assets
+                .iter()
+                .position(|(_, name, _)| name == "ccvl-windows-x86_64.receipt.json")
+                .unwrap();
+            let (_, _, bytes) = draft.assets.remove(position);
+            draft.assets.push((
+                9000,
+                "ccvl-windows-x86_64.cross-receipt.json".to_owned(),
+                bytes,
+            ));
+        });
+        let healed = publisher.attest_windows(&release.clone_result(), "458");
+        assert!(healed.status.success(), "{}", text(&healed));
+        assert!(
+            text(&healed).contains("starting from ccvl-windows-x86_64.cross-receipt.json"),
+            "{}",
+            text(&healed)
+        );
+        publisher.state(|state| {
+            let draft = release_mut(state, &tag);
+            assert_eq!(
+                asset_json(draft, "ccvl-windows-x86_64.receipt.json")["run"],
+                "458"
+            );
+            assert_eq!(
+                asset_json(draft, "manifest.json")["platform_states"]["windows-x86_64"],
+                "tested"
+            );
+        });
+        assert!(publisher.promote().status.success());
     }
 
     #[test]

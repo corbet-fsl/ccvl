@@ -22,7 +22,10 @@ forge_setup() {
   api="${GITHUB_API_URL:-$server/api/v1}"
   token="${CCID_FORGE_TOKEN:-${FORGEJO_TOKEN:-${GITHUB_TOKEN:-}}}"
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'The exact source commit (CI_COMMIT_SHA) is required.' >&2; return 2; }
-  [[ "$repository" == corbet-fsl/ccvl && "$server" == https://* ]] || { echo 'Not the ccvl repository on the forge.' >&2; return 2; }
+  # The loopback form exists for the offline fixtures only.
+  [[ "$repository" == corbet-fsl/ccvl && ( "$server" == https://* || "$server" == http://127.0.0.1:* ) ]] || {
+    echo 'Not the ccvl repository on the forge.' >&2; return 2
+  }
   [[ "$token" =~ ^[A-Za-z0-9_.-]{8,}$ ]] || { echo 'The Forgejo job token is required.' >&2; return 2; }
   printf 'header = "Authorization: token %s"\n' "$token" > "$scratch/auth"
   chmod 0600 "$scratch/auth"
