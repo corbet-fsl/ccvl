@@ -81,6 +81,9 @@ fn is_hex(value: &str, length: usize) -> bool {
 
 /// Execute the check in the current directory; print a receipt or a fixed
 /// failure stage.
+// The reason keeps both clippys quiet: one wants a `must_use` here (`must_use_candidate`), the
+// newer one rejects a bare one on a type that is `must_use` already (`double_must_use`).
+#[must_use = "the exit code is the verdict of the check"]
 pub fn run(root: Option<&Path>) -> ExitCode {
     let outcome = root
         .map_or_else(

@@ -259,6 +259,9 @@ fn fail<T>(message: impl Into<String>) -> Result<T> {
 
 /// Run one subcommand from the workspace `root` (the current directory unless
 /// given). Like the helper it replaced, failures print the bare message.
+// The reason keeps both clippys quiet: one wants a `must_use` here (`must_use_candidate`), the
+// newer one rejects a bare one on a type that is `must_use` already (`double_must_use`).
+#[must_use = "the exit code is the verdict of the command"]
 pub fn run(root: Option<&Path>, command: &Command) -> ExitCode {
     let outcome = root
         .map_or_else(
