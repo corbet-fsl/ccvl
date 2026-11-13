@@ -71,4 +71,8 @@ cargo-zigbuild --version
 x86_64-w64-mingw32-clang --version | head -1
 # ccid runs the declared checks in order under the verified Cargo target lock
 # (CARGO_TARGET_DIR with CCID_TARGET_LOCK_HELD) that the release stages require.
+# The stages share one deadline, 45 minutes by default. A release publishes more than 400 MB over
+# the home uplink, which has run anywhere from a few KB/s to 0.8 MB/s: when it is slow the upload
+# alone outlasts that deadline and the run dies in the middle of the draft. Two hours.
+export CI_TIMEOUT=7200
 exec "$CCID_BIN" check --repo "$PWD" --check "$CHECKS"

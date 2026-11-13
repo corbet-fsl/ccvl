@@ -107,11 +107,13 @@ forge_held() {
 # release by size. The forge keeps the part of an interrupted upload it received (the uplink is
 # slow): a part is removed and the upload repeated, a whole file is left alone.
 forge_upload() {
-  local release="$1" tag="$2" file="$3" name attempt held id size
+  local release="$1" tag="$2" file="$3" name attempt held id size limit
   name="$(basename "$file")"
+  # 600 s is plenty for most files and not for a big one on a slow uplink: allow 20 KB/s.
+  limit=$(($(forge_size "$file") / 20000 + 600))
   for attempt in 1 2 3 4; do
     if ! forge_call POST "$api/repos/$repository/releases/$(jq -r '.id' "$release")/assets?name=$name" \
-      -H 'Content-Type: application/octet-stream' --data-binary "@$file"; then
+      -H 'Content-Type: application/octet-stream' --data-binary "@$file" --max-time "$limit"; then
       echo "Upload of $name failed (attempt $attempt of 4)." >&2
       sleep $((attempt * ${CCVL_UPLOAD_RETRY_DELAY:-5}))
     fi

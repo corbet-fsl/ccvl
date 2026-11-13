@@ -179,11 +179,13 @@ drop_truncated() {
 # whole file, and the forge may finish storing it after the client gave up; so wait,
 # look at the release before every retry and never upload a name twice.
 upload_asset() {
-  local id="$1" tag="$2" path="$3" name attempt
+  local id="$1" tag="$2" path="$3" name attempt limit
   name="$(basename "$path")"
+  # 600 s is plenty for most files and not for a big one on a slow uplink: allow 20 KB/s.
+  limit=$(($(stat -c %s "$path") / 20000 + 600))
   for attempt in 1 2 3 4; do
     if call POST "$api/repos/$repository/releases/$id/assets?name=$name" \
-      -H 'Content-Type: application/octet-stream' --data-binary "@$path"; then
+      -H 'Content-Type: application/octet-stream' --data-binary "@$path" --max-time "$limit"; then
       return 0
     fi
     echo "Upload of $name failed (attempt $attempt of 4)." >&2
