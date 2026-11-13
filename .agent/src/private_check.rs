@@ -243,6 +243,41 @@ fn source_files(data: &[u8], commit: &str) -> Result<Inventory> {
     Ok(files)
 }
 
+/// Give the clone the Git LFS objects its pointers name, taken from the files
+/// the job staged. The clone has no Git configuration, so Git LFS is off in it
+/// and every LFS-tracked file is a pointer of about 130 bytes; the document gate
+/// would parse those pointers as documents. Nothing is downloaded: each object
+/// is the staged file whose SHA-256 and size equal the pointer's `oid` and
+/// `size`. Any pointer without such a staged file stops the stage, so the gate
+/// never runs on a pointer in place of a document.
+///
+/// Only the contents change: the file keeps its path and mode, and its bytes
+/// are exactly the bytes that were hashed.
+fn materialise_lfs_objects(root: &Path, checkout: &Path, files: &Inventory) -> Result<()> {
+    for (name, (_, _, object)) in files {
+        let Some(object) = object else { continue };
+        let target = checkout.join(name);
+        let staged = root.join(name);
+        // Both are regular files here (the inventory comparisons proved it for
+        // the staged one, the clone is built from the same tree); a link is
+        // refused rather than followed.
+        require(
+            fs::symlink_metadata(&target)?.is_file() && fs::symlink_metadata(&staged)?.is_file(),
+            "A Git LFS pointer is not satisfied by a verified staged object.",
+        )?;
+        let pointer = fs::read(&target)?;
+        let content = fs::read(&staged)?;
+        require(
+            lfs_pointer(&pointer).is_some_and(|(oid, size)| {
+                oid == *object && size == content.len() as u64 && sha256_hex(&content) == *object
+            }),
+            "A Git LFS pointer is not satisfied by a verified staged object.",
+        )?;
+        fs::write(&target, &content)?;
+    }
+    Ok(())
+}
+
 fn executable_bits(path: &Path) -> Result<u32> {
     #[cfg(unix)]
     {
@@ -652,6 +687,9 @@ fn check(root: &Path, env: &Env) -> Result<Value> {
         ],
         Some(&checkout),
     )?;
+    // Only the document gate reads the documents themselves, so the clone gets
+    // them after every gate that works on the committed tree has run.
+    materialise_lfs_objects(root, &checkout, &files)?;
     runner.run(
         "Full private document gate",
         &binary_text,

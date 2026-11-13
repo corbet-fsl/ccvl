@@ -138,8 +138,21 @@ installed; the checking command itself uses the worker's existing Rust
 toolchain.
 
 The binary runs `downstream-check --policy ccvl-downstream.json
---upstream-ref <upstream commit>` followed by the complete `check` gate. Private
-command output is captured and discarded; the run log receives only a fixed
+--upstream-ref <upstream commit>` followed by the complete `check` gate.
+
+The gates work in the hook-less clone, which has no Git configuration, so Git LFS
+is off there and every LFS-tracked file is a pointer of about 130 bytes. Right
+before the `check` gate, each pointer in the clone is replaced by the file the job
+staged under the same path, provided that file's SHA-256 and size equal the
+pointer's `oid` and `size` (the content is read once, hashed, and written as
+hashed). Nothing is downloaded and no credential is involved. A pointer without
+such a staged file (the job checkout still holds the pointer, the object differs,
+or the file is missing) stops the stage with `A Git LFS pointer is not satisfied
+by a verified staged object.`; the `check` gate never runs on a pointer. The
+job's own checkout is not changed. The runner's checkout holds the LFS objects,
+which is what this relies on.
+
+Private command output is captured and discarded; the run log receives only a fixed
 failure stage or a success receipt containing source, upstream and runtime
 identities and `upstream_ci: success`. This route declares no secrets and rejects
 publication tokens.

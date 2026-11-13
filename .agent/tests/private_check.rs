@@ -9,6 +9,7 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use ccvl::archive::sha256_hex;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -37,6 +38,12 @@ case "$command" in
     [[ "${*:2}" == "--policy ccvl-downstream.json --upstream-ref $EXPECTED_UPSTREAM" ]] || exit 98
     if [[ -n ${TEST_OWNERSHIP_FAILURE:-} ]]; then echo PRIVATE_SENTINEL >&2; exit 1; fi ;;
   check)
+    # The document gate must see the object, never the pointer, and the file stays executable
+    # like the committed pointer (the umask decides the rest of the mode).
+    if [[ -n ${TEST_LFS_PATH:-} ]]; then
+      [[ "$(cat "$TEST_LFS_PATH")" == "$TEST_LFS_CONTENT" ]] || exit 1
+      [[ -x "$TEST_LFS_PATH" ]] || exit 1
+    fi
     if [[ -n ${TEST_DOCUMENT_FAILURE:-} ]]; then echo PRIVATE_SENTINEL >&2; exit 1; fi ;;
   *) exit 99 ;;
 esac
@@ -121,6 +128,21 @@ impl Downstream {
     }
 
     fn with_policy(policy: Option<&str>) -> Self {
+        Self::build(policy, &[])
+    }
+
+    /// A private commit that also holds Git LFS pointers (path, pointer text),
+    /// committed executable so that the mode is part of what must survive.
+    fn with_lfs(pointers: &[(&str, &str)]) -> Self {
+        Self::build(None, pointers)
+    }
+
+    /// What the runner's LFS checkout leaves in the job checkout: the object.
+    fn stage(&self, name: &str, content: &[u8]) {
+        fs::write(self.extracted.join(name), content).unwrap();
+    }
+
+    fn build(policy: Option<&str>, pointers: &[(&str, &str)]) -> Self {
         let temp = tempfile::Builder::new()
             .prefix("ccvl-private-test-")
             .tempdir()
@@ -180,6 +202,14 @@ impl Downstream {
             ),
         );
         downstream.write("inputs/interviews/profile.md", "PRIVATE_SENTINEL\n");
+        for (name, pointer) in pointers {
+            downstream.write(name, pointer);
+            fs::set_permissions(
+                downstream.repo.join(name),
+                fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
         downstream.git(&["add", "."]);
         downstream.git(&["commit", "--quiet", "-m", "private fixture"]);
         downstream.commit = downstream.rev_parse();
@@ -548,4 +578,85 @@ fn malformed_policy_reports_only_a_fixed_message() {
         combined.contains("Private check inputs are unavailable or invalid."),
         "{combined}"
     );
+}
+
+const DOCUMENT: &str = "inputs/interviews/cv.pdf";
+const OBJECT: &[u8] = b"%PDF-1.7 the real bytes of the document";
+
+fn lfs_pointer_text(content: &[u8], size: u64) -> String {
+    format!(
+        "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {size}\n",
+        sha256_hex(content)
+    )
+}
+
+fn object_size() -> u64 {
+    u64::try_from(OBJECT.len()).unwrap()
+}
+
+#[test]
+fn lfs_pointers_are_replaced_by_their_verified_staged_objects_for_the_document_gate() {
+    let fixture = Downstream::with_lfs(&[(DOCUMENT, &lfs_pointer_text(OBJECT, object_size()))]);
+    fixture.stage(DOCUMENT, OBJECT);
+    let content = String::from_utf8(OBJECT.to_vec()).unwrap();
+    // The fake document gate fails unless it reads the object, still executable
+    // like the pointer was, in the clone it runs in.
+    let (_, trace) = fixture.invoke(
+        true,
+        &[("TEST_LFS_PATH", DOCUMENT), ("TEST_LFS_CONTENT", &content)],
+    );
+    assert_eq!(trace[trace.len() - 2..], ["downstream-check", "check"]);
+    // The job checkout itself is not touched.
+    assert_eq!(fs::read(fixture.extracted.join(DOCUMENT)).unwrap(), OBJECT);
+}
+
+#[test]
+fn an_lfs_pointer_without_a_staged_object_is_refused_before_the_document_gate() {
+    // The job checkout still holds the pointer: nothing verified can replace it.
+    let fixture = Downstream::with_lfs(&[(DOCUMENT, &lfs_pointer_text(OBJECT, object_size()))]);
+    let (output, trace) = fixture.invoke(false, &[]);
+    assert!(
+        stderr(&output).contains("A Git LFS pointer is not satisfied by a verified staged object."),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!trace.iter().any(|line| line == "check"));
+}
+
+#[test]
+fn a_missing_or_different_staged_object_is_refused_before_any_gate() {
+    let fixture = Downstream::with_lfs(&[(DOCUMENT, &lfs_pointer_text(OBJECT, object_size()))]);
+    // Missing: the inventory comparison cannot find the file.
+    fs::remove_file(fixture.extracted.join(DOCUMENT)).unwrap();
+    let (output_missing, trace) = fixture.invoke(false, &[]);
+    assert_eq!(trace, [] as [String; 0]);
+    assert!(
+        stderr(&output_missing).contains("Private check inputs are unavailable or invalid."),
+        "{}",
+        stderr(&output_missing)
+    );
+    // Different: its digest is neither the pointer's nor the object's.
+    fixture.stage(DOCUMENT, b"%PDF-1.7 other bytes than the pointer names");
+    let (output_other, trace) = fixture.invoke(false, &[]);
+    assert_eq!(trace, [] as [String; 0]);
+    assert!(
+        stderr(&output_other).contains("Extracted source differs from its archive."),
+        "{}",
+        stderr(&output_other)
+    );
+}
+
+#[test]
+fn an_lfs_pointer_naming_another_size_is_refused_before_the_document_gate() {
+    // The object's digest matches, the size the pointer states does not: the
+    // inventory comparison passes, the swap does not.
+    let fixture = Downstream::with_lfs(&[(DOCUMENT, &lfs_pointer_text(OBJECT, object_size() + 1))]);
+    fixture.stage(DOCUMENT, OBJECT);
+    let (output, trace) = fixture.invoke(false, &[]);
+    assert!(
+        stderr(&output).contains("A Git LFS pointer is not satisfied by a verified staged object."),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!trace.iter().any(|line| line == "check"));
 }
