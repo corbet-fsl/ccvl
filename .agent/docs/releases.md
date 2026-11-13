@@ -38,9 +38,13 @@ and lld of llvm-mingw against its mingw-w64 UCRT runtime. The tool is the upstre
 release archive, pinned by hash and only patched for the Nix loader
 (`.ci/llvm-mingw.nix`; `.ci/llvm-mingw.sh` prints its store path): nothing is
 compiled, every licence is free, no Microsoft SDK is accepted, and it ships the
-`synchronization` import library that Rust's standard library needs. The cross
-stage refuses an executable that imports a mingw runtime DLL, so a clean Windows 10
-or newer needs nothing installed; the x86_64 file is the one the Windows clone runs.
+`synchronization` import library that Rust's standard library needs. The package
+carries no `libunwind.dll.a`, so Rust's `-lunwind` can only resolve to the static
+library whatever the Rust version (rustc 1.99 took the import library, 1.100 does not).
+The cross stage names the C, C++ and archive tools of the target itself (a runner's
+generic `CC` would otherwise be used for the Windows target) and refuses an
+executable that imports a mingw runtime DLL, so a clean Windows 10 or newer needs
+nothing installed; the x86_64 file is the one the Windows clone runs.
 
 The choice was made by measurement (2026-11-13, `measure4`, the release profile,
 a fresh target directory with warm downloads and no compile cache, 8 jobs, two
