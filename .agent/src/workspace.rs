@@ -126,6 +126,14 @@ impl Workspace {
             .with_context(|| format!("{} is outside the ccvl workspace", path.display()))
     }
 
+    /// A workspace-relative path as text: forward slashes on every platform, so a
+    /// locator in a diagnostic, hint or generated file reads the same on Windows as
+    /// on Linux and macOS. Use it wherever a relative path is printed or recorded,
+    /// never `relative(..).display()`, which spells it with the host's separator.
+    pub fn relative_text(&self, path: &Path) -> Result<String> {
+        self.relative(path).map(|relative| portable_text(&relative))
+    }
+
     pub fn typst_path(&self, path: &Path) -> Result<String> {
         let relative = self.relative(&self.existing_inside(path)?)?;
         Ok(format!(
@@ -147,6 +155,16 @@ impl Workspace {
         self.observe_input(&relative);
         read_toml_value(&self.path(relative))
     }
+}
+
+/// The text of a workspace-relative path with `/` between its components on every
+/// platform. Only for relative paths: an absolute path keeps the host's own spelling.
+#[must_use]
+pub fn portable_text(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 pub fn read_json(path: &Path) -> Result<Value> {
@@ -179,6 +197,22 @@ mod tests {
     /// style content, whose outputs `check` verifies.
     fn repository() -> Workspace {
         Workspace::at(crate::test_support::repository()).unwrap()
+    }
+
+    #[test]
+    fn relative_text_spells_every_component_with_a_forward_slash() {
+        let workspace = repository();
+        let nested = workspace.path("outputs").join("cvl").join("cv");
+        assert_eq!(workspace.relative_text(&nested).unwrap(), "outputs/cvl/cv");
+        assert_eq!(workspace.relative_text(workspace.root()).unwrap(), "");
+        assert_eq!(portable_text(Path::new("a").join("b").as_path()), "a/b");
+    }
+
+    /// A Windows spelling with either separator reads the same as the portable one.
+    #[cfg(windows)]
+    #[test]
+    fn windows_separators_become_forward_slashes() {
+        assert_eq!(portable_text(Path::new(r"a\b/c\d.toml")), "a/b/c/d.toml");
     }
 
     #[test]

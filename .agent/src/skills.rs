@@ -96,12 +96,12 @@ pub fn validate(workspace: &Workspace) -> Result<()> {
                 && frontmatter.len() == 2
                 && frontmatter.contains_key("description"),
             "{}: invalid canonical frontmatter",
-            workspace.relative(path)?.display()
+            workspace.relative_text(path)?
         );
         ensure!(
             name_pattern.is_match(name),
             "{}: invalid skill name",
-            workspace.relative(path)?.display()
+            workspace.relative_text(path)?
         );
         let description = frontmatter
             .get("description")
@@ -109,7 +109,7 @@ pub fn validate(workspace: &Workspace) -> Result<()> {
         ensure!(
             !description.is_empty() && description.len() <= 1024,
             "{}: invalid description",
-            workspace.relative(path)?.display()
+            workspace.relative_text(path)?
         );
     }
     validate_cases(workspace, &declared)

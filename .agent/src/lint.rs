@@ -508,7 +508,7 @@ pub fn drift_hints(
     let mut hints = Vec::new();
     for path in reference_sources(workspace)? {
         let source = fs::read_to_string(&path)?;
-        let cv_location = workspace.relative(&path)?.display().to_string();
+        let cv_location = workspace.relative_text(&path)?;
         hints.extend(drift_against(
             document,
             plan_source,
@@ -990,7 +990,7 @@ pub fn not_true_hints(
 
 fn file_term_hints(workspace: &Workspace, rules: &[Rule], path: &Path) -> Result<Vec<String>> {
     let source = fs::read_to_string(path)?;
-    let location = workspace.relative(path)?.display().to_string();
+    let location = workspace.relative_text(path)?;
     if path.extension().is_some_and(|extension| extension == "typ") {
         return Ok(term_hints(rules, &typst_lines(&source), &location, &[]).0);
     }
@@ -1183,7 +1183,7 @@ pub fn figure_hints(workspace: &Workspace) -> Result<Vec<String>> {
     let mut hints = Vec::new();
     for path in application_records(workspace)? {
         let source = fs::read_to_string(&path)?;
-        let location = workspace.relative(&path)?.display().to_string();
+        let location = workspace.relative_text(&path)?;
         let record = workspace.read_toml_value(workspace.relative(&path)?)?;
         let acknowledged = record_acknowledgements(&record, "figure")
             .iter()

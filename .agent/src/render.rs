@@ -14,7 +14,7 @@ use crate::application::{
 use crate::opportunity;
 use crate::stations;
 use crate::styles::{self, Selection, StyleLeaf};
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, portable_text};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DocumentKind {
@@ -119,7 +119,7 @@ impl Compiler {
     /// break there break here too.
     pub fn standalone_pdf(&self, workspace: &Workspace, spec: &DocumentSpec) -> Result<Vec<u8>> {
         let source = workspace.existing_inside(&spec.source)?;
-        let display = workspace.relative(&source)?.display().to_string();
+        let display = workspace.relative_text(&source)?;
         let template = fs::read_to_string(&source)
             .with_context(|| format!("cannot read {}", source.display()))?;
         let text = resolved_typ_text(&template, spec, &display, "check", "standalone");
@@ -371,7 +371,7 @@ pub fn document_spec(
             .context("options must be a table")?
             .insert(format!("{}_paper", leaf.document), paper.into());
     }
-    let location = relative.display().to_string();
+    let location = portable_text(&relative);
     validate_document_record(workspace, &record, &location, true, leaf.document)?;
     let selected = styles::record_selection(workspace, leaf.document, &record, &location)?;
     ensure!(
@@ -619,14 +619,14 @@ pub fn opportunity_specs(
     validate_record(
         workspace,
         &document,
-        &workspace.relative(&application)?.display().to_string(),
+        &workspace.relative_text(&application)?,
         true,
     )?;
     let options = opportunity_options(&document)?;
     let locale = options.locale;
     let pages = options.pages;
     let cover_enabled = options.cover_letter;
-    let relative = workspace.relative(&application)?.display().to_string();
+    let relative = workspace.relative_text(&application)?;
     // Step two of the hyphen rule: every remaining hyphen is an advisory
     // for the authoring agent, printed like other preference warnings.
     // Hard LLM tics already failed validation above.
@@ -764,7 +764,7 @@ fn emit_resolved_typ(
 ) -> Result<PathBuf> {
     let template = fs::read_to_string(&spec.source)
         .with_context(|| format!("cannot read {}", spec.source.display()))?;
-    let template_display = workspace.relative(&spec.source)?.display().to_string();
+    let template_display = workspace.relative_text(&spec.source)?;
     let text = resolved_typ_text(&template, spec, &template_display, organisation, position);
     let filename = spec
         .output

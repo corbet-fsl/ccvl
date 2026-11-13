@@ -3,7 +3,7 @@ use std::fs;
 use anyhow::{Context, Result, bail};
 use walkdir::WalkDir;
 
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, portable_text};
 
 pub fn format_typst(workspace: &Workspace, check: bool) -> Result<()> {
     let mut changed = Vec::new();
@@ -21,7 +21,7 @@ pub fn format_typst(workspace: &Workspace, check: bool) -> Result<()> {
             let original = fs::read_to_string(entry.path())?;
             let relative = workspace.relative(entry.path())?;
             let rendered = ctypst::format_source(&original, 120)
-                .with_context(|| format!("cannot format {}", relative.display()))?;
+                .with_context(|| format!("cannot format {}", portable_text(&relative)))?;
             if rendered != original {
                 changed.push(workspace.relative(entry.path())?);
                 if !check {
@@ -35,7 +35,7 @@ pub fn format_typst(workspace: &Workspace, check: bool) -> Result<()> {
             "Typst sources require formatting: {}",
             changed
                 .iter()
-                .map(|path| path.display().to_string())
+                .map(|path| portable_text(path))
                 .collect::<Vec<_>>()
                 .join(", ")
         );

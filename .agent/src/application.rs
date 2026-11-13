@@ -142,7 +142,7 @@ pub fn validate_all(workspace: &Workspace) -> Result<()> {
     )?;
     for leaf in crate::styles::StyleFilter::all().document_leaves(workspace)? {
         let record = crate::content::read_record(workspace, leaf.content())?;
-        let relative = workspace.relative(&leaf.content())?.display().to_string();
+        let relative = workspace.relative_text(&leaf.content())?;
         validate_document_record(workspace, &record, &relative, true, leaf.document)?;
         ensure!(
             record.pointer("/options/language").and_then(Value::as_str)
@@ -167,7 +167,7 @@ pub fn validate_all(workspace: &Workspace) -> Result<()> {
             for position in std::fs::read_dir(organisation.path())? {
                 let record = position?.path().join("application.toml");
                 if record.is_file() {
-                    let relative = workspace.relative(&record)?.display().to_string();
+                    let relative = workspace.relative_text(&record)?;
                     validate_record(
                         workspace,
                         &crate::content::read_record(workspace, &record)?,

@@ -184,7 +184,7 @@ pub fn validate_typst_layout(workspace: &Workspace, path: &Path) -> Result<Sourc
     ensure!(
         pages.len() >= 4,
         "{}: expected at least 4 CV page segments, found {}",
-        workspace.relative(path)?.display(),
+        workspace.relative_text(path)?,
         pages.len()
     );
     let station_one = marked_entries(pages[0], "station")?;
@@ -192,7 +192,7 @@ pub fn validate_typst_layout(workspace: &Workspace, path: &Path) -> Result<Sourc
     ensure!(
         (6..=8).contains(&station_one.len()),
         "{}: page 1 has {} full entries; allowed 6–8",
-        workspace.relative(path)?.display(),
+        workspace.relative_text(path)?,
         station_one.len()
     );
     require_entries(workspace, path, 2, &station_two, 10, 2, "stations")?;
@@ -212,7 +212,7 @@ pub fn validate_typst_layout(workspace: &Workspace, path: &Path) -> Result<Sourc
             if let Some(previous) = owners.insert(entry.id.clone(), page) {
                 bail!(
                     "{}: entry marker {:?} appears on pages {previous} and {page}; every visible entry needs one unique owner",
-                    workspace.relative(path)?.display(),
+                    workspace.relative_text(path)?,
                     entry.id
                 );
             }
@@ -223,7 +223,7 @@ pub fn validate_typst_layout(workspace: &Workspace, path: &Path) -> Result<Sourc
     ensure!(
         groups.len() == 3,
         "{}: page 4 has {} competency groups; exactly 3 required",
-        workspace.relative(path)?.display(),
+        workspace.relative_text(path)?,
         groups.len()
     );
     let mut competency_groups = Vec::new();
@@ -239,7 +239,7 @@ pub fn validate_typst_layout(workspace: &Workspace, path: &Path) -> Result<Sourc
         ensure!(
             ids.len() == 3,
             "{}: page 4 competency group {} has {} blocks; exactly 3 required",
-            workspace.relative(path)?.display(),
+            workspace.relative_text(path)?,
             index + 1,
             ids.len()
         );
@@ -437,7 +437,7 @@ pub fn profile_status(
     list: bool,
 ) -> Result<()> {
     let path = workspace.existing_inside(plan)?;
-    let location = workspace.relative(&path)?.display().to_string();
+    let location = workspace.relative_text(&path)?;
     let document = load_plan(workspace, &path)?;
     let assessment = assess(workspace, &document, &location)?;
     if list {
@@ -489,7 +489,7 @@ fn verify_source_counts(
     ensure!(
         layout.station_ids == expected,
         "{}: station source IDs differ from the plan",
-        workspace.relative(path)?.display()
+        workspace.relative_text(path)?
     );
     Ok(layout)
 }
@@ -535,7 +535,7 @@ fn require_entries(
     ensure!(
         entries.len() == count,
         "{}: page {page} has {} full entries; exactly {count} required",
-        workspace.relative(path)?.display(),
+        workspace.relative_text(path)?,
         entries.len()
     );
     let invalid = entries
@@ -546,7 +546,7 @@ fn require_entries(
     ensure!(
         invalid.is_empty(),
         "{}: page {page} {label} must each have exactly {bullets} bullets; {}",
-        workspace.relative(path)?.display(),
+        workspace.relative_text(path)?,
         invalid.join(", ")
     );
     Ok(())

@@ -6,7 +6,7 @@ use anyhow::{Context, Result, bail, ensure};
 use regex::Regex;
 use walkdir::WalkDir;
 
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, portable_text};
 
 const EXCLUDED_ROOTS: &[&str] = &[
     ".cache",
@@ -82,7 +82,7 @@ fn validate_no_python_artifacts(workspace: &Workspace) -> Result<()> {
         "public repository contains forbidden Python source or toolchain metadata: {}",
         offenders
             .iter()
-            .map(|path| path.display().to_string())
+            .map(|path| portable_text(path))
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -141,7 +141,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
         ensure!(
             !in_workspace_data || allowed.contains(&relative),
             "public workspace contains private interview or opportunity data: {}",
-            relative.display()
+            portable_text(&relative)
         );
     }
     for entry in WalkDir::new(workspace.root()).follow_links(false) {
@@ -160,7 +160,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
         ensure!(
             !entry.path_is_symlink(),
             "symlink requires manual publication review: {}",
-            relative.display()
+            portable_text(&relative)
         );
     }
     for root in crate::layout::outermost(&[
@@ -175,7 +175,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
                 ensure!(
                     !bytes.starts_with(b"version https://git-lfs.github.com/spec/v1"),
                     "unresolved Git LFS pointer: {}",
-                    workspace.relative(entry.path())?.display()
+                    workspace.relative_text(entry.path())?
                 );
             }
         }
@@ -205,7 +205,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
             ensure!(
                 !secret.is_match(&text),
                 "potential secret found: {}",
-                relative.display()
+                portable_text(&relative)
             );
             let declares_public_identifiers =
                 relative == Path::new(".agent/docs/public-identifiers.md");
@@ -213,7 +213,7 @@ pub fn validate_boundary(workspace: &Workspace) -> Result<()> {
                 ensure!(
                     !private.is_match(&text),
                     "private workspace identifier found: {}",
-                    relative.display()
+                    portable_text(&relative)
                 );
             }
         }
@@ -257,10 +257,7 @@ fn validate_markdown_links(workspace: &Workspace) -> Result<()> {
             {
                 continue;
             }
-            missing_paths.push(format!(
-                "{} -> {named}",
-                workspace.relative(&path)?.display()
-            ));
+            missing_paths.push(format!("{} -> {named}", workspace.relative_text(&path)?));
         }
         for captures in link.captures_iter(&text) {
             let mut destination = captures[1].trim().to_owned();
@@ -295,7 +292,7 @@ fn validate_markdown_links(workspace: &Workspace) -> Result<()> {
             if !candidate.exists() {
                 errors.push(format!(
                     "{} -> {destination}",
-                    workspace.relative(&path)?.display()
+                    workspace.relative_text(&path)?
                 ));
             }
         }
@@ -354,7 +351,7 @@ fn validate_text_files(workspace: &Workspace) -> Result<()> {
         }
         let bytes = fs::read(&path)?;
         let Ok(text) = String::from_utf8(bytes) else {
-            errors.push(format!("{}: not valid UTF-8", relative.display()));
+            errors.push(format!("{}: not valid UTF-8", portable_text(&relative)));
             continue;
         };
         // Review packets use exact serialized bytes for hashes and recovery.
@@ -364,20 +361,29 @@ fn validate_text_files(workspace: &Workspace) -> Result<()> {
         if review_json && let Err(error) = serde_json::from_str::<serde_json::Value>(&text) {
             errors.push(format!(
                 "{}: invalid review JSON: {error}",
-                relative.display()
+                portable_text(&relative)
             ));
         }
         if !review_json && !text.is_empty() && !text.ends_with('\n') {
-            errors.push(format!("{}: missing final newline", relative.display()));
+            errors.push(format!(
+                "{}: missing final newline",
+                portable_text(&relative)
+            ));
         }
         if text.contains('\r') {
-            errors.push(format!("{}: contains CR line endings", relative.display()));
+            errors.push(format!(
+                "{}: contains CR line endings",
+                portable_text(&relative)
+            ));
         }
         if trailing.is_match(&text) {
-            errors.push(format!("{}: trailing whitespace", relative.display()));
+            errors.push(format!("{}: trailing whitespace", portable_text(&relative)));
         }
         if merge.is_match(&text) {
-            errors.push(format!("{}: unresolved merge marker", relative.display()));
+            errors.push(format!(
+                "{}: unresolved merge marker",
+                portable_text(&relative)
+            ));
         }
     }
     if !errors.is_empty() {

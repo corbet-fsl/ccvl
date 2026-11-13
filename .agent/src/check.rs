@@ -13,7 +13,7 @@ use crate::render::{Compiler, DocumentSpec};
 use crate::skills;
 use crate::styles;
 use crate::styles::StyleFilter;
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, portable_text};
 
 pub fn run(workspace: &Workspace) -> Result<()> {
     run_with_artifacts(workspace, None)
@@ -93,15 +93,10 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         ".agent/schemas/review-result.schema.json".to_owned(),
     ];
     for leaf in styles::StyleFilter::all().document_leaves(workspace)? {
-        required.push(workspace.relative(&leaf.content())?.display().to_string());
-        required.push(workspace.relative(&leaf.strings())?.display().to_string());
-        required.push(workspace.relative(&leaf.adapter())?.display().to_string());
-        required.push(
-            workspace
-                .relative(&leaf.substyle_file())?
-                .display()
-                .to_string(),
-        );
+        required.push(workspace.relative_text(&leaf.content())?);
+        required.push(workspace.relative_text(&leaf.strings())?);
+        required.push(workspace.relative_text(&leaf.adapter())?);
+        required.push(workspace.relative_text(&leaf.substyle_file())?);
     }
     for relative in required {
         ensure!(
@@ -184,11 +179,7 @@ fn validate_manifest(workspace: &Workspace) -> Result<()> {
         {
             continue;
         }
-        let relative = workspace
-            .relative(entry.path())?
-            .display()
-            .to_string()
-            .replace('\\', "/");
+        let relative = workspace.relative_text(entry.path())?;
         if relative == ".agent/scaffolds/opportunity/application.toml"
             || relative.starts_with("opportunities/")
         {
@@ -624,10 +615,9 @@ fn require_document_isolation(
             .iter()
             .filter(|path| path.starts_with(root))
             .map(|path| {
-                workspace.relative(path).map_or_else(
-                    |_| path.display().to_string(),
-                    |path| path.display().to_string(),
-                )
+                workspace
+                    .relative(path)
+                    .map_or_else(|_| path.display().to_string(), |path| portable_text(&path))
             })
             .collect::<Vec<_>>();
         ensure!(

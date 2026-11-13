@@ -393,7 +393,9 @@ fn full_workspace_check_accepts_independent_styles() {
         "invalid = [",
     );
     let error = crate::check::run(&workspace).unwrap_err();
-    assert!(format!("{error:#}").contains("broken/style.toml"));
+    // The message names the file by its absolute path, spelled by the host.
+    let broken = std::path::Path::new("broken").join("style.toml");
+    assert!(format!("{error:#}").contains(&broken.display().to_string()));
     let spec = render::cvl_cv_spec(&workspace, "en-us", 1, None).unwrap();
     render::Compiler::new(&workspace)
         .unwrap()

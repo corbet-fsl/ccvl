@@ -103,7 +103,7 @@ pub fn create_record(
     if destination.exists() {
         bail!(
             "refusing to overwrite existing opportunity: {}",
-            workspace.relative(&destination)?.display()
+            workspace.relative_text(&destination)?
         );
     }
     let mut document = blank_record(workspace)?;

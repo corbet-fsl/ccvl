@@ -518,7 +518,7 @@ pub fn run() -> Result<ExitCode> {
                 &position_key,
                 !no_cover_letter,
             )?;
-            println!("Created {}", workspace.relative(&path)?.display());
+            println!("Created {}", workspace.relative_text(&path)?);
         }
         Command::BuildCv {
             locale,
@@ -763,7 +763,7 @@ fn cli_selection(
     let record = application
         .map(|path| {
             let path = workspace.existing_inside(path)?;
-            let location = workspace.relative(&path)?.display().to_string();
+            let location = workspace.relative_text(&path)?;
             crate::styles::record_selection(
                 workspace,
                 document,
