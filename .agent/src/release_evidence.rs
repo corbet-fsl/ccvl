@@ -35,8 +35,8 @@ pub enum Plan {
 
 /// Release platform names, the Rust target triple each is built for, and the
 /// evidence each holds. Both Windows platforms are built for the one `gnullvm`
-/// ABI (clang and lld with the mingw-w64 UCRT runtime, from llvm-mingw): free
-/// licences, no Microsoft SDK on the runner, and the x86_64 executable that is
+/// ABI (clang and lld with the mingw-w64 UCRT runtime, from `llvm-mingw`): free
+/// licences, no Microsoft SDK on the runner, and the `x86_64` executable that is
 /// tested in the Windows clone is the very file that ships.
 pub const PLATFORMS: [(&str, &str, Plan); 6] = [
     ("linux-x86_64", "x86_64-unknown-linux-gnu", Plan::Native),
