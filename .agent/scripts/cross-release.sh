@@ -21,20 +21,23 @@ exe=ccvl
 driver=zigbuild
 case "$platform" in
   linux-aarch64) triple=aarch64-unknown-linux-gnu; zig_target="$triple.2.39" ;;
-  windows-x86_64) triple=x86_64-pc-windows-gnullvm; driver=llvm-mingw; mingw_cc=x86_64-w64-mingw32-clang; exe=ccvl.exe ;;
-  windows-arm64) triple=aarch64-pc-windows-gnullvm; driver=llvm-mingw; mingw_cc=aarch64-w64-mingw32-clang; exe=ccvl.exe ;;
+  windows-x86_64) triple=x86_64-pc-windows-gnullvm; driver=llvm-mingw; exe=ccvl.exe ;;
+  windows-arm64) triple=aarch64-pc-windows-gnullvm; driver=llvm-mingw; exe=ccvl.exe ;;
   macos-*) echo "$platform waits for the macOS build clone and stays pending." >&2; exit 2 ;;
   linux-x86_64) echo 'Linux x86_64 is built and run natively: native-release.sh.' >&2; exit 2 ;;
   *) echo "Unknown cross platform: $platform" >&2; exit 2 ;;
 esac
 if [[ $driver == zigbuild ]]; then
-  needed=(cargo-zigbuild zig)
+  for tool in cargo-zigbuild zig; do
+    command -v "$tool" >/dev/null || { echo "Missing cross toolchain: $tool" >&2; exit 2; }
+  done
 else
-  needed=("$mingw_cc" "${mingw_cc%-clang}-clang++" "${mingw_cc%-clang}-ar" llvm-objdump)
+  # shellcheck source=.agent/scripts/llvm-mingw-env.sh
+  source .agent/scripts/llvm-mingw-env.sh
+  # clang links the gnullvm targets and compiles their C and assembly (the psm crate, for
+  # one); the Windows test suite names the same tools (windows-test.sh).
+  ccvl_llvm_mingw_env "$triple"
 fi
-for tool in "${needed[@]}"; do
-  command -v "$tool" >/dev/null || { echo "Missing cross toolchain: $tool" >&2; exit 2; }
-done
 # shellcheck source=.agent/scripts/rust-toolchain.sh
 source .agent/scripts/rust-toolchain.sh
 ccvl_select_rust_toolchain
@@ -53,22 +56,9 @@ if [[ $driver == zigbuild ]]; then
     --config .cargo/release-profile.toml --target "$zig_target"
   tool="cargo-zigbuild $(cargo-zigbuild --version | awk '{print $NF}'), zig $(zig version)"
 else
-  # clang links the gnullvm targets and compiles their C and assembly (the psm crate, for
-  # one). Name the tools per target: a runner that exports a generic CC (a host cc behind
-  # a compile cache) would otherwise be used for the Windows target too, and cc-rs only
-  # looks for the mingw clang when no CC is set.
-  mingw_prefix="${mingw_cc%-clang}"
-  triple_underscored="${triple//-/_}"
-  export "CARGO_TARGET_${triple_underscored^^}_LINKER=$(command -v "$mingw_cc")"
-  export "CC_$triple_underscored=$(command -v "$mingw_cc")"
-  export "CXX_$triple_underscored=$(command -v "$mingw_prefix-clang++")"
-  export "AR_$triple_underscored=$(command -v "$mingw_prefix-ar")"
   "${CCVL_CARGO_COMMAND[@]}" build --locked --release \
     --config .cargo/release-profile.toml --target "$triple"
-  clang_version="$("$mingw_cc" --version | sed -n '1s/.*clang version \([0-9][0-9.]*\).*/\1/p')"
-  package="$(basename "$(dirname "$(dirname "$(readlink -f "$(command -v "$mingw_cc")")")")")"
-  if [[ $package == *llvm-mingw-* ]]; then mingw_release="${package##*llvm-mingw-}"; else mingw_release=unknown; fi
-  tool="llvm-mingw $mingw_release, clang ${clang_version:-unknown}"
+  tool="$(ccvl_llvm_mingw_identity "$triple")"
 fi
 binary="${CARGO_TARGET_DIR:-$repo_root/target}/$triple/release/$exe"
 if [[ $driver == llvm-mingw ]]; then

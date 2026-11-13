@@ -96,8 +96,12 @@ case "$action" in
     ;;
   windows)
     # Its own run, after the release run has left the drafts: the Windows x86_64
-    # executable of this commit, as shipped, tested in the offline Windows clone.
-    bash .agent/scripts/windows-test.sh
+    # executable of this commit, as shipped, and the test suite built for the same ABI,
+    # tested in the offline Windows clone; then the drafts say `tested` for the platform.
+    report="$CCVL_RELEASE_DIR/windows-x86_64.clone-report.json"
+    bash .agent/scripts/windows-test.sh "$report"
+    # A release that does not hold the platform (a patch release) leaves no report.
+    if [[ -s $report ]]; then bash .agent/scripts/windows-attest.sh "$report"; fi
     ;;
   *) echo "Unknown release stage: $action" >&2; exit 2 ;;
 esac

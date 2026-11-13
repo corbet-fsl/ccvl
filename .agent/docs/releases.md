@@ -55,8 +55,8 @@ it.
 
 To release: raise `version` in `Cargo.toml` on `main` (the version is part of the
 runtime identity, so the bump is the commit that is released), dispatch `release`
-on that commit, check the draft, optionally run `release-windows`, then dispatch
-`release-promote` on the same commit.
+on that commit, check the draft, run `release-windows` on the same commit (a minor
+release; without it Windows x86_64 stays `built`), then dispatch `release-promote`.
 
 The declared platform set is `.agent/release-platforms.txt`; a release holds all of
 it or, for a patch, `linux-x86_64`, as listed by `ccvl release-evidence platforms`.
@@ -65,7 +65,8 @@ Missing artifacts never shrink that set. Each platform holds one of three states
 | State | Platforms | Evidence |
 |---|---|---|
 | `tested` | linux-x86_64 | built on the runner, then run there: public check and native runtime checks |
-| `built` | linux-aarch64, windows-x86_64, windows-arm64 | cross-built on the Linux runner, never run there; ARM is never emulated; the shipped x86_64 Windows executable is run afterwards in the offline Windows clone (`release-windows`, below) |
+| `tested` | windows-x86_64 | cross-built on the Linux runner, then the shipped executable and the whole test suite pass in the offline Windows clone (`release-windows`, below), which re-issues its receipt as a native one |
+| `built` | linux-aarch64, windows-arm64, and windows-x86_64 until `release-windows` has run | cross-built on the Linux runner, never run there; ARM is never emulated |
 | `pending` | macos-x86_64, macos-arm64 | no executor yet; the release completes without them and records the state |
 
 A `built` platform never claims tests, and a `pending` one has no asset. The
@@ -181,7 +182,7 @@ Cargo target lock and runs the job command.
 |---|---|---|
 | `release` | `release-rust`, `release-lint`, `release-native`, `release-cross`, `release-linux-deep`, `release-archive`, `release-check`, `release-publish`, in this order, never reused from a cache; the first stage refuses a version that names no release or is released already; the cross stage builds the platforms the version holds | `linux` runner with Nix; the stage tools come from the pinned nixpkgs |
 | `release-promote` | re-check the draft of this commit, make it the public release `v<version>`, copy it downstream | `linux` runner; the downstream credential |
-| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit and run it in the offline Windows clone | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
+| `release-windows` | `release-windows`: fetch the shipped `ccvl-windows-x86_64.exe` from the draft of this commit, run it and the gnullvm test suite in the offline Windows clone, then make the draft say `tested` | `windows` runner (an ordinary srv slot that owns the clone for the job); the runner's read credential |
 
 `.ci/run-release.sh` provisions the tools (zig, cargo-zigbuild, llvm-mingw, the
 lint and PDF tools) and the three cross targets in the runner's persistent storage, then runs
@@ -194,24 +195,54 @@ added to the release policy before it is advertised. The publisher,
 `.agent/scripts/publish-release.sh`, speaks the Forgejo release API with the
 job's own token and never replaces an existing asset.
 
-### The Windows test: the file that ships is the file that runs
+### The Windows test: the file that ships and the suite that vouches for it
 
-`release-windows` is its own manual run on the same `main` commit, after a
-`release` run has left the draft and before `release-promote` renames it (only a
-minor release holds a Windows executable). It builds nothing. `windows-test.sh`
-reads the `build-<commit>` draft for the Windows receipt and for
-`ccvl-windows-x86_64.exe`, and stops unless the receipt (platform, Rust host
-`x86_64-pc-windows-gnullvm`), the `.sha256` asset, the `.runtime-id` asset and the
-downloaded bytes all agree. The executable then crosses into the clone (`vm-win`),
-which has no network and none of Julian's shares, and runs from the clone's own
-disk: its SHA-256 is checked once more inside, `--version` and `runtime-id` run
-(the identity compiled into the binary must be the release identity), and
-`public-check` renders and verifies every document from the source of the same
-commit. The job fails if any step fails and prints the executable's SHA-256 and
-the guest's results. A passing run does not yet turn the platform from `built`
-into `tested` in the manifest: that needs the clone's result to feed a `native`
-receipt, which is the next step. `CCVL_WINDOWS_ASSET_DIR=DIR` runs the same checks
-on assets from a directory (a local rehearsal of a `cross-release.sh` output).
+`release-windows` is its own manual run on the same `main` commit, after a `release`
+run has left the draft and before `release-promote` renames it. A patch release holds
+no Windows executable: the run says so and ends green without building anything.
+Otherwise it has three parts, all for the one ABI, `x86_64-pc-windows-gnullvm`.
+
+1. **The file that ships.** `windows-test.sh` reads the `build-<commit>` draft for the
+   Windows receipt and `ccvl-windows-x86_64.exe`, and stops unless the receipt (platform,
+   Rust host), the `.sha256` asset, the `.runtime-id` asset and the downloaded bytes all
+   agree. The executable crosses into the clone (`vm-win`), which has no network and none
+   of Julian's shares, and runs from the clone's own disk
+   (`windows-clone-exe.ps1`): its SHA-256 is checked once more inside, `--version` and
+   `runtime-id` run (the identity compiled into the binary must be the release identity),
+   and `public-check` renders and verifies every document from the source of the same commit.
+2. **The suite that vouches for it.** The same script builds the test executables of the
+   workspace (`cargo test --locked --workspace --all-features --no-run --target
+   x86_64-pc-windows-gnullvm`) on the runner, with the tools that built the executable:
+   `.ci/windows-env.sh` provisions llvm-mingw from `.ci/llvm-mingw.sh` and the Rust
+   toolchain with the gnullvm standard library, and `llvm-mingw-env.sh` names the linker
+   and the per-target `CC_`, `CXX_` and `AR_` tools, the very file `cross-release.sh` uses.
+   The executables embed the absolute path of the checkout, so the clone gets the
+   checkout at the same path below the share (`vm-win mirror`) and runs every executable
+   (`windows-clone-suite.ps1`) from its own disk, from the root of that tree. A
+   copy from the share that fails in the guest is retried and counted, never skipped.
+   Doc tests are not part of it (they need a host that runs the target).
+3. **The native receipt.** `windows-test.sh` writes a JSON report: one entry per check
+   (`sha256`, `architecture`, `version`, `runtime-id`, `public-check`, `test-suite`), the
+   test counts, the activation facts of the clone and the compiler and tools of the test
+   build. `windows-attest.sh` fetches the draft, and `ccvl release-evidence attest`
+   accepts the report only if it is about this very executable (its SHA-256 and runtime
+   identity), this source commit and this platform, every check passed and the suite ran
+   without a failure. It then re-issues the cross receipt as a **native** one
+   (`checks: ["public-check", "native-runtime"]`, `tested` removed, the run that tested is
+   the provenance, `built_by_run` and `cross_receipt_sha256` keep the build on record) and
+   keeps the report next to it as `ccvl-windows-x86_64.native-result.json`, whose checksum
+   the receipt records. `release-evidence check` refuses a native Windows receipt without
+   that report, with a report that was altered or that is not about the executable in the
+   package: nobody can make a platform `tested` by editing a receipt. The manifests are
+   written again by `check` itself, so promotion, which checks the whole draft once more,
+   writes the same bytes; the draft then holds the new `receipt`, `manifest.json` and
+   `runtime-manifest.json`, the report, and the replaced cross receipt as
+   `ccvl-windows-x86_64.cross-receipt.json`. Nothing is published, and a published release
+   is never touched. Run twice, the second run changes nothing.
+
+The job fails if the executable or any test fails, and the draft is then left as it was.
+`CCVL_WINDOWS_ASSET_DIR=DIR` runs the first two parts on assets from a directory (a local
+rehearsal of a `cross-release.sh` output); it writes the report and attests nothing.
 
 ### Downstream copies
 

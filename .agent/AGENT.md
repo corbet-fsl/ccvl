@@ -101,8 +101,9 @@ semantic versioning below 1.0, one release `v<version>` per version of
 arm even more sparingly. We must keep down the compute." Never dispatch `release`
 for a single change or a version bump; changes are batched. When a release is
 wanted, follow `.agent/docs/releases.md`: the Forgejo `release` run drafts the
-compiled bundles for the version's platform set (Linux x86_64 tested; Linux ARM64
-and Windows cross-built; macOS pending until its build clone exists) and
+compiled bundles for the version's platform set (Linux x86_64 tested; Windows x86_64
+cross-built and tested by `release-windows` in the offline Windows clone; Linux ARM64
+and Windows ARM64 cross-built; macOS pending until its build clone exists) and
 `release-promote` publishes them. A source push alone is not delivery. Every
 advertised platform requires its real evidence and all shared publication gates. Never install a
 stale rolling binary or silently compile on a normal user's machine. Developer
