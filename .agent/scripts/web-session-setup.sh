@@ -8,7 +8,7 @@ set -euo pipefail
 
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
-# Keep these in step with .github/workflows/ci.yml.
+# Keep these in step with the actionlint version pinned in .ci/run-cached.sh.
 actionlint_version=1.7.12
 actionlint_sha256=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
 # A system bin directory when writable, so every later shell finds actionlint.
