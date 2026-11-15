@@ -2,6 +2,8 @@
 //! Hosts supply records and bytes; the core never opens a project directory.
 
 pub mod contract;
+#[cfg(feature = "doc")]
+pub mod doc;
 pub mod edit;
 #[cfg(feature = "render")]
 pub mod pdf;
