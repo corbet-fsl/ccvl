@@ -8,10 +8,15 @@ license = "FSL-1.1-ALv2"
 readme = "README.md"
 
 [features]
-default = []
+default = ["storage"]
 render = ["dep:ctyp"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
 doc = ["dep:yrs", "dep:base64"]
+# Persistence through `cvws` (`session::storage`): on by default for native targets; a wasm32 build
+# compiles without it whatever the feature says.
+storage = ["doc", "dep:cvws"]
+# The server-bound session (`session::remote`) over `cvws::RemoteStore`.
+remote = ["storage", "dep:cvdb"]
 
 [dependencies]
 anyhow = "1.0"
@@ -24,8 +29,14 @@ sha2 = "0.10"
 toml = "1.1"
 yrs = { version = "0.28", optional = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+cvws = { git = "https://git.corbet.ch/corbet-fsl/cvws.git", branch = "main", optional = true }
+cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", default-features = false, optional = true }
+
 [dev-dependencies]
 yrs = "0.28"
+tempfile = "3"
+cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", features = ["fake-server"] }
 
 [lints.rust]
 unsafe_code = "forbid"

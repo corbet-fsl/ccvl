@@ -24,3 +24,12 @@ readiness and application-submission policy remain separate responsibilities.
 With the `doc` feature, `ccvl::session::Workspace` keeps one Yrs document per profile
 sub-document and offers `open`, `apply`, `receive`, `take_outgoing` and `view`. It does no
 I/O and never interprets document content.
+
+## Storage and remote sessions
+
+- `storage` (default on native targets, ignored on wasm32): `ccvl::session::storage::Stored`
+  persists a `Workspace` through any `cvws::Store` (files, `SQLite`, light server): cold load,
+  one compare-and-swap write per sub-document, `refresh` for what other writers committed.
+- `remote`: `ccvl::session::remote::RemoteSession` is a `Stored` on `cvws::RemoteStore`, with
+  the durable outbox (`flush`, `queued`), live frames (`apply_live`) and foreign routing shadows.
+  Only the append write path is carried.

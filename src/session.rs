@@ -916,12 +916,23 @@ impl Workspace {
         self.doc(sub).encode_state()
     }
 
+    /// The state vector of a sub-document, for a store to keep beside its state.
+    #[must_use]
+    pub fn state_vector(&self, sub: SubDoc) -> Vec<u8> {
+        self.doc(sub).state_vector()
+    }
+
     /// True when a sub-document holds updates that wait for missing history.
     #[must_use]
     pub fn has_pending(&self, sub: SubDoc) -> bool {
         self.doc(sub).has_pending()
     }
 }
+
+#[cfg(all(feature = "remote", not(target_arch = "wasm32")))]
+pub mod remote;
+#[cfg(all(feature = "storage", not(target_arch = "wasm32")))]
+pub mod storage;
 
 #[cfg(test)]
 mod tests {
