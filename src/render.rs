@@ -46,8 +46,12 @@ pub struct StyleRenderer {
 }
 
 impl StyleRenderer {
-    pub fn new(bundle: &StyleBundle) -> Result<Self> {
-        bundle.validate()?;
+    pub fn new(given: &StyleBundle) -> Result<Self> {
+        given.validate()?;
+        // A schema 1 bundle renders through its upgraded form; its identity stays the given one,
+        // so documents stored with it keep matching this renderer.
+        let upgraded = given.upgraded()?;
+        let bundle = &upgraded;
         let mut builder = with_packages(
             Engine::builder().fonts(ctyp::fonts::documents()),
             &bundle.packages,
@@ -69,7 +73,7 @@ impl StyleRenderer {
             builder = builder.fonts([bundle.files[path].clone()]);
         }
         Ok(Self {
-            bundle_sha256: bundle.sha256()?,
+            bundle_sha256: given.sha256()?,
             engine: builder
                 .build()
                 .context("cannot initialize bundled CCVL style")?,

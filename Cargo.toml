@@ -36,6 +36,7 @@ cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", def
 [dev-dependencies]
 yrs = "0.28"
 tempfile = "3"
+flate2 = "1"
 cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", features = ["fake-server"] }
 
 [lints.rust]

@@ -6,7 +6,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+/// The bundle schema this engine writes.
 pub const BUNDLE_SCHEMA: u32 = 2;
+
+/// The first bundle schema, still read: its Typst helpers travel in `files` under
+/// `.agent/typst/` and it has no `packages`. See [`StyleBundle::upgraded`].
+pub const BUNDLE_SCHEMA_V1: u32 = 1;
+
+/// Project path where schema 1 styles import the generated correspondence module.
+pub const LEGACY_CORRESPONDENCE_PATH: &str = ".agent/typst/correspondence.typ";
 
 /// Namespace and name of the ccvl engine Typst package. Styles import it as
 /// `@local/ccvl:<version>`; its host supplies the files.
@@ -39,6 +47,8 @@ pub struct StyleBundle {
     pub files: BTreeMap<String, Vec<u8>>,
     /// The engine Typst package by spec (`@local/ccvl:<version>`), with its
     /// package-relative files. The renderer adds the correspondence module.
+    /// Absent in schema 1.
+    #[serde(default)]
     pub packages: Packages,
 }
 
@@ -56,8 +66,12 @@ pub struct StyleDocument {
 impl StyleBundle {
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema_version == BUNDLE_SCHEMA && self.engine_api == 1,
+            matches!(self.schema_version, BUNDLE_SCHEMA_V1 | BUNDLE_SCHEMA) && self.engine_api == 1,
             "unsupported CCVL style bundle or engine API"
+        );
+        ensure!(
+            self.schema_version != BUNDLE_SCHEMA_V1 || self.packages.is_empty(),
+            "a schema 1 style bundle carries no packages"
         );
         ensure!(
             !self.id.is_empty() && !self.version.is_empty(),
@@ -147,8 +161,39 @@ impl StyleBundle {
         crate::contract::validate_contract(&self.contract)
     }
 
+    /// The bundle's identity. A schema 1 bundle hashes as it always did, without the `packages`
+    /// field it never had, so a stored document keeps verifying after the upgrade of the engine.
     pub fn sha256(&self) -> Result<String> {
-        Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(self)?)))
+        let bytes = if self.schema_version == BUNDLE_SCHEMA_V1 {
+            serde_json::to_vec(&LegacyBundle::from(self))?
+        } else {
+            serde_json::to_vec(self)?
+        };
+        Ok(format!("{:x}", Sha256::digest(bytes)))
+    }
+
+    /// The same bundle in the current schema. A schema 1 bundle becomes schema 2 with its
+    /// files unchanged, plus the generated correspondence module at the path its styles import
+    /// ([`LEGACY_CORRESPONDENCE_PATH`]), the module the v1 renderer registered from the linked
+    /// cletter: nothing the styles say changes, so the rendered bytes do not either. The upgrade
+    /// changes the identity ([`StyleBundle::sha256`]); upgrade a stored document with
+    /// [`StyleDocument::upgraded`]. A schema 2 bundle is returned as it is.
+    #[cfg(feature = "render")]
+    pub fn upgraded(&self) -> Result<Self> {
+        let mut bundle = self.clone();
+        if bundle.schema_version == BUNDLE_SCHEMA_V1 {
+            ensure!(
+                !bundle.files.contains_key(LEGACY_CORRESPONDENCE_PATH),
+                "a schema 1 bundle must not bundle the generated correspondence module"
+            );
+            bundle.files.insert(
+                LEGACY_CORRESPONDENCE_PATH.to_owned(),
+                crate::render::correspondence_module().into_bytes(),
+            );
+            bundle.schema_version = BUNDLE_SCHEMA;
+        }
+        bundle.validate()?;
+        Ok(bundle)
     }
 
     pub fn with_record(self, record: Value, profile: Value) -> Result<StyleDocument> {
@@ -164,7 +209,69 @@ impl StyleBundle {
     }
 }
 
+/// The serialized form of a schema 1 bundle: today's fields without `packages`, in order.
+#[derive(Serialize)]
+struct LegacyBundle<'a> {
+    schema_version: u32,
+    engine_api: u32,
+    id: &'a str,
+    version: &'a str,
+    document: &'a str,
+    style: &'a str,
+    substyle: &'a str,
+    locale: &'a str,
+    pages: usize,
+    entry: &'a str,
+    inputs: &'a BTreeMap<String, String>,
+    contract: &'a Value,
+    scaffold: &'a Value,
+    fonts: &'a [String],
+    files: &'a BTreeMap<String, Vec<u8>>,
+}
+
+impl<'a> From<&'a StyleBundle> for LegacyBundle<'a> {
+    fn from(b: &'a StyleBundle) -> Self {
+        Self {
+            schema_version: b.schema_version,
+            engine_api: b.engine_api,
+            id: &b.id,
+            version: &b.version,
+            document: &b.document,
+            style: &b.style,
+            substyle: &b.substyle,
+            locale: &b.locale,
+            pages: b.pages,
+            entry: &b.entry,
+            inputs: &b.inputs,
+            contract: &b.contract,
+            scaffold: &b.scaffold,
+            fonts: &b.fonts,
+            files: &b.files,
+        }
+    }
+}
+
 impl StyleDocument {
+    /// The same document on an upgraded bundle (see [`StyleBundle::upgraded`]), verified first and
+    /// re-bound to the new bundle identity. A schema 2 document is returned as it is. Hosts call
+    /// this on load, so what they save is schema 2.
+    #[cfg(feature = "render")]
+    pub fn upgraded(&self) -> Result<Self> {
+        self.validate()?;
+        if self.bundle.schema_version != BUNDLE_SCHEMA_V1 {
+            return Ok(self.clone());
+        }
+        let bundle = self.bundle.upgraded()?;
+        let document = Self {
+            bundle_sha256: bundle.sha256()?,
+            bundle: Arc::new(bundle),
+            record: self.record.clone(),
+            profile: self.profile.clone(),
+        };
+        document.validate()?;
+        Ok(document)
+    }
+
     pub fn validate(&self) -> Result<()> {
         self.bundle.validate()?;
         ensure!(
