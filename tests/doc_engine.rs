@@ -905,3 +905,46 @@ fn writes_never_build_a_tree_the_reads_refuse() {
         "the refused move emitted nothing"
     );
 }
+
+#[test]
+fn inspection_names_the_authors_under_foreign_roots_and_shadows_learn_clients() {
+    use ccvl_core::doc::Shadow;
+    use yrs::{Map as _, MapPrelim, TextPrelim};
+    let profile = YDoc::new();
+    {
+        let cv = profile.get_or_insert_map("cv_profile");
+        let mut txn = profile.transact_mut();
+        let lang = cv.insert(&mut txn, "en", MapPrelim::default());
+        lang.insert(&mut txn, "tree", MapPrelim::default());
+    }
+    let settings = YDoc::new();
+    {
+        let root = settings.get_or_insert_map("settings");
+        let mut txn = settings.transact_mut();
+        let profile = root.insert(&mut txn, "profile", MapPrelim::default());
+        profile.insert(&mut txn, "narrative", TextPrelim::new("hello"));
+    }
+    let state = |doc: &YDoc| {
+        doc.transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default())
+    };
+    let merged = yrs::merge_updates_v1([state(&profile), state(&settings)]).expect("merge");
+    let info = inspect_update(&merged).expect("inspect");
+    assert!(info.roots.contains("cv_profile") && info.roots.contains("settings"));
+    let settings_client = inspect_update(&state(&settings)).expect("inspect").clients;
+    assert_eq!(
+        info.foreign_authors, settings_client,
+        "only the settings author is foreign"
+    );
+    assert_eq!(info.clients.len(), 2);
+
+    let mut shadow = Shadow::new();
+    shadow.receive(&state(&settings)).expect("state");
+    assert_eq!(shadow.known_clients(), settings_client);
+    assert!(shadow.roots().contains("settings"));
+    let mut doc = Doc::new();
+    doc.receive(&state(&profile)).expect("profile");
+    assert!(doc.known_clients().is_disjoint(&settings_client));
+    assert_eq!(doc.known_clients().len(), 1);
+    assert!(doc.knows_client(*doc.known_clients().iter().next().expect("one")));
+}

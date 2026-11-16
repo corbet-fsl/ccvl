@@ -180,21 +180,70 @@ pub struct UpdateInfo {
     pub roots: BTreeSet<String>,
     /// Clients whose structs the frame inserts or deletes.
     pub clients: BTreeSet<u64>,
-    /// Clients of structs the frame refers to without carrying them: the parents,
-    /// origins and deleted items it needs, and its own authors' earlier history.
-    /// A struct is attributed to the document that already holds one of these.
+    /// Clients of structs the frame refers to without carrying them. `yrs` records
+    /// one dependency per stack of blocks it cannot place (the first miss gives up
+    /// on the whole stack), so a frame that merges several commits lists one per
+    /// commit at best; blocks whose dependencies are present integrate behind a
+    /// skip and name nothing. A struct is attributed to the document that already
+    /// holds one of these: never treat the list as complete.
     pub depends_on: BTreeSet<u64>,
+    /// Clients that created shared types (maps, arrays, texts) which the frame
+    /// places under a root that is not a profile root: authors seen to belong to
+    /// a foreign sub-document even when the frame also names a profile root.
+    pub foreign_authors: BTreeSet<u64>,
     /// True for a frame that carries nothing.
     pub empty: bool,
 }
 
+/// Walk the shared types under the roots that are not profile roots and collect
+/// the clients that created them (bounded in nodes and depth). Roots a frame
+/// creates implicitly are untyped until a document asks for them; every root of
+/// the web is a map, so they are read as maps.
+fn foreign_branch_clients(probe: &yrs::Doc, roots: &BTreeSet<String>) -> BTreeSet<u64> {
+    use yrs::types::SharedRef;
+    fn note(id: &yrs::branch::BranchID, out: &mut BTreeSet<u64>) {
+        if let yrs::branch::BranchID::Nested(item) = id {
+            out.insert(item.client.get());
+        }
+    }
+    let mut out = BTreeSet::new();
+    let mut budget = 10_000_usize;
+    for name in roots {
+        if matches!(name.as_str(), "cv_profile" | "cl_profile") {
+            continue;
+        }
+        let root = probe.get_or_insert_map(name.as_str());
+        let txn = probe.transact();
+        let mut stack = vec![(Out::YMap(root), 0_usize)];
+        while let Some((value, depth)) = stack.pop() {
+            if budget == 0 || depth > 64 {
+                break;
+            }
+            budget -= 1;
+            match value {
+                Out::YMap(m) => {
+                    note(m.hook().id(), &mut out);
+                    stack.extend(m.iter(&txn).map(|(_, v)| (v, depth + 1)));
+                }
+                Out::YArray(a) => {
+                    note(a.hook().id(), &mut out);
+                    stack.extend(yrs::Array::iter(&a, &txn).map(|v| (v, depth + 1)));
+                }
+                Out::YText(t) => note(t.hook().id(), &mut out),
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
 /// Inspect update bytes: which root names, clients and dependencies they involve.
-/// The frame is applied to a throw-away empty document; structs whose parents are
-/// not in the frame wait there, and what they wait for is `depends_on`.
+/// The frame is decoded once and applied to a throw-away empty document; structs
+/// whose parents are not in the frame wait there, and what they wait for is
+/// `depends_on`.
 pub fn inspect_update(bytes: &[u8]) -> Result<UpdateInfo, OpError> {
-    let decode =
-        || Update::decode_v1(bytes).map_err(|e| OpError::new(format!("undecodable update: {e}")));
-    let update = decode()?;
+    let update =
+        Update::decode_v1(bytes).map_err(|e| OpError::new(format!("undecodable update: {e}")))?;
     let mut clients = BTreeSet::new();
     for (client, _) in update.insertions(true).iter() {
         clients.insert(client.get());
@@ -204,27 +253,88 @@ pub fn inspect_update(bytes: &[u8]) -> Result<UpdateInfo, OpError> {
     }
     let empty = update.is_empty();
     let probe = yrs::Doc::new();
-    let mut txn = probe.transact_mut();
-    txn.apply_update(decode()?)
-        .map_err(|e| OpError::new(format!("update refused: {e}")))?;
-    let roots = txn.root_refs().map(|(name, _)| name.to_string()).collect();
-    let mut depends_on = BTreeSet::new();
-    if let Some(pending) = txn.store().pending_update() {
-        for (client, _) in pending.missing.iter() {
-            depends_on.insert(client.get());
+    let (roots, depends_on) = {
+        let mut txn = probe.transact_mut();
+        txn.apply_update(update)
+            .map_err(|e| OpError::new(format!("update refused: {e}")))?;
+        let roots: BTreeSet<String> = txn.root_refs().map(|(name, _)| name.to_string()).collect();
+        let mut depends_on = BTreeSet::new();
+        if let Some(pending) = txn.store().pending_update() {
+            for (client, _) in pending.missing.iter() {
+                depends_on.insert(client.get());
+            }
         }
-    }
-    if let Some(pending) = txn.store().pending_ds() {
-        for (client, _) in pending.iter() {
-            depends_on.insert(client.get());
+        if let Some(pending) = txn.store().pending_ds() {
+            for (client, _) in pending.iter() {
+                depends_on.insert(client.get());
+            }
         }
-    }
+        (roots, depends_on)
+    };
+    let foreign_authors = foreign_branch_clients(&probe, &roots);
     Ok(UpdateInfo {
         roots,
         clients,
         depends_on,
+        foreign_authors,
         empty,
     })
+}
+
+/// A plain Yrs document that a host keeps only to attribute frames: the state of a
+/// sub-document that is not a profile (settings, layout, order state, jobs, notes).
+/// It is never an engine document: it reports nothing, produces no bytes, and has
+/// no way to be written out. Frames attributed to it are applied to it, so it keeps
+/// learning clients and can resolve the parents and left items of later frames.
+pub struct Shadow {
+    inner: yrs::Doc,
+}
+
+impl Default for Shadow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shadow {
+    /// An empty shadow.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            inner: yrs::Doc::new(),
+        }
+    }
+
+    /// Apply a frame or a whole state (update format v1).
+    pub fn receive(&mut self, update: &[u8]) -> Result<(), OpError> {
+        let update = Update::decode_v1(update)
+            .map_err(|e| OpError::new(format!("undecodable update: {e}")))?;
+        self.inner
+            .transact_mut()
+            .apply_update(update)
+            .map_err(|e| OpError::new(format!("update refused: {e}")))
+    }
+
+    /// The clients this shadow has seen structs of.
+    #[must_use]
+    pub fn known_clients(&self) -> BTreeSet<u64> {
+        self.inner
+            .transact()
+            .state_vector()
+            .iter()
+            .map(|(client, _)| client.get())
+            .collect()
+    }
+
+    /// The top-level types this shadow holds.
+    #[must_use]
+    pub fn roots(&self) -> BTreeSet<String> {
+        self.inner
+            .transact()
+            .root_refs()
+            .map(|(name, _)| name.to_string())
+            .collect()
+    }
 }
 
 /// Outgoing bytes could not be handed over; they stay pending in the document.
@@ -693,6 +803,18 @@ impl Doc {
         if !update.is_empty() {
             lock(&self.outgoing).insert(0, update);
         }
+    }
+
+    /// The clients this document has seen structs of (one state-vector walk: take it
+    /// once per call, not once per client).
+    #[must_use]
+    pub fn known_clients(&self) -> BTreeSet<u64> {
+        self.inner
+            .transact()
+            .state_vector()
+            .iter()
+            .map(|(client, _)| client.get())
+            .collect()
     }
 
     /// True when this document has seen structs of `client`.
