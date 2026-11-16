@@ -101,15 +101,19 @@ fn changed_from(value: &Value) -> Changed {
         .as_array()
         .expect("changed nodes")
         .iter()
-        .map(|n| NodeRef {
-            branch: n["branch"].as_str().expect("branch").to_string(),
-            path: n["path"].as_str().expect("path").to_string(),
+        .map(|n| {
+            NodeRef::new(
+                n["branch"].as_str().expect("branch"),
+                n["path"]
+                    .as_array()
+                    .expect("path segments")
+                    .iter()
+                    .map(|p| p.as_str().expect("segment").to_string())
+                    .collect(),
+            )
         })
         .collect();
-    Changed {
-        nodes,
-        formats: formats("formats"),
-    }
+    Changed::new(nodes, formats("formats"))
 }
 
 fn expected_changed(expect: &Value) -> Changed {

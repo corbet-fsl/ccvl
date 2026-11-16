@@ -11,7 +11,7 @@ use yrs::types::{Change, EntryChange, Event, Events, PathSegment};
 use yrs::{Array, Map as _, MapRef, Out, ReadTxn, TransactionMut};
 
 use super::NodeRef;
-use super::tree::{child_maps, node_id};
+use super::tree::{MAX_DEPTH, child_maps, node_id};
 
 #[derive(Default)]
 pub(crate) struct Tracker {
@@ -19,23 +19,27 @@ pub(crate) struct Tracker {
     pub formats: BTreeSet<String>,
 }
 
-/// Report `node` and everything below it; `path` is the path of `node`.
+/// Report `node` and everything below it down to `MAX_DEPTH` levels; `path` is
+/// the path of `node`. Deeper nodes are not reachable by any read, and the
+/// walk keeps one path per node on the stack, so its memory is bounded by the cap.
 fn collect_subtree<T: ReadTxn>(
     txn: &T,
     branch: &str,
     node: &MapRef,
-    path: &str,
+    path: &[String],
     out: &mut BTreeSet<NodeRef>,
 ) {
-    let mut stack = vec![(node.clone(), path.to_string())];
+    let mut stack = vec![(node.clone(), path.to_vec())];
     while let Some((current, current_path)) = stack.pop() {
-        out.insert(NodeRef {
-            branch: branch.to_string(),
-            path: current_path.clone(),
-        });
+        out.insert(NodeRef::new(branch, current_path.clone()));
+        if current_path.len() >= MAX_DEPTH {
+            continue;
+        }
         for child in child_maps(txn, &current) {
             if let Some(id) = node_id(txn, &child) {
-                stack.push((child, format!("{current_path}.{id}")));
+                let mut child_path = current_path.clone();
+                child_path.push(id);
+                stack.push((child, child_path));
             }
         }
     }
@@ -43,7 +47,7 @@ fn collect_subtree<T: ReadTxn>(
 
 fn collect_tree<T: ReadTxn>(txn: &T, branch: &str, tree: &MapRef, out: &mut BTreeSet<NodeRef>) {
     if let Some(id) = node_id(txn, tree) {
-        collect_subtree(txn, branch, tree, &id, out);
+        collect_subtree(txn, branch, tree, &[id], out);
     }
 }
 
@@ -134,7 +138,7 @@ fn record_in_tree(
         return None;
     };
     let branch = format!("{root_name}.{lang}");
-    let mut owner_path = node_id(txn, &tree)?;
+    let mut owner_path = vec![node_id(txn, &tree)?];
     let mut current = Out::YMap(tree);
     let mut previous: Option<String> = None;
     for segment in rest {
@@ -154,31 +158,27 @@ fn record_in_tree(
                 if previous.as_deref() == Some("children")
                     && let Out::YMap(m) = &current
                 {
-                    let id = node_id(txn, m)?;
-                    owner_path = format!("{owner_path}.{id}");
+                    if owner_path.len() >= MAX_DEPTH {
+                        return None;
+                    }
+                    owner_path.push(node_id(txn, m)?);
                 }
                 previous = None;
             }
         }
     }
-    t.nodes.insert(NodeRef {
-        branch: branch.clone(),
-        path: owner_path.clone(),
-    });
+    t.nodes.insert(NodeRef::new(&branch, owner_path.clone()));
     if let Event::Array(ae) = event {
         for change in ae.delta(txn) {
             if let Change::Added(added) = change {
                 for out in added {
                     if let Out::YMap(m) = out
                         && let Some(id) = node_id(txn, m)
+                        && owner_path.len() < MAX_DEPTH
                     {
-                        collect_subtree(
-                            txn,
-                            &branch,
-                            m,
-                            &format!("{owner_path}.{id}"),
-                            &mut t.nodes,
-                        );
+                        let mut path = owner_path.clone();
+                        path.push(id);
+                        collect_subtree(txn, &branch, m, &path, &mut t.nodes);
                     }
                 }
             }

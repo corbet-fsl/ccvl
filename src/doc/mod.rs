@@ -12,6 +12,16 @@
 //! * `selection.active` is a plain array (last writer wins as a whole);
 //! * a `Y.Text` is parented to the document before its first insert.
 //!
+//! A [`Doc::scoped`] document owns one profile root (a sub-document of the
+//! workspace) and reports and edits only that root.
+//!
+//! Known limit: `yrs` decodes plain nested values recursively (`Any::decode`),
+//! so a hostile frame of a few hundred KB of nested arrays can exhaust the stack
+//! before the engine sees it. Hosts cap the size of a frame and run `receive` on a
+//! thread with a stack sized for that cap (`cvws` does the first and documents the
+//! second). Everything the engine itself walks is iterative or depth-capped:
+//! trees at 128 levels, JSON conversion at 256.
+//!
 //! Boundary: [`Doc::apply_op`], [`Doc::type_text`], [`Doc::view`],
 //! [`Doc::receive`], [`Doc::take_outgoing`]. Mutations return [`Changed`]: the
 //! ids a reader must re-read, never a whole tree.
@@ -110,25 +120,51 @@ impl ActorClass {
     }
 }
 
-/// Where a node lives: the branch (`<profile>.<lang>`) and the dot-joined id
-/// path from the tree root, wrappers included. This is what [`Doc::view`] takes.
-/// Ids repeat across language trees and between siblings of different parents,
-/// so an id alone does not say which node changed.
+/// Where a node lives: the branch (`<profile>.<lang>`) and the id path from the
+/// tree root as segments, wrappers included. [`Doc::view_ref`] takes it. Ids repeat
+/// across language trees and between siblings of different parents, so an id alone
+/// does not say which node changed; and an id may contain a dot, so the path is kept
+/// as segments (the dotted form exists for op envelopes only).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct NodeRef {
     pub branch: String,
-    pub path: String,
+    pub path: Vec<String>,
+}
+
+impl NodeRef {
+    /// A location from a branch and id segments.
+    pub fn new(branch: impl Into<String>, path: Vec<String>) -> Self {
+        Self {
+            branch: branch.into(),
+            path,
+        }
+    }
+
+    /// The path as the dotted string op envelopes use. Ambiguous when an id contains a dot.
+    #[must_use]
+    pub fn dotted(&self) -> String {
+        self.path.join(".")
+    }
 }
 
 /// What a mutation touched, sorted: nodes by location, and the
-/// `<profile>.<lang>` branches whose `format` map changed.
+/// `<profile>.<lang>` branches whose `format` map changed. A document reports
+/// only the roots it owns.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Changed {
     pub nodes: Vec<NodeRef>,
     pub formats: Vec<String>,
 }
 
 impl Changed {
+    /// A change report (sorted by the caller or not: it is stored as given).
+    #[must_use]
+    pub fn new(nodes: Vec<NodeRef>, formats: Vec<String>) -> Self {
+        Self { nodes, formats }
+    }
+
     /// True when nothing changed.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -138,16 +174,23 @@ impl Changed {
 
 /// What an update frame is made of, read without applying it to a document.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct UpdateInfo {
     /// Top-level types named by structs of the frame (`cv_profile`, `jobs`, ...).
     pub roots: BTreeSet<String>,
     /// Clients whose structs the frame inserts or deletes.
     pub clients: BTreeSet<u64>,
+    /// Clients of structs the frame refers to without carrying them: the parents,
+    /// origins and deleted items it needs, and its own authors' earlier history.
+    /// A struct is attributed to the document that already holds one of these.
+    pub depends_on: BTreeSet<u64>,
     /// True for a frame that carries nothing.
     pub empty: bool,
 }
 
-/// Inspect update bytes: which root names and clients they involve.
+/// Inspect update bytes: which root names, clients and dependencies they involve.
+/// The frame is applied to a throw-away empty document; structs whose parents are
+/// not in the frame wait there, and what they wait for is `depends_on`.
 pub fn inspect_update(bytes: &[u8]) -> Result<UpdateInfo, OpError> {
     let decode =
         || Update::decode_v1(bytes).map_err(|e| OpError::new(format!("undecodable update: {e}")));
@@ -160,19 +203,49 @@ pub fn inspect_update(bytes: &[u8]) -> Result<UpdateInfo, OpError> {
         clients.insert(client.get());
     }
     let empty = update.is_empty();
-    // Structs that name a root type create it in an empty document; the rest
-    // wait there for parents they cannot find.
     let probe = yrs::Doc::new();
     let mut txn = probe.transact_mut();
     txn.apply_update(decode()?)
         .map_err(|e| OpError::new(format!("update refused: {e}")))?;
     let roots = txn.root_refs().map(|(name, _)| name.to_string()).collect();
+    let mut depends_on = BTreeSet::new();
+    if let Some(pending) = txn.store().pending_update() {
+        for (client, _) in pending.missing.iter() {
+            depends_on.insert(client.get());
+        }
+    }
+    if let Some(pending) = txn.store().pending_ds() {
+        for (client, _) in pending.iter() {
+            depends_on.insert(client.get());
+        }
+    }
     Ok(UpdateInfo {
         roots,
         clients,
+        depends_on,
         empty,
     })
 }
+
+/// Outgoing bytes could not be handed over; they stay pending in the document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutgoingError(String);
+
+impl OutgoingError {
+    /// The human-readable reason.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for OutgoingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for OutgoingError {}
 
 const ID_ALPHABET: &[u8; 64] = b"useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
 
@@ -215,6 +288,7 @@ const REMOTE_ORIGIN: &str = "remote";
 pub struct Doc {
     inner: yrs::Doc,
     roots: Roots,
+    scope: Option<&'static str>,
     tracker: Arc<Mutex<Tracker>>,
     outgoing: Arc<Mutex<Vec<Vec<u8>>>>,
     ids: Box<dyn FnMut() -> String + Send>,
@@ -230,13 +304,26 @@ impl Doc {
     /// An empty document with a random client id.
     #[must_use]
     pub fn new() -> Self {
-        Self::build(None)
+        Self::build(None, None)
     }
 
     /// An empty document with a fixed client id (tests and reproducible vectors).
     #[must_use]
     pub fn with_client_id(client_id: u64) -> Self {
-        Self::build(Some(client_id))
+        Self::build(Some(client_id), None)
+    }
+
+    /// An empty document that owns one profile root, `cv_profile` or `cl_profile`
+    /// (a sub-document of the workspace): it observes and reports only that
+    /// root, and refuses ops on the other one. `None` for any other name.
+    #[must_use]
+    pub fn scoped(profile: &str) -> Option<Self> {
+        let scope = match profile {
+            "cv_profile" => "cv_profile",
+            "cl_profile" => "cl_profile",
+            _ => return None,
+        };
+        Some(Self::build(None, Some(scope)))
     }
 
     /// Replace the generator used when an op omits an id (`node.create`, promotions).
@@ -253,11 +340,14 @@ impl Doc {
         Ok(doc)
     }
 
-    fn build(client_id: Option<u64>) -> Self {
+    fn build(client_id: Option<u64>, scope: Option<&'static str>) -> Self {
         let doc = new_doc(client_id);
-        let roots = Roots::new(&doc);
+        let roots = Roots::new(&doc, scope);
         let tracker = Arc::new(Mutex::new(Tracker::default()));
         for (name, root) in [("cv_profile", &roots.cv), ("cl_profile", &roots.cl)] {
+            if !roots.owns(name) {
+                continue;
+            }
             let tracker = Arc::clone(&tracker);
             let observed = root.clone();
             yrs::DeepObservable::observe_deep(root, name, move |txn, events| {
@@ -278,6 +368,7 @@ impl Doc {
         Self {
             inner: doc,
             roots,
+            scope,
             tracker,
             outgoing,
             ids: Box::new(default_id_source()),
@@ -344,12 +435,42 @@ impl Doc {
         replacement: &str,
         actor: ActorClass,
     ) -> Result<Changed, OpError> {
+        let segments: Vec<String> = tree::parse_node_path(node_path)
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        self.type_text_segments(branch_path, &segments, key, range, replacement, actor)
+    }
+
+    /// [`Doc::type_text`] at a node named by a [`NodeRef`] (ids may contain dots).
+    pub fn type_text_ref(
+        &mut self,
+        at: &NodeRef,
+        key: &str,
+        range: Range<u32>,
+        replacement: &str,
+        actor: ActorClass,
+    ) -> Result<Changed, OpError> {
+        self.type_text_segments(&at.branch, &at.path, key, range, replacement, actor)
+    }
+
+    fn type_text_segments(
+        &mut self,
+        branch_path: &str,
+        segments: &[String],
+        key: &str,
+        range: Range<u32>,
+        replacement: &str,
+        actor: ActorClass,
+    ) -> Result<Changed, OpError> {
+        let node_path = segments.join(".");
+        let node_path = node_path.as_str();
         self.run(actor, false, |ctx, txn| {
             let branch = ops::resolve_branch_root(ctx.roots, &*txn, branch_path)?;
             let Some(tree) = tree::get_map(&*txn, &branch, "tree") else {
                 return ops::fail(format!("type_text: tree not found at '{branch_path}'"));
             };
-            let Some(node) = tree::resolve_node_path(&*txn, &tree, node_path) else {
+            let Some((node, _)) = tree::resolve_segments(&*txn, &tree, segments) else {
                 return ops::fail(format!(
                     "type_text: node '{node_path}' not found in '{branch_path}'"
                 ));
@@ -358,7 +479,8 @@ impl Doc {
             let kind = tree::node_kind(&*txn, &node).unwrap_or_default();
             let data_json = node
                 .get(&*txn, "data")
-                .map(|d| convert::out_to_value(&*txn, &d));
+                .map(|d| convert::out_to_value(&*txn, &d))
+                .transpose()?;
             if !tree::prose_keys(&kind, data_json.as_ref()).contains(&key) {
                 return ops::fail(format!(
                     "type_text: '{key}' is not a prose field of node '{node_path}'"
@@ -428,11 +550,25 @@ impl Doc {
 
     /// The JSON of one node and its subtree, exactly the `Node` shape the web reads.
     pub fn view(&self, branch_path: &str, node_path: &str) -> Result<Value, OpError> {
+        let segments: Vec<String> = tree::parse_node_path(node_path)
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        self.view_segments(branch_path, &segments)
+    }
+
+    /// [`Doc::view`] at a node named by a [`NodeRef`] (ids may contain dots).
+    pub fn view_ref(&self, at: &NodeRef) -> Result<Value, OpError> {
+        self.view_segments(&at.branch, &at.path)
+    }
+
+    fn view_segments(&self, branch_path: &str, segments: &[String]) -> Result<Value, OpError> {
         let txn = self.inner.transact();
         let tree = self.tree(&txn, branch_path)?;
-        let node = tree::resolve_node_path(&txn, &tree, node_path).ok_or_else(|| {
+        let (node, _) = tree::resolve_segments(&txn, &tree, segments).ok_or_else(|| {
             OpError::new(format!(
-                "view: node '{node_path}' not found in '{branch_path}'"
+                "view: node '{}' not found in '{branch_path}'",
+                segments.join(".")
             ))
         })?;
         tree::node_json(&txn, &node)
@@ -449,10 +585,9 @@ impl Doc {
     pub fn format_json(&self, branch_path: &str) -> Result<Option<Value>, OpError> {
         let txn = self.inner.transact();
         let lang = self.lang_map(&txn, branch_path)?;
-        Ok(
-            tree::get_map(&txn, &lang, "format")
-                .map(|f| convert::out_to_value(&txn, &Out::YMap(f))),
-        )
+        tree::get_map(&txn, &lang, "format")
+            .map(|f| convert::out_to_value(&txn, &Out::YMap(f)))
+            .transpose()
     }
 
     fn lang_map<T: ReadTxn>(&self, txn: &T, branch_path: &str) -> Result<yrs::MapRef, OpError> {
@@ -480,7 +615,7 @@ impl Doc {
     /// A copy of this document (same content, new client id, no observers
     /// shared). Used to try an update or an op without touching the original.
     pub fn fork(&self) -> Result<Self, OpError> {
-        let mut copy = Self::new();
+        let mut copy = Self::build(None, self.scope);
         copy.receive(&self.encode_state())?;
         Ok(copy)
     }
@@ -506,7 +641,7 @@ impl Doc {
                 tree::ensure_depth(&txn, &tree)?;
             }
         }
-        Ok(convert::out_to_value(&txn, &Out::YMap(root.clone())))
+        convert::out_to_value(&txn, &Out::YMap(root.clone()))
     }
 
     /// True when received updates are waiting for missing causal history.
@@ -535,7 +670,7 @@ impl Doc {
     /// The updates produced by local ops since the last call, merged into one.
     /// Empty when nothing is pending. If merging fails the updates stay pending
     /// and the error is returned: outgoing bytes are never lost.
-    pub fn take_outgoing(&mut self) -> Result<Vec<u8>, OpError> {
+    pub fn take_outgoing(&mut self) -> Result<Vec<u8>, OutgoingError> {
         let pending = std::mem::take(&mut *lock(&self.outgoing));
         match pending.len() {
             0 => Ok(Vec::new()),
@@ -544,7 +679,7 @@ impl Doc {
                 Ok(merged) => Ok(merged),
                 Err(e) => {
                     *lock(&self.outgoing) = pending;
-                    Err(OpError::new(format!(
+                    Err(OutgoingError(format!(
                         "outgoing updates could not be merged: {e}"
                     )))
                 }
@@ -605,7 +740,7 @@ impl Doc {
             ("cv_profile", &self.roots.cv),
             ("cl_profile", &self.roots.cl),
         ] {
-            if root.len(&txn) > 0 {
+            if self.roots.owns(name) && root.len(&txn) > 0 {
                 out.insert(
                     name.into(),
                     convert::dump_shape(&txn, &Out::YMap(root.clone())),

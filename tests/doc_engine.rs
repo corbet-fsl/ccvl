@@ -62,10 +62,11 @@ fn sibling(from: &Doc, client: u64) -> Doc {
 }
 
 fn at(path: &str) -> NodeRef {
-    NodeRef {
-        branch: BRANCH.into(),
-        path: path.into(),
-    }
+    node_ref(BRANCH, path)
+}
+
+fn node_ref(branch: &str, path: &str) -> NodeRef {
+    NodeRef::new(branch, path.split('.').map(str::to_string).collect())
 }
 
 fn human(
@@ -231,10 +232,7 @@ fn changed_nodes_carry_their_location() {
         .expect("update");
     assert_eq!(
         changed.nodes,
-        vec![NodeRef {
-            branch: "cv_profile.de".into(),
-            path: "root.item.b1".into()
-        }]
+        vec![node_ref("cv_profile.de", "root.item.b1")]
     );
     let twin = doc
         .apply_op(
@@ -708,4 +706,202 @@ fn text_with_embedded_content_is_refused_by_type_text_and_replaced_whole_by_upda
     .expect("replaced whole");
     assert_eq!(doc.prose(BRANCH, "root.b", "text").as_deref(), Some("xyz"));
     human(&mut doc, "root.b", "text", 0..1, "w").expect("typing works once the embed is gone");
+}
+
+#[test]
+fn node_refs_keep_ids_with_dots_apart() {
+    // Two different nodes whose dotted paths are the same string.
+    let mut doc = Doc::new();
+    let tree = node(
+        "root",
+        "cv-root",
+        json!({}),
+        vec![
+            node("a.b", "section", json!({}), vec![]),
+            node(
+                "a",
+                "section",
+                json!({}),
+                vec![node("b", "section", json!({}), vec![])],
+            ),
+        ],
+    );
+    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": tree }))
+        .expect("seed");
+    let dotted_id = NodeRef::new(BRANCH, vec!["root".into(), "a.b".into()]);
+    let nested = NodeRef::new(BRANCH, vec!["root".into(), "a".into(), "b".into()]);
+    assert_eq!(
+        dotted_id.dotted(),
+        nested.dotted(),
+        "the dotted forms collide"
+    );
+    assert_eq!(doc.view_ref(&dotted_id).expect("view")["id"], "a.b");
+    assert_eq!(doc.view_ref(&nested).expect("view")["id"], "b");
+    let changed = doc
+        .type_text_ref(&nested, "text", 0..0, "x", ActorClass::Human)
+        .expect_err("a section has no prose");
+    assert!(changed.message().contains("not a prose field"), "{changed}");
+    let changed = doc
+        .apply_op(&json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.a.b", "patch": { "tier": "OPEN" } }))
+        .expect("update");
+    assert_eq!(changed.nodes, vec![nested]);
+}
+
+#[test]
+fn a_scoped_document_owns_one_root_and_reports_only_it() {
+    let mut cv = Doc::scoped("cv_profile").expect("scope");
+    assert!(Doc::scoped("jobs").is_none());
+    cv.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": tree() }))
+        .expect("own root");
+    let err = cv
+        .apply_op(&json!({ "kind": "cl_profile.replace", "lang": "en", "tree": tree() }))
+        .expect_err("not ours");
+    assert!(
+        err.message().contains("is not part of this document"),
+        "{err}"
+    );
+    let err = cv
+        .apply_op(&json!({ "kind": "node.update", "branch_path": "cl_profile.en", "node_path": "root", "patch": {} }))
+        .expect_err("not ours");
+    assert!(
+        err.message().contains("is not part of this document"),
+        "{err}"
+    );
+    assert_ne!(outgoing(&mut cv).len(), 0);
+
+    // A frame that carries both roots is reported for the owned root only.
+    let mut both = Doc::new();
+    both.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": tree() }))
+        .expect("cv");
+    both.apply_op(&json!({ "kind": "cl_profile.replace", "lang": "en", "tree": tree() }))
+        .expect("cl");
+    let mut scoped = Doc::scoped("cl_profile").expect("scope");
+    let changed = scoped.receive(&both.encode_state()).expect("receive");
+    assert_ne!(changed.nodes.len(), 0);
+    assert!(
+        changed
+            .nodes
+            .iter()
+            .all(|n| n.branch.starts_with("cl_profile.")),
+        "{changed:?}"
+    );
+    assert!(
+        scoped
+            .dry_run_as(
+                &json!({ "kind": "node.update", "branch_path": "cl_profile.en",
+        "node_path": "root.item.b1", "patch": { "tier": "OPEN" } }),
+                ActorClass::Human
+            )
+            .is_ok()
+    );
+    assert!(
+        scoped
+            .fork()
+            .expect("fork")
+            .profile_json("cv_profile")
+            .is_err(),
+        "a fork keeps the scope"
+    );
+}
+
+#[test]
+fn deep_trees_are_bounded_in_memory_and_in_reads() {
+    // 20 000 levels: the change report stays bounded by the depth cap.
+    let mut doc = Doc::new();
+    let changed = doc.receive(&deep_peer_update(20_000)).expect("accepted");
+    assert!(
+        changed.nodes.len() <= 130,
+        "{} nodes reported",
+        changed.nodes.len()
+    );
+    // A node whose data is a deep plain value cannot be read as JSON, only refused.
+    let peer = YDoc::new();
+    let root = peer.get_or_insert_map("cv_profile");
+    {
+        let mut txn = peer.transact_mut();
+        let lang = root.insert(&mut txn, "en", MapPrelim::default());
+        let tree = lang.insert(&mut txn, "tree", MapPrelim::default());
+        tree.insert(&mut txn, "id", "root");
+        tree.insert(&mut txn, "kind", "cv-root");
+        tree.insert(&mut txn, "tier", "FIXED");
+        tree.insert(&mut txn, "children", ArrayPrelim::default());
+        let mut chain = yrs::Any::Null;
+        for _ in 0..5_000 {
+            chain = yrs::Any::Array(vec![chain].into());
+        }
+        tree.insert(&mut txn, "data", chain);
+    }
+    let mut doc = Doc::new();
+    doc.receive(
+        &peer
+            .transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default()),
+    )
+    .expect("loads");
+    for err in [
+        doc.view(BRANCH, "root").expect_err("view").to_string(),
+        doc.apply_op(
+            &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root",
+            "patch": { "data": { "x": 1 } } }),
+        )
+        .expect_err("update")
+        .to_string(),
+        doc.apply_op(
+            &json!({ "kind": "cvl.duplicate_as_variant", "branch_path": BRANCH,
+            "node_path": "root.root" }),
+        )
+        .expect_err("dup")
+        .to_string(),
+    ] {
+        assert_ne!(err.len(), 0);
+    }
+}
+
+#[test]
+fn writes_never_build_a_tree_the_reads_refuse() {
+    let chain = |levels: usize| {
+        let mut tree = node("leaf", "section", json!({}), vec![]);
+        for level in (1..levels).rev() {
+            tree = node(&format!("n{level}"), "section", json!({}), vec![tree]);
+        }
+        tree
+    };
+    let mut doc = Doc::new();
+    // 128 levels is the cap; 129 is refused.
+    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": chain(128) }))
+        .expect("128 levels");
+    assert!(
+        doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "de", "tree": chain(129) }))
+            .is_err()
+    );
+    assert!(
+        doc.tree_json(BRANCH).is_ok(),
+        "the tree it built can be read"
+    );
+    let mut path = vec!["n1".to_string()];
+    path.extend((2..128).map(|i| format!("n{i}")));
+    path.push("leaf".into());
+    let deepest = path.join(".");
+    let before = doc.shape();
+    outgoing(&mut doc);
+    let create = |parent: &str, id: &str| {
+        json!({ "kind": "node.create", "branch_path": BRANCH,
+        "parent_path": parent, "node": node(id, "bullet", json!({}), vec![]) })
+    };
+    let err = doc
+        .apply_op(&create(&deepest, "one-too-many"))
+        .expect_err("depth");
+    assert!(err.message().contains("deeper than"), "{err}");
+    // A move that would push a subtree past the cap is refused too, and changes nothing.
+    doc.apply_op(&create("n1", "wide"))
+        .expect("shallow create is fine");
+    outgoing(&mut doc);
+    let moved = json!({ "kind": "node.move", "branch_path": BRANCH, "from_path": "n1.n2", "to_parent_path": "n1.wide" });
+    assert!(doc.apply_op(&moved).is_err());
+    assert_ne!(doc.shape(), before, "the shallow create did change it");
+    assert_eq!(
+        outgoing(&mut doc).len(),
+        0,
+        "the refused move emitted nothing"
+    );
 }

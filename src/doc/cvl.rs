@@ -102,7 +102,7 @@ fn duplicate_as_variant<T: ReadTxn>(
     let Some(parent) = resolve_node_path(txn, tree, &parent_path) else {
         return fail(format!("{kind}: parent '{parent_path}' not found"));
     };
-    let fields = snapshot_node_fields(txn, &source);
+    let fields = snapshot_node_fields(txn, &source)?;
     let source_id = node_id(txn, &source).unwrap_or_default();
     let duplicate_id = match op.get("new_id").and_then(Value::as_str) {
         Some(id) => id.to_string(),

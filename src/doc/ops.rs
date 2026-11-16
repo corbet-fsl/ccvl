@@ -14,9 +14,10 @@ use yrs::{
 use super::convert::{out_to_value, value_to_any};
 use super::cvl;
 use super::tree::{
-    apply_data_patch, child_id_set, ensure_children_array, ensure_lang_map, ensure_map,
-    ensure_selection_map, ensure_value_depth, fill_node, find_child_index, get_array, get_map,
-    node_id, node_json, parse_node_path, prose_keys, resolve_node_path, scrub_from_selection,
+    apply_data_patch, child_id_set, ensure_children_array, ensure_fits, ensure_lang_map,
+    ensure_map, ensure_selection_map, fill_node, find_child_index, get_array, get_map, node_id,
+    node_json, parse_node_path, prose_keys, resolve_node_path, resolve_segments,
+    scrub_from_selection, subtree_depth, value_depth,
 };
 use super::{ActorClass, OP_CATALOG_VERSION, OpError, new_doc};
 
@@ -45,26 +46,36 @@ const OP_KINDS: [&str; 21] = [
 ];
 
 /// The root maps of one document, created once so ops never create a root
-/// while a transaction is open.
+/// while a transaction is open. A scoped document owns one profile root only
+/// (a sub-document of the workspace); the other root is not part of it.
 #[derive(Clone)]
 pub(crate) struct Roots {
     pub cv: MapRef,
     pub cl: MapRef,
+    pub scope: Option<&'static str>,
 }
 
 impl Roots {
-    pub(crate) fn new(doc: &Doc) -> Self {
+    pub(crate) fn new(doc: &Doc, scope: Option<&'static str>) -> Self {
         Self {
             cv: doc.get_or_insert_map("cv_profile"),
             cl: doc.get_or_insert_map("cl_profile"),
+            scope,
         }
     }
 
+    /// True when `name` is a profile root this document owns.
+    pub(crate) fn owns(&self, name: &str) -> bool {
+        matches!(name, "cv_profile" | "cl_profile") && self.scope.is_none_or(|s| s == name)
+    }
+
     pub(crate) fn profile(&self, name: &str) -> Option<&MapRef> {
+        if !self.owns(name) {
+            return None;
+        }
         match name {
             "cv_profile" => Some(&self.cv),
-            "cl_profile" => Some(&self.cl),
-            _ => None,
+            _ => Some(&self.cl),
         }
     }
 }
@@ -124,6 +135,11 @@ pub(crate) fn resolve_branch_root<T: ReadTxn>(
     }
     let (profile, lang) = (parts[0], parts[1]);
     let Some(root) = roots.profile(profile) else {
+        if matches!(profile, "cv_profile" | "cl_profile") {
+            return fail(format!(
+                "resolveBranchRoot: '{profile}' is not part of this document"
+            ));
+        }
         return fail(format!(
             "resolveBranchRoot: branch_path must start with cv_profile or cl_profile, got '{profile}'"
         ));
@@ -199,18 +215,20 @@ fn profile_replace(
     let Some(tree) = op.get("tree").filter(|t| t.is_object()) else {
         return fail(format!("{kind}: 'tree' must be an object"));
     };
-    ensure_value_depth(tree)?;
+    ensure_fits(0, value_depth(tree)?)?;
     let format = match op.get("format") {
         None => None,
         Some(Value::Object(f)) => Some(f),
         Some(_) => return fail(format!("{kind}: 'format' must be an object")),
     };
-    let root = if kind == "cv_profile.replace" {
-        &ctx.roots.cv
+    let profile = if kind == "cv_profile.replace" {
+        "cv_profile"
     } else {
-        &ctx.roots.cl
-    }
-    .clone();
+        "cl_profile"
+    };
+    let Some(root) = ctx.roots.profile(profile).cloned() else {
+        return fail(format!("{kind}: '{profile}' is not part of this document"));
+    };
     let existing = ensure_lang_map(&*txn, &root, lang)?;
     if let Some(lang_map) = &existing
         && let Some(other) = lang_map.get(&*txn, "format")
@@ -291,7 +309,9 @@ fn node_create(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
         branch_path,
         "; seed via profile.replace first",
     )?;
-    let Some(parent) = resolve_node_path(&*txn, &tree, parent_path) else {
+    let Some((parent, parent_depth)) =
+        resolve_segments(&*txn, &tree, &parse_node_path(parent_path))
+    else {
         return fail(format!(
             "node.create: parent '{parent_path}' not found in '{branch_path}'"
         ));
@@ -301,7 +321,7 @@ fn node_create(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
         Some(Value::String(id)) => id.clone(),
         Some(_) => return fail("node.create: node id must be a string"),
     };
-    ensure_value_depth(&Value::Object(node.clone()))?;
+    ensure_fits(parent_depth, value_depth(&Value::Object(node.clone()))?)?;
     let existing_children = match parent.get(&*txn, "children") {
         None => None,
         Some(Out::YArray(a)) => Some(a),
@@ -382,7 +402,9 @@ fn node_update(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
     let node_kind = super::tree::get_string(&*txn, &node, "kind").unwrap_or_default();
     let existing: Option<Map<String, Value>> = node
         .get(&*txn, "data")
-        .and_then(|d| out_to_value(&*txn, &d).as_object().cloned());
+        .map(|d| out_to_value(&*txn, &d))
+        .transpose()?
+        .and_then(|d| d.as_object().cloned());
     let next_kind = patch
         .get("kind")
         .and_then(Value::as_str)
@@ -395,7 +417,7 @@ fn node_update(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
                 merged.insert(k.clone(), v.clone());
             }
             let keys = prose_keys(&next_kind, Some(&Value::Object(merged)));
-            apply_data_patch(txn, &node, &keys, &data_patch);
+            apply_data_patch(txn, &node, &keys, &data_patch)?;
         } else {
             node.insert(txn, key.as_str(), value_to_any(value));
         }
@@ -469,9 +491,12 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
         ));
     };
     let node_value = node_json(&*txn, &moved)?;
-    let Some(to_parent) = resolve_node_path(&*txn, &tree, to_parent_path) else {
+    let Some((to_parent, to_depth)) =
+        resolve_segments(&*txn, &tree, &parse_node_path(to_parent_path))
+    else {
         return fail(format!("node.move: to_parent '{to_parent_path}' not found"));
     };
+    ensure_fits(to_depth, subtree_depth(&*txn, &moved)?)?;
     if is_inside(&*txn, &moved, &to_parent) {
         return fail(format!(
             "node.move: destination '{to_parent_path}' is inside the moved node '{id}'"
@@ -563,7 +588,7 @@ fn batch(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), 
     // A failing sub-op must not leave a half-applied batch: dry-run on a copy
     // of the document first, then replay on the real one.
     let probe = new_doc(None);
-    let probe_roots = Roots::new(&probe);
+    let probe_roots = Roots::new(&probe, ctx.roots.scope);
     {
         let snapshot = txn.encode_state_as_update_v1(&StateVector::default());
         let update = Update::decode_v1(&snapshot)
@@ -865,7 +890,9 @@ fn translate(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
     }
     let tgt_parent_path = tgt_parts[..tgt_parts.len() - 1].join(".");
     let tgt_id = tgt_parts[tgt_parts.len() - 1];
-    let Some(tgt_parent) = resolve_node_path(&*txn, &tgt_tree, &tgt_parent_path) else {
+    let Some((tgt_parent, tgt_depth)) =
+        resolve_segments(&*txn, &tgt_tree, &parse_node_path(&tgt_parent_path))
+    else {
         return fail(format!(
             "translate: target parent '{tgt_parent_path}' not found in {tgt_profile}.{tgt_lang}.tree"
         ));
@@ -879,7 +906,7 @@ fn translate(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
              a children array and selection.active as strings",
         );
     }
-    ensure_value_depth(translated)?;
+    ensure_fits(tgt_depth, value_depth(translated)?)?;
     if !matches!(
         tgt_parent.get(&*txn, "children"),
         None | Some(Out::YArray(_))

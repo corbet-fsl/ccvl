@@ -1,9 +1,9 @@
 //! JSON <-> Yrs `Any` conversion and the canonical shape dump used by the vectors.
 use std::collections::HashMap;
 
+use super::OpError;
 use serde_json::{Map, Number as JsonNumber, Value};
 use yrs::any::Number;
-use yrs::types::ToJson;
 use yrs::{Any, Array, GetString, Map as YMapTrait, Out, ReadTxn};
 
 /// Convert a JSON value to `Any` the way Yjs encodes a JS value: integral numbers
@@ -50,9 +50,70 @@ pub(crate) fn any_to_value(any: &Any) -> Value {
     }
 }
 
-/// The `toJSON` projection of any shared value (Y.Text flattens to its string).
-pub(crate) fn out_to_value<T: ReadTxn>(txn: &T, out: &Out) -> Value {
-    any_to_value(&out.to_json(txn))
+/// Nesting deeper than this is refused when reading shared values as JSON
+/// (maps, arrays and plain values together): values come from peers, and the
+/// recursion below must never be able to exhaust the stack.
+pub(crate) const MAX_JSON_DEPTH: usize = 256;
+
+fn too_nested() -> OpError {
+    OpError::new(format!(
+        "a value is nested deeper than {MAX_JSON_DEPTH} levels"
+    ))
+}
+
+fn any_checked(any: &Any, depth: usize) -> Result<Value, OpError> {
+    if depth > MAX_JSON_DEPTH {
+        return Err(too_nested());
+    }
+    Ok(match any {
+        Any::Null | Any::Undefined | Any::Buffer(_) => Value::Null,
+        Any::Bool(b) => Value::Bool(*b),
+        Any::Number(n) => number_to_value(*n),
+        Any::String(s) => Value::String(s.to_string()),
+        Any::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|v| any_checked(v, depth + 1))
+                .collect::<Result<_, _>>()?,
+        ),
+        Any::Map(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| any_checked(v, depth + 1).map(|v| (k.clone(), v)))
+                .collect::<Result<Map<_, _>, _>>()?,
+        ),
+    })
+}
+
+/// A plain value as JSON, refusing nesting beyond [`MAX_JSON_DEPTH`].
+pub(crate) fn any_to_value_checked(any: &Any) -> Result<Value, OpError> {
+    any_checked(any, 0)
+}
+
+fn out_value<T: ReadTxn>(txn: &T, out: &Out, depth: usize) -> Result<Value, OpError> {
+    if depth > MAX_JSON_DEPTH {
+        return Err(too_nested());
+    }
+    Ok(match out {
+        Out::Any(any) => any_checked(any, depth)?,
+        Out::YText(t) => Value::String(t.get_string(txn)),
+        Out::YMap(m) => Value::Object(
+            m.iter(txn)
+                .map(|(k, v)| out_value(txn, &v, depth + 1).map(|v| (k.to_string(), v)))
+                .collect::<Result<Map<_, _>, _>>()?,
+        ),
+        Out::YArray(a) => Value::Array(
+            a.iter(txn)
+                .map(|v| out_value(txn, &v, depth + 1))
+                .collect::<Result<_, _>>()?,
+        ),
+        _ => Value::Null,
+    })
+}
+
+/// The `toJSON` projection of any shared value (Y.Text flattens to its string),
+/// refusing nesting beyond [`MAX_JSON_DEPTH`] with an error.
+pub(crate) fn out_to_value<T: ReadTxn>(txn: &T, out: &Out) -> Result<Value, OpError> {
+    out_value(txn, out, 0)
 }
 
 /// Canonical structural dump: it keeps what `toJSON` hides, namely which values

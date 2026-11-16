@@ -57,4 +57,7 @@ These are deliberate and have no vector:
 * `node.create` and `selection.update` refuse non-string ids; a `children`, `selection` or language
   value of the wrong type is refused, never replaced.
 * `tailored.*` is refused: the web keeps those ops in the `jobs` sub-document.
-* Trees deeper than 128 levels are refused instead of walked.
+* Trees deeper than 128 levels are refused instead of walked, and a write that would build one
+  (parent depth plus subtree depth) is refused; values nested deeper than 256 levels are refused
+  when read as JSON. A node whose `data` is a hostile chain can be seen but not read.
+* A changed node is a branch plus id segments, not a dotted string: an id may contain a dot.

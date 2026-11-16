@@ -13,7 +13,7 @@ use yrs::{
 };
 
 use super::OpError;
-use super::convert::{any_to_value, out_to_value, value_to_any};
+use super::convert::{any_to_value_checked, out_to_value, value_to_any};
 use super::text::compute_middle_edit;
 
 pub(crate) const VARIANT_POOL: &str = "variant-pool";
@@ -132,25 +132,38 @@ fn find_child_in_variant_pool<T: ReadTxn>(txn: &T, node: &MapRef, id: &str) -> O
 /// Walk a dot-joined id path from the tree root. A segment that is not a direct
 /// child is looked up inside the variant-pool wrappers at that level.
 pub(crate) fn resolve_node_path<T: ReadTxn>(txn: &T, tree: &MapRef, path: &str) -> Option<MapRef> {
-    let parts = parse_node_path(path);
+    resolve_segments(txn, tree, &parse_node_path(path)).map(|(node, _)| node)
+}
+
+/// The same walk over id segments (an id may contain a dot), also returning the
+/// depth of the node in the tree (the root is 1; a wrapper hop counts as a level).
+pub(crate) fn resolve_segments<T: ReadTxn, S: AsRef<str>>(
+    txn: &T,
+    tree: &MapRef,
+    parts: &[S],
+) -> Option<(MapRef, usize)> {
     if parts.is_empty() {
-        return Some(tree.clone());
+        return Some((tree.clone(), 1));
     }
-    if node_id(txn, tree).as_deref() != Some(parts[0]) {
+    if node_id(txn, tree).as_deref() != Some(parts[0].as_ref()) {
         return None;
     }
     let mut current = tree.clone();
+    let mut depth = 1;
     for part in &parts[1..] {
+        let part = part.as_ref();
         let children = get_array(txn, &current, "children")?;
         if let Some(idx) = find_child_index(txn, &children, part)
             && let Some(Out::YMap(next)) = children.get(txn, idx)
         {
             current = next;
+            depth += 1;
             continue;
         }
         current = find_child_in_variant_pool(txn, &current, part)?;
+        depth += 2;
     }
-    Some(current)
+    Some((current, depth))
 }
 
 /// `{ id, kind, tier, data }` of a node, with prose flattened to strings.
@@ -160,21 +173,24 @@ pub(crate) struct NodeFields {
     pub data: Option<Map<String, Value>>,
 }
 
-pub(crate) fn snapshot_node_fields<T: ReadTxn>(txn: &T, node: &MapRef) -> NodeFields {
-    let field = |key: &str| {
+pub(crate) fn snapshot_node_fields<T: ReadTxn>(
+    txn: &T,
+    node: &MapRef,
+) -> Result<NodeFields, OpError> {
+    let field = |key: &str| -> Result<Value, OpError> {
         node.get(txn, key)
-            .map_or(Value::Null, |o| out_to_value(txn, &o))
+            .map_or(Ok(Value::Null), |o| out_to_value(txn, &o))
     };
     let data = match node.get(txn, "data") {
-        Some(Out::YMap(m)) => out_to_value(txn, &Out::YMap(m)).as_object().cloned(),
-        Some(Out::Any(Any::Map(m))) => any_to_value(&Any::Map(m)).as_object().cloned(),
+        Some(Out::YMap(m)) => out_to_value(txn, &Out::YMap(m))?.as_object().cloned(),
+        Some(Out::Any(Any::Map(m))) => any_to_value_checked(&Any::Map(m))?.as_object().cloned(),
         _ => None,
     };
-    NodeFields {
-        kind: field("kind"),
-        tier: field("tier"),
+    Ok(NodeFields {
+        kind: field("kind")?,
+        tier: field("tier")?,
         data,
-    }
+    })
 }
 
 /// Deepest nesting of node maps the engine reads or writes. Trees come from
@@ -185,30 +201,48 @@ fn too_deep() -> OpError {
     OpError::new(format!("node tree is deeper than {MAX_DEPTH} levels"))
 }
 
-/// Refuse a node subtree deeper than [`MAX_DEPTH`] (iterative walk).
-pub(crate) fn ensure_depth<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<(), OpError> {
+/// Depth of a node subtree (a leaf is 1), refusing one deeper than [`MAX_DEPTH`] (iterative walk).
+pub(crate) fn subtree_depth<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<usize, OpError> {
     let mut stack = vec![(node.clone(), 1_usize)];
+    let mut deepest = 1;
     while let Some((current, depth)) = stack.pop() {
         if depth > MAX_DEPTH {
             return Err(too_deep());
         }
+        deepest = deepest.max(depth);
         for child in child_maps(txn, &current) {
             stack.push((child, depth + 1));
         }
     }
-    Ok(())
+    Ok(deepest)
 }
 
-/// Refuse a JSON node deeper than [`MAX_DEPTH`] (iterative walk).
-pub(crate) fn ensure_value_depth(node: &Value) -> Result<(), OpError> {
+/// Refuse a node subtree deeper than [`MAX_DEPTH`].
+pub(crate) fn ensure_depth<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<(), OpError> {
+    subtree_depth(txn, node).map(|_| ())
+}
+
+/// Depth of a JSON node (a leaf is 1), refusing one deeper than [`MAX_DEPTH`] (iterative walk).
+pub(crate) fn value_depth(node: &Value) -> Result<usize, OpError> {
     let mut stack = vec![(node, 1_usize)];
+    let mut deepest = 1;
     while let Some((current, depth)) = stack.pop() {
         if depth > MAX_DEPTH {
             return Err(too_deep());
         }
+        deepest = deepest.max(depth);
         if let Some(children) = current.get("children").and_then(Value::as_array) {
             stack.extend(children.iter().map(|c| (c, depth + 1)));
         }
+    }
+    Ok(deepest)
+}
+
+/// Refuse a write that would put a subtree of `subtree` levels below a parent
+/// at `parent_depth`: the engine never builds a tree its own reads refuse.
+pub(crate) fn ensure_fits(parent_depth: usize, subtree: usize) -> Result<(), OpError> {
+    if parent_depth + subtree > MAX_DEPTH {
+        return Err(too_deep());
     }
     Ok(())
 }
@@ -216,7 +250,7 @@ pub(crate) fn ensure_value_depth(node: &Value) -> Result<(), OpError> {
 /// JSON of a node subtree (`Y.Map.toJSON()`); refuses a tree that is too deep.
 pub(crate) fn node_json<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<Value, OpError> {
     ensure_depth(txn, node)?;
-    Ok(out_to_value(txn, &Out::YMap(node.clone())))
+    out_to_value(txn, &Out::YMap(node.clone()))
 }
 
 // ---------------------------------------------------------------------------
@@ -424,10 +458,10 @@ pub(crate) fn apply_data_patch(
     node: &MapRef,
     prose: &[&str],
     patch: &Map<String, Value>,
-) {
+) -> Result<(), OpError> {
     if prose.is_empty() {
         let mut base: Map<String, Value> = match node.get(&*txn, "data") {
-            Some(Out::Any(Any::Map(m))) => any_to_value(&Any::Map(m))
+            Some(Out::Any(Any::Map(m))) => any_to_value_checked(&Any::Map(m))?
                 .as_object()
                 .cloned()
                 .unwrap_or_default(),
@@ -437,7 +471,7 @@ pub(crate) fn apply_data_patch(
             base.insert(k.clone(), v.clone());
         }
         node.insert(txn, "data", value_to_any(&Value::Object(base)));
-        return;
+        return Ok(());
     }
     let yd = ensure_data_ymap(txn, node);
     for (k, v) in patch {
@@ -448,6 +482,7 @@ pub(crate) fn apply_data_patch(
             }
         }
     }
+    Ok(())
 }
 
 /// Remove `id` from the parent's `selection.active` after the child is gone.
