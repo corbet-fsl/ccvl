@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 
 use base64::Engine as _;
-use ccvl_core::doc::{ActorClass, Changed, Doc, NodeRef, OP_CATALOG_VERSION};
+use ccvl::doc::{ActorClass, Changed, Doc, NodeRef, OP_CATALOG_VERSION};
 use serde_json::Value;
 
 const STATES: &str = include_str!("vectors/states.json");
@@ -124,11 +124,7 @@ fn actor(case: &Value) -> ActorClass {
     ActorClass::parse(case["actor"].as_str().expect("actor")).expect("known actor")
 }
 
-fn run_call(
-    doc: &mut Doc,
-    call: &Value,
-    actor: ActorClass,
-) -> Result<Changed, ccvl_core::doc::OpError> {
+fn run_call(doc: &mut Doc, call: &Value, actor: ActorClass) -> Result<Changed, ccvl::doc::OpError> {
     assert_eq!(
         call["fn"], "type_text",
         "the only direct call in the vectors"

@@ -4,7 +4,7 @@
 #![cfg(feature = "doc")]
 #![allow(clippy::needless_pass_by_value)]
 
-use ccvl_core::doc::{ActorClass, Doc, NodeRef, inspect_update};
+use ccvl::doc::{ActorClass, Doc, NodeRef, inspect_update};
 use serde_json::{Value, json};
 use yrs::{Array, ArrayPrelim, Doc as YDoc, Map, MapPrelim, ReadTxn, Transact};
 
@@ -908,7 +908,7 @@ fn writes_never_build_a_tree_the_reads_refuse() {
 
 #[test]
 fn inspection_names_the_authors_under_foreign_roots_and_shadows_learn_clients() {
-    use ccvl_core::doc::Shadow;
+    use ccvl::doc::Shadow;
     use yrs::{Map as _, MapPrelim, TextPrelim};
     let profile = YDoc::new();
     {

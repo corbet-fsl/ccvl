@@ -1,0 +1,7 @@
+version = 1
+
+[[annotations]]
+path = ["**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Julian Y. Richard Corbet"
+SPDX-License-Identifier = "FSL-1.1-ALv2"

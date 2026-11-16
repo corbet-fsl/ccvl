@@ -18,7 +18,7 @@
 //! Known limit: `yrs` decodes plain nested values recursively (`Any::decode`),
 //! so a hostile frame of a few hundred KB of nested arrays can exhaust the stack
 //! before the engine sees it. Hosts cap the size of a frame and run `receive` on a
-//! thread with a stack sized for that cap (`cvws` does the first and documents the
+//! thread with a stack sized for that cap (the `session` module does the first and documents the
 //! second). Everything the engine itself walks is iterative or depth-capped:
 //! trees at 128 levels, JSON conversion at 256.
 //!

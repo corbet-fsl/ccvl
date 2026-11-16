@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Julian Y. Richard Corbet
+# SPDX-License-Identifier: FSL-1.1-ALv2
+schema = 1
+project = "ccvl"
+
+# Reuse suitable provisioned Rust and locked published dependencies.
+[checks.rust]
+kind = "commands"
+commands = [
+  ["cargo", "fmt", "--all", "--", "--check"],
+  ["cargo", "clippy", "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"],
+  ["cargo", "test", "--locked", "--all-features"],
+]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
+cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
+
+[render]
+render_schema = 3
+
+[jobs.verify]
+scheduler = "forgejo"
+runs_on = "linux"
+checks = ["rust"]
+workflow = "ci"
+command = ["ccid:run-declared-checks"]

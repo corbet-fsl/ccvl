@@ -9,6 +9,8 @@ pub mod edit;
 pub mod pdf;
 #[cfg(feature = "render")]
 pub mod render;
+#[cfg(feature = "doc")]
+pub mod session;
 pub mod style;
 
 pub use style::{StyleBundle, StyleDocument};
