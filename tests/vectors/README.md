@@ -41,19 +41,15 @@ tests pass again.
 
 ## Known differences from the TypeScript applier
 
-These are deliberate and have no vector:
+These are deliberate and have no vector. Everything else, including the FIXED-node
+guard on delete and move for agents, the refusal of a move into the moved node's own subtree and
+refusals that leave nothing behind, is the same on both sides and pinned by vectors:
 
 * A prose edit never splits a surrogate pair; the TypeScript diff can insert a
   lone surrogate when two emoji share a high surrogate.
-* `node.move` into the moved node's own subtree is refused (TypeScript silently
-  loses the node).
-* A refused `node.update` data patch changes nothing; TypeScript may have applied
-  earlier keys of the same patch.
 * `translate` also applies the server's rules (`validateTranslateOp`): same profile for source
-  and target, different languages, a well-formed translated node. A target language without a
-  tree is refused without creating an empty language map.
-* Every op validates before it writes, so a refusal leaves no partial write and no bytes
-  (`@cv/mutations` can leave an empty `children` array, a `selection` map or a language map behind).
+  and target, different languages, a well-formed translated node. (`@cv/mutations` leaves a
+  refused translate alone too, so a missing target tree is no longer a difference.)
 * `node.create` and `selection.update` refuse non-string ids; a `children`, `selection` or language
   value of the wrong type is refused, never replaced.
 * `tailored.*` is refused: the web keeps those ops in the `jobs` sub-document.

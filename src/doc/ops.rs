@@ -170,6 +170,25 @@ pub(crate) fn tier_protected<T: ReadTxn>(
     Ok(())
 }
 
+/// Agents and system actors may not delete or move a FIXED node, nor a node whose
+/// subtree holds one (taking the parent removes it just the same). Humans may.
+fn ensure_unprotected<T: ReadTxn>(
+    txn: &T,
+    node: &MapRef,
+    actor: ActorClass,
+    action: &str,
+) -> Result<(), OpError> {
+    if actor == ActorClass::Human {
+        return Ok(());
+    }
+    let mut stack = vec![node.clone()];
+    while let Some(current) = stack.pop() {
+        tier_protected(txn, &current, actor, action)?;
+        stack.extend(super::tree::child_maps(txn, &current));
+    }
+    Ok(())
+}
+
 /// Apply one op inside an open transaction.
 pub(crate) fn apply_op(
     ctx: &mut Ctx<'_>,
@@ -453,6 +472,9 @@ fn node_delete(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
             "node.delete: node '{target}' not found in parent '{parent_path}'"
         ));
     };
+    if let Some(Out::YMap(doomed)) = children.get(&*txn, index) {
+        ensure_unprotected(&*txn, &doomed, ctx.actor, "node.delete")?;
+    }
     children.remove(txn, index);
     scrub_from_selection(txn, &parent, target);
     Ok(())
@@ -490,6 +512,7 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
             "node.move: node '{id}' not found in '{from_parent_path}'"
         ));
     };
+    ensure_unprotected(&*txn, &moved, ctx.actor, "node.move")?;
     let node_value = node_json(&*txn, &moved)?;
     let Some((to_parent, to_depth)) =
         resolve_segments(&*txn, &tree, &parse_node_path(to_parent_path))
