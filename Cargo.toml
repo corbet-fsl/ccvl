@@ -9,17 +9,15 @@ readme = "README.md"
 
 [features]
 default = []
-render = ["dep:ctypst", "dep:lopdf"]
+render = ["dep:ctyp"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
 doc = ["dep:yrs", "dep:base64"]
 
 [dependencies]
 anyhow = "1.0"
 base64 = { version = "0.22", optional = true }
-cletter = "0.4.3"
-ctypst = { version = "0.3.5", optional = true, default-features = false, features = ["document-fonts", "pdf", "raster"] }
-lopdf = { version = "0.44", optional = true, default-features = false }
-regex = "1.12"
+ctyp = { git = "https://git.corbet.ch/corbet-fsl/ctyp.git", branch = "main", optional = true, default-features = false, features = ["pdf", "pdf-normalize", "raster"] }
+cvst = { git = "https://git.corbet.ch/corbet-fsl/cvst.git", branch = "main" }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 sha2 = "0.10"

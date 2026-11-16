@@ -1,22 +1,10 @@
 use anyhow::{Context, Result, ensure};
-use ctypst::{CompileRequest, Document, Engine, EngineBuilder, PageConstraint};
+use ctyp::{CompileRequest, Document, Engine, EngineBuilder, PageConstraint};
 
 pub use crate::style::{ENGINE_PACKAGE, Packages, is_engine_package};
 use crate::{StyleBundle, StyleDocument};
 
-/// Package-relative path of the generated correspondence module inside the
-/// engine package. Styles import the cletter facade through it,
-/// `#import correspondence: opening, ...`, so no Typst source names a cletter
-/// version.
-pub const CORRESPONDENCE_MODULE: &str = "correspondence.typ";
-
-/// Source of [`CORRESPONDENCE_MODULE`]: a glob import of the linked cletter
-/// package. Typst exports every binding of a module, imported ones included,
-/// so importers see the complete cletter facade.
-#[must_use]
-pub fn correspondence_module() -> String {
-    format!("#import \"{}\": *\n", cletter::typst::spec())
-}
+pub use ctyp::blocks::{CORRESPONDENCE_MODULE, correspondence_module};
 
 /// Register every Typst package a ccvl engine serves: the supplied engine
 /// package, extended with the generated [`CORRESPONDENCE_MODULE`], and the
@@ -27,12 +15,7 @@ pub fn correspondence_module() -> String {
 /// those crates. Everything is served from memory; nothing is downloaded,
 /// installed or read from a project directory.
 pub fn with_packages(builder: EngineBuilder, packages: &Packages) -> Result<EngineBuilder> {
-    let mut builder = builder;
-    for package in cletter::typst::packages() {
-        builder = builder
-            .package(&package.spec, package.files)
-            .with_context(|| format!("cannot register Typst package {}", package.spec))?;
-    }
+    let mut builder = ctyp::blocks::with_correspondence_packages(builder)?;
     for (spec, files) in packages {
         ensure!(
             is_engine_package(spec),
@@ -66,7 +49,7 @@ impl StyleRenderer {
     pub fn new(bundle: &StyleBundle) -> Result<Self> {
         bundle.validate()?;
         let mut builder = with_packages(
-            Engine::builder().fonts(ctypst::fonts::documents()),
+            Engine::builder().fonts(ctyp::fonts::documents()),
             &bundle.packages,
         )?;
         for (path, bytes) in &bundle.files {
@@ -131,6 +114,7 @@ impl StyleRenderer {
                 .pdf(document, 0)
                 .context("CCVL PDF export failed")?,
         )
+        .map_err(anyhow::Error::from)
     }
 
     #[must_use]
@@ -150,7 +134,7 @@ mod tests {
             correspondence_module(),
             format!(
                 "#import \"@preview/cletter:{}\": *\n",
-                cletter::typst::VERSION
+                ctyp::correspondence::typst::VERSION
             )
         );
         let source = "#import \"@local/ccvl:1.0.0\": correspondence\n\
@@ -178,21 +162,18 @@ mod tests {
                 ),
             ]),
         )]);
-        let engine = with_packages(
-            Engine::builder().fonts(ctypst::fonts::documents()),
-            &packages,
-        )
-        .unwrap()
-        .source("main.typ", source)
-        .unwrap()
-        .build()
-        .unwrap();
+        let engine = with_packages(Engine::builder().fonts(ctyp::fonts::documents()), &packages)
+            .unwrap()
+            .source("main.typ", source)
+            .unwrap()
+            .build()
+            .unwrap();
         let output = engine.compile(CompileRequest::new("main.typ")).unwrap();
         assert_eq!(
-            ctypst::query_json(&output.document, "probe").unwrap(),
+            ctyp::query_json(&output.document, "probe").unwrap(),
             [serde_json::json!([
                 "Sehr geehrte Frau Dr. Müller",
-                cletter::salutation("en-ch", "Ms Smith"),
+                ctyp::correspondence::salutation("en-ch", "Ms Smith"),
                 "Freundliche Grüsse",
                 "7. September 2026",
             ])]
