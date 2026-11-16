@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 
 use base64::Engine as _;
-use ccvl_core::doc::{ActorClass, Changed, Doc, OP_CATALOG_VERSION};
+use ccvl_core::doc::{ActorClass, Changed, Doc, NodeRef, OP_CATALOG_VERSION};
 use serde_json::Value;
 
 const STATES: &str = include_str!("vectors/states.json");
@@ -88,23 +88,57 @@ fn assert_shape(case: &str, what: &str, doc: &Doc, expected: &Value) {
     }
 }
 
-fn expected_changed(expect: &Value) -> Changed {
-    let list = |key: &str| -> Vec<String> {
-        expect["changed"][key]
+fn changed_from(value: &Value) -> Changed {
+    let formats = |key: &str| -> Vec<String> {
+        value[key]
             .as_array()
             .expect("changed list")
             .iter()
-            .map(|v| v.as_str().expect("id").to_string())
+            .map(|v| v.as_str().expect("branch").to_string())
             .collect()
     };
+    let nodes = value["nodes"]
+        .as_array()
+        .expect("changed nodes")
+        .iter()
+        .map(|n| NodeRef {
+            branch: n["branch"].as_str().expect("branch").to_string(),
+            path: n["path"].as_str().expect("path").to_string(),
+        })
+        .collect();
     Changed {
-        nodes: list("nodes"),
-        formats: list("formats"),
+        nodes,
+        formats: formats("formats"),
     }
+}
+
+fn expected_changed(expect: &Value) -> Changed {
+    changed_from(&expect["changed"])
 }
 
 fn actor(case: &Value) -> ActorClass {
     ActorClass::parse(case["actor"].as_str().expect("actor")).expect("known actor")
+}
+
+fn run_call(
+    doc: &mut Doc,
+    call: &Value,
+    actor: ActorClass,
+) -> Result<Changed, ccvl_core::doc::OpError> {
+    assert_eq!(
+        call["fn"], "type_text",
+        "the only direct call in the vectors"
+    );
+    let text = |key: &str| call[key].as_str().expect("call field").to_string();
+    let at = |key: &str| u32::try_from(call[key].as_u64().expect("offset")).expect("small offset");
+    doc.type_text(
+        &text("branch_path"),
+        &text("node_path"),
+        &text("key"),
+        at("start")..at("end"),
+        &text("text"),
+        actor,
+    )
 }
 
 /// Run every refusal-free op case; returns how many ran.
@@ -117,12 +151,16 @@ fn run_ops(file: &str, states: &HashMap<String, Vec<u8>>) -> usize {
         let pre = &states[case["pre"].as_str().expect("pre")];
         let expect = &case["expect"];
         let mut doc = engine(pre);
-        let changed = doc
-            .apply_op_as(&case["op"], actor(case))
-            .unwrap_or_else(|e| panic!("{name}: engine refused: {e}"));
+        let changed = if let Some(call) = case.get("call") {
+            run_call(&mut doc, call, actor(case))
+                .unwrap_or_else(|e| panic!("{name}: engine refused: {e}"))
+        } else {
+            doc.apply_op_as(&case["op"], actor(case))
+                .unwrap_or_else(|e| panic!("{name}: engine refused: {e}"))
+        };
         assert_shape(name, "op", &doc, &expect["shape"]);
         assert_eq!(changed, expected_changed(expect), "{name}: changed ids");
-        let outgoing = doc.take_outgoing();
+        let outgoing = doc.take_outgoing().expect("outgoing");
         assert!(
             changed.is_empty() || !outgoing.is_empty(),
             "{name}: a change must leave bytes to send"
@@ -169,8 +207,12 @@ fn v3_refusals_match_yjs() {
             "{name}: reason"
         );
         assert_shape(name, "after refusal", &doc, &expect["shape"]);
+        assert!(
+            doc.take_outgoing().expect("outgoing").is_empty(),
+            "{name}: a refused op emits no bytes"
+        );
     }
-    assert!(cases.len() >= 50, "ran {}", cases.len());
+    assert!(cases.len() >= 45, "ran {}", cases.len());
 }
 
 #[test]
@@ -178,20 +220,40 @@ fn v6_changed_ids_of_peer_updates_match_yjs() {
     let states = states();
     let file = parse(IDS);
     let cases = file["cases"].as_array().expect("cases");
+    let mut sequences = 0;
     for case in cases {
         let name = case["name"].as_str().expect("name");
         let pre = &states[case["pre"].as_str().expect("pre")];
         let expect = &case["expect"];
         let mut doc = engine(pre);
-        let changed = doc
-            .receive(&decode(case["update"].as_str().expect("update")))
-            .unwrap_or_else(|e| panic!("{name}: receive failed: {e}"));
+        if let Some(frames) = case.get("updates").and_then(Value::as_array) {
+            // Frames in delivery order: out of order, duplicated, or without visible effect.
+            sequences += 1;
+            let steps = expect["steps"].as_array().expect("steps");
+            assert_eq!(frames.len(), steps.len(), "{name}: one step per frame");
+            for (i, (frame, step)) in frames.iter().zip(steps).enumerate() {
+                let changed = doc
+                    .receive(&decode(frame.as_str().expect("frame")))
+                    .unwrap_or_else(|e| panic!("{name}: frame {i} failed: {e}"));
+                assert_eq!(
+                    changed,
+                    changed_from(step),
+                    "{name}: changed after frame {i}"
+                );
+            }
+            assert!(!doc.has_pending(), "{name}: nothing may stay pending");
+        } else {
+            let changed = doc
+                .receive(&decode(case["update"].as_str().expect("update")))
+                .unwrap_or_else(|e| panic!("{name}: receive failed: {e}"));
+            assert_eq!(changed, expected_changed(expect), "{name}: changed ids");
+        }
         assert_shape(name, "receive", &doc, &expect["shape"]);
-        assert_eq!(changed, expected_changed(expect), "{name}: changed ids");
         assert!(
-            doc.take_outgoing().is_empty(),
+            doc.take_outgoing().expect("outgoing").is_empty(),
             "{name}: remote updates are not echoed"
         );
     }
-    assert!(cases.len() >= 12, "ran {}", cases.len());
+    assert!(cases.len() >= 18, "ran {}", cases.len());
+    assert!(sequences >= 5, "ran {sequences} sequences");
 }

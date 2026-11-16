@@ -12,6 +12,7 @@ use yrs::{
     TransactionMut,
 };
 
+use super::OpError;
 use super::convert::{any_to_value, out_to_value, value_to_any};
 use super::text::compute_middle_edit;
 
@@ -89,10 +90,15 @@ pub(crate) fn child_maps<T: ReadTxn>(txn: &T, node: &MapRef) -> Vec<MapRef> {
     get_array(txn, node, "children").map_or_else(Vec::new, |a| children_of(txn, &a))
 }
 
+/// Index of the child map with `id` in the raw array (non-map entries count as
+/// positions, so the index is valid for `get`, `insert` and `remove`).
 pub(crate) fn find_child_index<T: ReadTxn>(txn: &T, children: &ArrayRef, id: &str) -> Option<u32> {
-    children_of(txn, children)
-        .iter()
-        .position(|c| node_id(txn, c).as_deref() == Some(id))
+    children
+        .iter(txn)
+        .position(|out| match out {
+            Out::YMap(m) => node_id(txn, &m).as_deref() == Some(id),
+            _ => false,
+        })
         .and_then(|i| u32::try_from(i).ok())
 }
 
@@ -147,35 +153,6 @@ pub(crate) fn resolve_node_path<T: ReadTxn>(txn: &T, tree: &MapRef, path: &str) 
     Some(current)
 }
 
-/// Same walk over a plain JSON node (a `tailored_*` snapshot).
-pub(crate) fn resolve_node_in_plain<'a>(root: &'a Value, path: &str) -> Option<&'a Value> {
-    let parts = parse_node_path(path);
-    if parts.is_empty() {
-        return Some(root);
-    }
-    if root.get("id").and_then(Value::as_str) != Some(parts[0]) {
-        return None;
-    }
-    let mut current = root;
-    for part in &parts[1..] {
-        let kids = current.get("children").and_then(Value::as_array)?;
-        let direct = kids
-            .iter()
-            .find(|c| c.get("id").and_then(Value::as_str) == Some(*part));
-        if let Some(found) = direct {
-            current = found;
-            continue;
-        }
-        current = kids
-            .iter()
-            .filter(|c| c.get("kind").and_then(Value::as_str) == Some(VARIANT_POOL))
-            .filter_map(|w| w.get("children").and_then(Value::as_array))
-            .flatten()
-            .find(|c| c.get("id").and_then(Value::as_str) == Some(*part))?;
-    }
-    Some(current)
-}
-
 /// `{ id, kind, tier, data }` of a node, with prose flattened to strings.
 pub(crate) struct NodeFields {
     pub kind: Value,
@@ -200,9 +177,46 @@ pub(crate) fn snapshot_node_fields<T: ReadTxn>(txn: &T, node: &MapRef) -> NodeFi
     }
 }
 
-/// JSON of a node subtree (`Y.Map.toJSON()`).
-pub(crate) fn node_json<T: ReadTxn>(txn: &T, node: &MapRef) -> Value {
-    out_to_value(txn, &Out::YMap(node.clone()))
+/// Deepest nesting of node maps the engine reads or writes. Trees come from
+/// peers, so every walk that cannot be iterative checks this first.
+pub(crate) const MAX_DEPTH: usize = 128;
+
+fn too_deep() -> OpError {
+    OpError::new(format!("node tree is deeper than {MAX_DEPTH} levels"))
+}
+
+/// Refuse a node subtree deeper than [`MAX_DEPTH`] (iterative walk).
+pub(crate) fn ensure_depth<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<(), OpError> {
+    let mut stack = vec![(node.clone(), 1_usize)];
+    while let Some((current, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            return Err(too_deep());
+        }
+        for child in child_maps(txn, &current) {
+            stack.push((child, depth + 1));
+        }
+    }
+    Ok(())
+}
+
+/// Refuse a JSON node deeper than [`MAX_DEPTH`] (iterative walk).
+pub(crate) fn ensure_value_depth(node: &Value) -> Result<(), OpError> {
+    let mut stack = vec![(node, 1_usize)];
+    while let Some((current, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            return Err(too_deep());
+        }
+        if let Some(children) = current.get("children").and_then(Value::as_array) {
+            stack.extend(children.iter().map(|c| (c, depth + 1)));
+        }
+    }
+    Ok(())
+}
+
+/// JSON of a node subtree (`Y.Map.toJSON()`); refuses a tree that is too deep.
+pub(crate) fn node_json<T: ReadTxn>(txn: &T, node: &MapRef) -> Result<Value, OpError> {
+    ensure_depth(txn, node)?;
+    Ok(out_to_value(txn, &Out::YMap(node.clone())))
 }
 
 // ---------------------------------------------------------------------------
@@ -292,26 +306,67 @@ pub(crate) fn fill_node(txn: &mut TransactionMut, m: &MapRef, node: &Value) {
     }
 }
 
-pub(crate) fn ensure_lang_map(txn: &mut TransactionMut, root: &MapRef, lang: &str) -> MapRef {
-    get_map(&*txn, root, lang).unwrap_or_else(|| root.insert(txn, lang, MapPrelim::default()))
+fn not_a(what: &str, key: &str, owner: &str) -> OpError {
+    OpError::new(format!("'{key}' of {owner} is not {what}"))
 }
 
-pub(crate) fn ensure_inner_map(txn: &mut TransactionMut, parent: &MapRef, key: &str) -> MapRef {
-    get_map(&*txn, parent, key).unwrap_or_else(|| parent.insert(txn, key, MapPrelim::default()))
-}
-
-pub(crate) fn ensure_children_array(txn: &mut TransactionMut, node: &MapRef) -> ArrayRef {
-    get_array(&*txn, node, "children")
-        .unwrap_or_else(|| node.insert(txn, "children", ArrayPrelim::default()))
-}
-
-pub(crate) fn ensure_selection_map(txn: &mut TransactionMut, node: &MapRef) -> MapRef {
-    if let Some(m) = get_map(&*txn, node, "selection") {
-        return m;
+pub(crate) fn ensure_lang_map<T: ReadTxn>(
+    txn: &T,
+    root: &MapRef,
+    lang: &str,
+) -> Result<Option<MapRef>, OpError> {
+    match root.get(txn, lang) {
+        Some(Out::YMap(m)) => Ok(Some(m)),
+        Some(_) => Err(not_a("a map", lang, "the profile root")),
+        None => Ok(None),
     }
-    let sel = node.insert(txn, "selection", MapPrelim::default());
-    sel.insert(txn, "active", Any::Array(Vec::<Any>::new().into()));
-    sel
+}
+
+/// The map under `key`, created when absent; a value of another type is refused, never replaced.
+pub(crate) fn ensure_map(
+    txn: &mut TransactionMut,
+    parent: &MapRef,
+    key: &str,
+) -> Result<MapRef, OpError> {
+    match parent.get(&*txn, key) {
+        Some(Out::YMap(m)) => Ok(m),
+        Some(_) => Err(not_a("a map", key, "its parent")),
+        None => Ok(parent.insert(txn, key, MapPrelim::default())),
+    }
+}
+
+pub(crate) fn ensure_children_array(
+    txn: &mut TransactionMut,
+    node: &MapRef,
+) -> Result<ArrayRef, OpError> {
+    match node.get(&*txn, "children") {
+        Some(Out::YArray(a)) => Ok(a),
+        Some(_) => Err(not_a(
+            "an array",
+            "children",
+            &format!("node '{}'", node_id(&*txn, node).unwrap_or_default()),
+        )),
+        None => Ok(node.insert(txn, "children", ArrayPrelim::default())),
+    }
+}
+
+pub(crate) fn ensure_selection_map(
+    txn: &mut TransactionMut,
+    node: &MapRef,
+) -> Result<MapRef, OpError> {
+    match node.get(&*txn, "selection") {
+        Some(Out::YMap(m)) => Ok(m),
+        Some(_) => Err(not_a(
+            "a map",
+            "selection",
+            &format!("node '{}'", node_id(&*txn, node).unwrap_or_default()),
+        )),
+        None => {
+            let sel = node.insert(txn, "selection", MapPrelim::default());
+            sel.insert(txn, "active", Any::Array(Vec::<Any>::new().into()));
+            Ok(sel)
+        }
+    }
 }
 
 /// Make `data` a `Y.Map` (needed before `Y.Text` can live in it), keeping every

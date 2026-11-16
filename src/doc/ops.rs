@@ -1,5 +1,9 @@
 //! The op catalogue (version 10) applied to a Yrs document with the semantics of
 //! `applyOp` in `@cv/mutations`: same checks, same order, same error messages.
+//!
+//! Every op validates before it writes, so a refused op leaves the document
+//! untouched and produces no update bytes (`@cv/mutations` can leave a partial
+//! write behind for a few refusals; the vectors note those cases).
 use base64::Engine as _;
 use serde_json::{Map, Value, json};
 use yrs::updates::decoder::Decode;
@@ -10,9 +14,9 @@ use yrs::{
 use super::convert::{out_to_value, value_to_any};
 use super::cvl;
 use super::tree::{
-    apply_data_patch, child_id_set, ensure_children_array, ensure_inner_map, ensure_lang_map,
-    ensure_selection_map, fill_node, find_child_index, get_array, get_map, node_id, node_json,
-    parse_node_path, prose_keys, resolve_node_in_plain, resolve_node_path, scrub_from_selection,
+    apply_data_patch, child_id_set, ensure_children_array, ensure_lang_map, ensure_map,
+    ensure_selection_map, ensure_value_depth, fill_node, find_child_index, get_array, get_map,
+    node_id, node_json, parse_node_path, prose_keys, resolve_node_path, scrub_from_selection,
 };
 use super::{ActorClass, OP_CATALOG_VERSION, OpError, new_doc};
 
@@ -46,7 +50,6 @@ const OP_KINDS: [&str; 21] = [
 pub(crate) struct Roots {
     pub cv: MapRef,
     pub cl: MapRef,
-    pub jobs: MapRef,
 }
 
 impl Roots {
@@ -54,7 +57,6 @@ impl Roots {
         Self {
             cv: doc.get_or_insert_map("cv_profile"),
             cl: doc.get_or_insert_map("cl_profile"),
-            jobs: doc.get_or_insert_map("jobs"),
         }
     }
 
@@ -109,9 +111,9 @@ fn js_typeof(v: &Value) -> &'static str {
     }
 }
 
-pub(crate) fn resolve_branch_root(
-    ctx: &Ctx<'_>,
-    txn: &TransactionMut,
+pub(crate) fn resolve_branch_root<T: ReadTxn>(
+    roots: &Roots,
+    txn: &T,
     branch_path: &str,
 ) -> Result<MapRef, OpError> {
     let parts: Vec<&str> = branch_path.split('.').collect();
@@ -121,7 +123,7 @@ pub(crate) fn resolve_branch_root(
         ));
     }
     let (profile, lang) = (parts[0], parts[1]);
-    let Some(root) = ctx.roots.profile(profile) else {
+    let Some(root) = roots.profile(profile) else {
         return fail(format!(
             "resolveBranchRoot: branch_path must start with cv_profile or cl_profile, got '{profile}'"
         ));
@@ -133,12 +135,23 @@ pub(crate) fn resolve_branch_root(
     })
 }
 
-fn tailored_key(profile_key: &str) -> &'static str {
-    if profile_key == "cl_profile" {
-        "tailored_cl"
-    } else {
-        "tailored_cv"
+/// The error for an actor that may not edit a `FIXED` node.
+pub(crate) fn tier_protected<T: ReadTxn>(
+    txn: &T,
+    node: &MapRef,
+    actor: ActorClass,
+    action: &str,
+) -> Result<(), OpError> {
+    if actor != ActorClass::Human
+        && super::tree::get_string(txn, node, "tier").as_deref() == Some("FIXED")
+    {
+        return fail(format!(
+            "tier_protected: {} {action} cannot mutate FIXED node '{}'",
+            actor.as_str(),
+            node_id(txn, node).unwrap_or_default()
+        ));
     }
+    Ok(())
 }
 
 /// Apply one op inside an open transaction.
@@ -163,12 +176,13 @@ pub(crate) fn apply_op(
         "node.move" => node_move(ctx, txn, op),
         "batch" => batch(ctx, txn, op),
         "selection.update" => selection_update(ctx, txn, op),
-        "tailored.snapshot" => tailored_snapshot(ctx, txn, op),
-        "tailored.promote" => tailored_promote(ctx, txn, op),
         "cvl.duplicate_as_variant" | "cvl.break_out" | "cvl.promote_sub" | "cvl.demote_bullet" => {
             cvl_action(ctx, txn, op, &kind)
         }
         "translate" => translate(ctx, txn, op),
+        "tailored.snapshot" | "tailored.promote" => fail(format!(
+            "unsupported_op_kind: '{kind}' belongs to the jobs sub-document; the profile engine does not edit it"
+        )),
         other => fail(format!(
             "unsupported_op_kind: '{other}' targets a sub-document the profile engine does not edit"
         )),
@@ -185,17 +199,33 @@ fn profile_replace(
     let Some(tree) = op.get("tree").filter(|t| t.is_object()) else {
         return fail(format!("{kind}: 'tree' must be an object"));
     };
+    ensure_value_depth(tree)?;
+    let format = match op.get("format") {
+        None => None,
+        Some(Value::Object(f)) => Some(f),
+        Some(_) => return fail(format!("{kind}: 'format' must be an object")),
+    };
     let root = if kind == "cv_profile.replace" {
         &ctx.roots.cv
     } else {
         &ctx.roots.cl
     }
     .clone();
-    let lang_map = ensure_lang_map(txn, &root, lang);
+    let existing = ensure_lang_map(&*txn, &root, lang)?;
+    if let Some(lang_map) = &existing
+        && let Some(other) = lang_map.get(&*txn, "format")
+        && !matches!(other, Out::YMap(_))
+    {
+        return fail(format!("'format' of {lang} is not a map"));
+    }
+    let lang_map = match existing {
+        Some(m) => m,
+        None => root.insert(txn, lang, yrs::MapPrelim::default()),
+    };
     let tree_map = lang_map.insert(txn, "tree", yrs::MapPrelim::default());
     fill_node(txn, &tree_map, tree);
-    if let Some(format) = op.get("format").and_then(Value::as_object) {
-        let fm = ensure_inner_map(txn, &lang_map, "format");
+    if let Some(format) = format {
+        let fm = ensure_map(txn, &lang_map, "format")?;
         for (k, v) in format {
             fm.insert(txn, k.as_str(), value_to_any(v));
         }
@@ -235,14 +265,14 @@ fn yjs_update(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result
         .map_err(|e| OpError::new(format!("yjs.update: update refused: {e}")))
 }
 
-fn tree_of(
-    ctx: &Ctx<'_>,
-    txn: &TransactionMut,
+fn tree_of<T: ReadTxn>(
+    roots: &Roots,
+    txn: &T,
     kind: &str,
     branch_path: &str,
     suffix: &str,
 ) -> Result<MapRef, OpError> {
-    let branch = resolve_branch_root(ctx, txn, branch_path)?;
+    let branch = resolve_branch_root(roots, txn, branch_path)?;
     get_map(txn, &branch, "tree")
         .ok_or_else(|| OpError::new(format!("{kind}: tree not found at '{branch_path}'{suffix}")))
 }
@@ -255,23 +285,36 @@ fn node_create(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
         return fail("node.create: 'node' must be an object");
     };
     let tree = tree_of(
-        ctx,
-        txn,
+        ctx.roots,
+        &*txn,
         kind,
         branch_path,
         "; seed via profile.replace first",
     )?;
-    let Some(parent) = resolve_node_path(txn, &tree, parent_path) else {
+    let Some(parent) = resolve_node_path(&*txn, &tree, parent_path) else {
         return fail(format!(
             "node.create: parent '{parent_path}' not found in '{branch_path}'"
         ));
     };
-    let node_id_value = match node.get("id").and_then(Value::as_str) {
-        Some(id) => id.to_string(),
-        None => (ctx.ids)(),
+    let node_id_value = match node.get("id") {
+        None | Some(Value::Null) => (ctx.ids)(),
+        Some(Value::String(id)) => id.clone(),
+        Some(_) => return fail("node.create: node id must be a string"),
     };
-    let children = ensure_children_array(txn, &parent);
-    if child_id_set(&*txn, &children).contains(&node_id_value) {
+    ensure_value_depth(&Value::Object(node.clone()))?;
+    let existing_children = match parent.get(&*txn, "children") {
+        None => None,
+        Some(Out::YArray(a)) => Some(a),
+        Some(_) => {
+            return fail(format!(
+                "'children' of node '{}' is not an array",
+                node_id(&*txn, &parent).unwrap_or_default()
+            ));
+        }
+    };
+    if let Some(children) = &existing_children
+        && child_id_set(&*txn, children).contains(&node_id_value)
+    {
         return fail(format!(
             "node.create: id '{node_id_value}' already exists in parent '{parent_path}'"
         ));
@@ -301,6 +344,7 @@ fn node_create(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
             full.insert(key.into(), v.clone());
         }
     }
+    let children = ensure_children_array(txn, &parent)?;
     let map = children.push_back(txn, yrs::MapPrelim::default());
     fill_node(txn, &map, &Value::Object(full));
     Ok(())
@@ -310,21 +354,13 @@ fn node_update(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
     let kind = "node.update";
     let branch_path = req_str(op, kind, "branch_path")?;
     let node_path = req_str(op, kind, "node_path")?;
-    let tree = tree_of(ctx, txn, kind, branch_path, "")?;
-    let Some(node) = resolve_node_path(txn, &tree, node_path) else {
+    let tree = tree_of(ctx.roots, &*txn, kind, branch_path, "")?;
+    let Some(node) = resolve_node_path(&*txn, &tree, node_path) else {
         return fail(format!(
             "node.update: node '{node_path}' not found in '{branch_path}'"
         ));
     };
-    if ctx.actor != ActorClass::Human
-        && super::tree::get_string(&*txn, &node, "tier").as_deref() == Some("FIXED")
-    {
-        return fail(format!(
-            "tier_protected: {} node.update cannot mutate FIXED node '{}'",
-            ctx.actor.as_str(),
-            node_id(&*txn, &node).unwrap_or_default()
-        ));
-    }
+    tier_protected(&*txn, &node, ctx.actor, "node.update")?;
     let Some(patch) = op.get("patch").and_then(Value::as_object) else {
         return fail("node.update: 'patch' must be an object");
     };
@@ -335,7 +371,6 @@ fn node_update(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
             ));
         }
     }
-    // Validate before mutating, so a refused patch leaves the document untouched.
     if let Some(data) = patch.get("data")
         && !data.is_object()
     {
@@ -372,7 +407,7 @@ fn node_delete(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
     let kind = "node.delete";
     let branch_path = req_str(op, kind, "branch_path")?;
     let node_path = req_str(op, kind, "node_path")?;
-    let tree = tree_of(ctx, txn, kind, branch_path, "")?;
+    let tree = tree_of(ctx.roots, &*txn, kind, branch_path, "")?;
     let parts = parse_node_path(node_path);
     if parts.len() < 2 {
         return fail(format!(
@@ -381,7 +416,7 @@ fn node_delete(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Resul
     }
     let parent_path = parts[..parts.len() - 1].join(".");
     let target = parts[parts.len() - 1];
-    let Some(parent) = resolve_node_path(txn, &tree, &parent_path) else {
+    let Some(parent) = resolve_node_path(&*txn, &tree, &parent_path) else {
         return fail(format!(
             "node.delete: parent '{parent_path}' not found in '{branch_path}'"
         ));
@@ -406,14 +441,14 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
     let branch_path = req_str(op, kind, "branch_path")?;
     let from_path = req_str(op, kind, "from_path")?;
     let to_parent_path = req_str(op, kind, "to_parent_path")?;
-    let tree = tree_of(ctx, txn, kind, branch_path, "")?;
+    let tree = tree_of(ctx.roots, &*txn, kind, branch_path, "")?;
     let parts = parse_node_path(from_path);
     if parts.len() < 2 {
         return fail("node.move: from_path must include parent + node id");
     }
     let from_parent_path = parts[..parts.len() - 1].join(".");
     let id = parts[parts.len() - 1];
-    let Some(from_parent) = resolve_node_path(txn, &tree, &from_parent_path) else {
+    let Some(from_parent) = resolve_node_path(&*txn, &tree, &from_parent_path) else {
         return fail(format!(
             "node.move: from_parent '{from_parent_path}' not found"
         ));
@@ -433,8 +468,8 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
             "node.move: node '{id}' not found in '{from_parent_path}'"
         ));
     };
-    let node_value = node_json(&*txn, &moved);
-    let Some(to_parent) = resolve_node_path(txn, &tree, to_parent_path) else {
+    let node_value = node_json(&*txn, &moved)?;
+    let Some(to_parent) = resolve_node_path(&*txn, &tree, to_parent_path) else {
         return fail(format!("node.move: to_parent '{to_parent_path}' not found"));
     };
     if is_inside(&*txn, &moved, &to_parent) {
@@ -442,15 +477,28 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
             "node.move: destination '{to_parent_path}' is inside the moved node '{id}'"
         ));
     }
-    let to_children = ensure_children_array(txn, &to_parent);
     let same_parent = from_parent == to_parent;
-    if !same_parent && child_id_set(&*txn, &to_children).contains(id) {
+    let to_existing = match to_parent.get(&*txn, "children") {
+        None => None,
+        Some(Out::YArray(a)) => Some(a),
+        Some(_) => {
+            return fail(format!(
+                "'children' of node '{}' is not an array",
+                node_id(&*txn, &to_parent).unwrap_or_default()
+            ));
+        }
+    };
+    if !same_parent
+        && let Some(children) = &to_existing
+        && child_id_set(&*txn, children).contains(id)
+    {
         return fail(format!(
             "node.move: id '{id}' already exists in destination '{to_parent_path}'"
         ));
     }
     from_children.remove(txn, index);
     scrub_from_selection(txn, &from_parent, id);
+    let to_children = ensure_children_array(txn, &to_parent)?;
     let target = match op.get("to_index") {
         None => None,
         Some(Value::Number(n)) => {
@@ -469,14 +517,16 @@ fn node_move(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
     Ok(())
 }
 
-/// True when `candidate` is `ancestor` itself or lies inside its subtree.
+/// True when `candidate` is `ancestor` itself or lies inside its subtree (iterative).
 fn is_inside<T: ReadTxn>(txn: &T, ancestor: &MapRef, candidate: &MapRef) -> bool {
-    if ancestor == candidate {
-        return true;
+    let mut stack = vec![ancestor.clone()];
+    while let Some(current) = stack.pop() {
+        if current == *candidate {
+            return true;
+        }
+        stack.extend(super::tree::child_maps(txn, &current));
     }
-    super::tree::child_maps(txn, ancestor)
-        .iter()
-        .any(|child| is_inside(txn, child, candidate))
+    false
 }
 
 fn batch(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), OpError> {
@@ -538,6 +588,24 @@ fn batch(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), 
     Ok(())
 }
 
+/// A delta list that must hold strings only.
+fn delta_strings(delta: &Map<String, Value>, key: &str) -> Result<Option<Vec<String>>, OpError> {
+    let Some(value) = delta.get(key) else {
+        return Ok(None);
+    };
+    let bad = || {
+        OpError::new(format!(
+            "selection.update: delta.{key} must be an array of strings"
+        ))
+    };
+    let items = value.as_array().ok_or_else(bad)?;
+    items
+        .iter()
+        .map(|v| v.as_str().map(str::to_string).ok_or_else(bad))
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
 fn selection_update(
     ctx: &mut Ctx<'_>,
     txn: &mut TransactionMut,
@@ -546,8 +614,8 @@ fn selection_update(
     let kind = "selection.update";
     let branch_path = req_str(op, kind, "branch_path")?;
     let node_path = req_str(op, kind, "node_path")?;
-    let tree = tree_of(ctx, txn, kind, branch_path, "")?;
-    let Some(node) = resolve_node_path(txn, &tree, node_path) else {
+    let tree = tree_of(ctx.roots, &*txn, kind, branch_path, "")?;
+    let Some(node) = resolve_node_path(&*txn, &tree, node_path) else {
         return fail(format!(
             "selection.update: node '{node_path}' not found in '{branch_path}'"
         ));
@@ -555,35 +623,40 @@ fn selection_update(
     let Some(delta) = op.get("delta").and_then(Value::as_object) else {
         return fail("selection.update: 'delta' must be an object");
     };
-    let sel = ensure_selection_map(txn, &node);
-    let mut current: Vec<String> = match sel.get(&*txn, "active") {
+    let existing_sel = match node.get(&*txn, "selection") {
+        None => None,
+        Some(Out::YMap(m)) => Some(m),
+        Some(_) => {
+            return fail(format!(
+                "'selection' of node '{}' is not a map",
+                node_id(&*txn, &node).unwrap_or_default()
+            ));
+        }
+    };
+    let mut current: Vec<String> = match existing_sel
+        .as_ref()
+        .and_then(|sel| sel.get(&*txn, "active"))
+    {
         Some(Out::Any(Any::Array(items))) => items
             .iter()
-            .filter_map(|a| match a {
-                Any::String(s) => Some(s.to_string()),
-                _ => None,
+            .map(|a| match a {
+                Any::String(s) => Ok(s.to_string()),
+                _ => fail("selection.update: active[] contains non-string entries"),
             })
-            .collect(),
+            .collect::<Result<Vec<_>, _>>()?,
         _ => Vec::new(),
     };
-    let strings = |v: &Value| -> Vec<String> {
-        v.as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|s| s.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    if let Some(set) = delta.get("setActive") {
-        current = strings(set);
+    let set_active = delta_strings(delta, "setActive")?;
+    let remove = delta_strings(delta, "remove")?;
+    let add = delta_strings(delta, "add")?;
+    if let Some(set) = set_active {
+        current = set;
     } else {
-        if let Some(remove) = delta.get("remove") {
-            let remove = strings(remove);
+        if let Some(remove) = remove {
             current.retain(|id| !remove.contains(id));
         }
-        if let Some(add) = delta.get("add") {
-            for id in strings(add) {
+        if let Some(add) = add {
+            for id in add {
                 if !current.contains(&id) {
                     current.push(id);
                 }
@@ -605,7 +678,7 @@ fn selection_update(
         ));
     }
     let existing = |key: &str| -> Option<f64> {
-        match sel.get(&*txn, key) {
+        match existing_sel.as_ref()?.get(&*txn, key) {
             Some(Out::Any(Any::Number(n))) => Some(match n {
                 yrs::any::Number::Int(i) => {
                     #[allow(clippy::cast_precision_loss)]
@@ -633,6 +706,7 @@ fn selection_update(
             js_number(&json!(max))
         ));
     }
+    let sel = ensure_selection_map(txn, &node)?;
     sel.insert(
         txn,
         "active",
@@ -658,86 +732,6 @@ fn selection_update(
     Ok(())
 }
 
-fn tailored_snapshot(
-    ctx: &mut Ctx<'_>,
-    txn: &mut TransactionMut,
-    op: &Value,
-) -> Result<(), OpError> {
-    let kind = "tailored.snapshot";
-    let job_id = op.get("job_id").and_then(Value::as_str).unwrap_or("");
-    if job_id.is_empty() {
-        return fail("tailored.snapshot: job_id is required");
-    }
-    let branch_path = req_str(op, kind, "branch_path")?;
-    let key = tailored_key(branch_path.split('.').next().unwrap_or(""));
-    let Some(entry) = get_map(&*txn, &ctx.roots.jobs, job_id) else {
-        return fail(format!("tailored.snapshot: job '{job_id}' not found"));
-    };
-    let attributes = ensure_inner_map(txn, &entry, "attributes");
-    let lang_map = resolve_branch_root(ctx, txn, branch_path)?;
-    let Some(tree) = get_map(&*txn, &lang_map, "tree") else {
-        return fail(format!("tailored.snapshot: {branch_path}.tree not found"));
-    };
-    let snapshot = node_json(&*txn, &tree);
-    attributes.insert(txn, key, value_to_any(&snapshot));
-    Ok(())
-}
-
-fn tailored_promote(
-    ctx: &mut Ctx<'_>,
-    txn: &mut TransactionMut,
-    op: &Value,
-) -> Result<(), OpError> {
-    let kind = "tailored.promote";
-    let job_id = op.get("job_id").and_then(Value::as_str).unwrap_or("");
-    if job_id.is_empty() {
-        return fail("tailored.promote: job_id is required");
-    }
-    let branch_path = req_str(op, kind, "branch_path")?;
-    let node_path = req_str(op, kind, "node_path")?;
-    let key = tailored_key(branch_path.split('.').next().unwrap_or(""));
-    let Some(entry) = get_map(&*txn, &ctx.roots.jobs, job_id) else {
-        return fail(format!("tailored.promote: job '{job_id}' not found"));
-    };
-    let Some(attributes) = get_map(&*txn, &entry, "attributes") else {
-        return fail(format!(
-            "tailored.promote: job '{job_id}' has no attributes map"
-        ));
-    };
-    let snapshot = match attributes.get(&*txn, key) {
-        Some(Out::Any(any)) if !matches!(any, Any::Null | Any::Undefined) => {
-            out_to_value(&*txn, &Out::Any(any))
-        }
-        _ => return fail(format!("tailored.promote: job '{job_id}' has no {key}")),
-    };
-    let Some(found) = resolve_node_in_plain(&snapshot, node_path) else {
-        return fail(format!(
-            "tailored.promote: node '{node_path}' not found in {key} for job '{job_id}'"
-        ));
-    };
-    let lang_map = resolve_branch_root(ctx, txn, branch_path)?;
-    let Some(tree) = get_map(&*txn, &lang_map, "tree") else {
-        return fail(format!("tailored.promote: {branch_path}.tree not found"));
-    };
-    let parts = parse_node_path(node_path);
-    if parts.len() < 2 {
-        return fail("tailored.promote: cannot promote root node");
-    }
-    let parent_path = parts[..parts.len() - 1].join(".");
-    let Some(parent) = resolve_node_path(txn, &tree, &parent_path) else {
-        return fail(format!(
-            "tailored.promote: parent '{parent_path}' not found in quarry {branch_path}"
-        ));
-    };
-    let mut fresh = found.as_object().cloned().unwrap_or_default();
-    fresh.insert("id".into(), Value::String((ctx.ids)()));
-    fresh.insert("children".into(), json!([]));
-    fresh.insert("selection".into(), json!({ "active": [] }));
-    let map = ensure_children_array(txn, &parent).push_back(txn, yrs::MapPrelim::default());
-    fill_node(txn, &map, &Value::Object(fresh));
-    Ok(())
-}
-
 fn cvl_action(
     ctx: &mut Ctx<'_>,
     txn: &mut TransactionMut,
@@ -745,13 +739,55 @@ fn cvl_action(
     kind: &str,
 ) -> Result<(), OpError> {
     let branch_path = req_str(op, kind, "branch_path")?;
-    let tree = tree_of(ctx, txn, kind, branch_path, "")?;
+    let tree = tree_of(ctx.roots, &*txn, kind, branch_path, "")?;
     let expansion = cvl::expand(ctx, &*txn, &tree, op)?;
     if expansion.is_empty() {
         return Ok(());
     }
     let ops: Vec<Value> = expansion.into_iter().map(|o| json!({ "op": o })).collect();
     batch(ctx, txn, &json!({ "kind": "batch", "ops": ops }))
+}
+
+/// The checks the server runs on a translate op (`validateTranslateOp`), beyond what `applyOp` checks.
+fn translate_server_checks(op: &Value, src: &[&str], tgt: &[&str]) -> Result<(), OpError> {
+    if src[0] != tgt[0] {
+        return fail(format!(
+            "translate: source and target must be in the same profile (got '{}' and '{}')",
+            src[0], tgt[0]
+        ));
+    }
+    let lang = |key: &str| op.get(key).and_then(Value::as_str).unwrap_or("");
+    if lang("source_lang").len() < 2 || lang("target_lang").len() < 2 {
+        return fail("translate: source_lang and target_lang must be at least 2 characters");
+    }
+    if lang("source_lang") == lang("target_lang") {
+        return fail("translate: source_lang and target_lang must differ");
+    }
+    if src[1] == tgt[1] {
+        return fail(
+            "translate: source_path and target_path must reference different language trees",
+        );
+    }
+    Ok(())
+}
+
+fn translated_node_is_valid(node: &Value) -> bool {
+    let text = |k: &str| {
+        node.get(k)
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty())
+    };
+    let tier = node.get("tier").and_then(Value::as_str);
+    let active_ok = node
+        .get("selection")
+        .and_then(|s| s.get("active"))
+        .and_then(Value::as_array)
+        .is_some_and(|a| a.iter().all(Value::is_string));
+    text("id")
+        && text("kind")
+        && matches!(tier, Some("FIXED" | "HYBRID" | "OPEN"))
+        && node.get("children").is_some_and(Value::is_array)
+        && active_ok
 }
 
 fn translate(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), OpError> {
@@ -809,8 +845,12 @@ fn translate(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
             "translate: target profile '{tgt_profile}' must be cv_profile or cl_profile"
         ));
     };
-    let tgt_lang_map = ensure_lang_map(txn, &tgt_root, tgt_lang);
-    let Some(tgt_tree) = get_map(&*txn, &tgt_lang_map, "tree") else {
+    translate_server_checks(op, &src, &tgt)?;
+    // A target language that has no tree yet has nothing to translate into:
+    // refuse without creating an empty language map.
+    let tgt_tree = ensure_lang_map(&*txn, &tgt_root, tgt_lang)?
+        .and_then(|lang_map| get_map(&*txn, &lang_map, "tree"));
+    let Some(tgt_tree) = tgt_tree else {
         return fail(format!(
             "translate: target tree not found at '{}'; seed via {tgt_profile}.replace first",
             tgt[..3].join(".")
@@ -833,7 +873,23 @@ fn translate(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<
     let Some(translated) = op.get("translated_node").filter(|n| n.is_object()) else {
         return fail("translate: 'translated_node' must be an object");
     };
-    let children = ensure_children_array(txn, &tgt_parent);
+    if !translated_node_is_valid(translated) {
+        return fail(
+            "translate: translated_node needs a non-empty id and kind, tier FIXED, HYBRID or OPEN, \
+             a children array and selection.active as strings",
+        );
+    }
+    ensure_value_depth(translated)?;
+    if !matches!(
+        tgt_parent.get(&*txn, "children"),
+        None | Some(Out::YArray(_))
+    ) {
+        return fail(format!(
+            "'children' of node '{}' is not an array",
+            node_id(&*txn, &tgt_parent).unwrap_or_default()
+        ));
+    }
+    let children = ensure_children_array(txn, &tgt_parent)?;
     let map = if let Some(index) = find_child_index(&*txn, &children, tgt_id) {
         children.remove(txn, index);
         children.insert(txn, index, yrs::MapPrelim::default())

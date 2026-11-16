@@ -29,6 +29,7 @@ mod text;
 mod track;
 mod tree;
 
+use std::collections::BTreeSet;
 use std::fmt;
 use std::hash::BuildHasher;
 use std::ops::Range;
@@ -109,11 +110,21 @@ impl ActorClass {
     }
 }
 
-/// What a mutation touched. `nodes` are node ids (sorted); `formats` are
+/// Where a node lives: the branch (`<profile>.<lang>`) and the dot-joined id
+/// path from the tree root, wrappers included. This is what [`Doc::view`] takes.
+/// Ids repeat across language trees and between siblings of different parents,
+/// so an id alone does not say which node changed.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NodeRef {
+    pub branch: String,
+    pub path: String,
+}
+
+/// What a mutation touched, sorted: nodes by location, and the
 /// `<profile>.<lang>` branches whose `format` map changed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Changed {
-    pub nodes: Vec<String>,
+    pub nodes: Vec<NodeRef>,
     pub formats: Vec<String>,
 }
 
@@ -123,6 +134,44 @@ impl Changed {
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty() && self.formats.is_empty()
     }
+}
+
+/// What an update frame is made of, read without applying it to a document.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UpdateInfo {
+    /// Top-level types named by structs of the frame (`cv_profile`, `jobs`, ...).
+    pub roots: BTreeSet<String>,
+    /// Clients whose structs the frame inserts or deletes.
+    pub clients: BTreeSet<u64>,
+    /// True for a frame that carries nothing.
+    pub empty: bool,
+}
+
+/// Inspect update bytes: which root names and clients they involve.
+pub fn inspect_update(bytes: &[u8]) -> Result<UpdateInfo, OpError> {
+    let decode =
+        || Update::decode_v1(bytes).map_err(|e| OpError::new(format!("undecodable update: {e}")));
+    let update = decode()?;
+    let mut clients = BTreeSet::new();
+    for (client, _) in update.insertions(true).iter() {
+        clients.insert(client.get());
+    }
+    for (client, _) in update.delete_set().iter() {
+        clients.insert(client.get());
+    }
+    let empty = update.is_empty();
+    // Structs that name a root type create it in an empty document; the rest
+    // wait there for parents they cannot find.
+    let probe = yrs::Doc::new();
+    let mut txn = probe.transact_mut();
+    txn.apply_update(decode()?)
+        .map_err(|e| OpError::new(format!("update refused: {e}")))?;
+    let roots = txn.root_refs().map(|(name, _)| name.to_string()).collect();
+    Ok(UpdateInfo {
+        roots,
+        clients,
+        empty,
+    })
 }
 
 const ID_ALPHABET: &[u8; 64] = b"useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
@@ -281,7 +330,11 @@ impl Doc {
     /// Replace `range` (UTF-16 units) of a prose field with `replacement`.
     ///
     /// `node_path` is the dot-joined id path from the tree root, `key` the
-    /// prose key of its `data` (`text` or `heading`).
+    /// prose key of its `data` (`text` or `heading`). A key that still holds a
+    /// plain string is upgraded to a `Y.Text` seeded with it. Everything is
+    /// checked before the first write: a refused call changes nothing and
+    /// produces no bytes. A range may not split a surrogate pair, and a text
+    /// with embedded content is refused because its offsets are not text offsets.
     pub fn type_text(
         &mut self,
         branch_path: &str,
@@ -289,9 +342,10 @@ impl Doc {
         key: &str,
         range: Range<u32>,
         replacement: &str,
+        actor: ActorClass,
     ) -> Result<Changed, OpError> {
-        self.run(ActorClass::Human, false, |ctx, txn| {
-            let branch = ops::resolve_branch_root(ctx, txn, branch_path)?;
+        self.run(actor, false, |ctx, txn| {
+            let branch = ops::resolve_branch_root(ctx.roots, &*txn, branch_path)?;
             let Some(tree) = tree::get_map(&*txn, &branch, "tree") else {
                 return ops::fail(format!("type_text: tree not found at '{branch_path}'"));
             };
@@ -300,6 +354,7 @@ impl Doc {
                     "type_text: node '{node_path}' not found in '{branch_path}'"
                 ));
             };
+            ops::tier_protected(&*txn, &node, ctx.actor, "type_text")?;
             let kind = tree::node_kind(&*txn, &node).unwrap_or_default();
             let data_json = node
                 .get(&*txn, "data")
@@ -309,18 +364,58 @@ impl Doc {
                     "type_text: '{key}' is not a prose field of node '{node_path}'"
                 ));
             }
-            let data = tree::ensure_data_ymap(txn, &node);
-            let text = match data.get(&*txn, key) {
-                Some(Out::YText(t)) => t,
-                _ => data.insert(txn, key, yrs::TextPrelim::new("")),
+            let not_text = || {
+                OpError::new(format!(
+                    "type_text: '{key}' of node '{node_path}' is not text"
+                ))
             };
-            let len = text.len(&*txn);
+            let existing = match node.get(&*txn, "data") {
+                None => None,
+                Some(Out::YMap(m)) => m.get(&*txn, key),
+                Some(Out::Any(yrs::Any::Map(map))) => map.get(key).cloned().map(Out::Any),
+                Some(_) => {
+                    return Err(OpError::new(format!(
+                        "type_text: data of node '{node_path}' is not an object"
+                    )));
+                }
+            };
+            let (current, text_ref) = match existing {
+                None => (String::new(), None),
+                Some(Out::YText(t)) => {
+                    let current = t.get_string(&*txn);
+                    let units = u32::try_from(current.encode_utf16().count()).unwrap_or(u32::MAX);
+                    if units != t.len(&*txn) {
+                        return ops::fail(format!(
+                            "type_text: '{key}' of node '{node_path}' holds embedded content"
+                        ));
+                    }
+                    (current, Some(t))
+                }
+                Some(Out::Any(yrs::Any::String(s))) => (s.to_string(), None),
+                Some(_) => return Err(not_text()),
+            };
+            let units: Vec<u16> = current.encode_utf16().collect();
+            let len = u32::try_from(units.len()).unwrap_or(u32::MAX);
             if range.start > range.end || range.end > len {
                 return ops::fail(format!(
                     "type_text: range {}..{} is outside the text (length {len})",
                     range.start, range.end
                 ));
             }
+            let splits = |at: u32| {
+                let at = at as usize;
+                at > 0
+                    && at < units.len()
+                    && matches!(units[at - 1], 0xD800..=0xDBFF)
+                    && matches!(units[at], 0xDC00..=0xDFFF)
+            };
+            if splits(range.start) || splits(range.end) {
+                return ops::fail("type_text: the range splits a surrogate pair");
+            }
+            let text = text_ref.unwrap_or_else(|| {
+                let data = tree::ensure_data_ymap(txn, &node);
+                data.insert(txn, key, yrs::TextPrelim::new(current))
+            });
             if range.end > range.start {
                 text.remove_range(txn, range.start, range.end - range.start);
             }
@@ -340,14 +435,14 @@ impl Doc {
                 "view: node '{node_path}' not found in '{branch_path}'"
             ))
         })?;
-        Ok(tree::node_json(&txn, &node))
+        tree::node_json(&txn, &node)
     }
 
     /// The whole tree of a branch (`<profile>.<lang>`), for cold loads and tests.
     pub fn tree_json(&self, branch_path: &str) -> Result<Value, OpError> {
         let txn = self.inner.transact();
         let tree = self.tree(&txn, branch_path)?;
-        Ok(tree::node_json(&txn, &tree))
+        tree::node_json(&txn, &tree)
     }
 
     /// The `format` map of a branch, if any.
@@ -397,13 +492,20 @@ impl Doc {
         self.fork()?.apply_op_as(op, actor)
     }
 
-    /// `toJSON` of one profile root (`cv_profile` or `cl_profile`).
+    /// `toJSON` of one profile root (`cv_profile` or `cl_profile`); refuses a tree that is too deep.
     pub fn profile_json(&self, profile: &str) -> Result<Value, OpError> {
         let root = self
             .roots
             .profile(profile)
             .ok_or_else(|| OpError::new(format!("'{profile}' is not cv_profile or cl_profile")))?;
         let txn = self.inner.transact();
+        for (_, lang) in root.iter(&txn) {
+            if let Out::YMap(lang_map) = lang
+                && let Some(tree) = tree::get_map(&txn, &lang_map, "tree")
+            {
+                tree::ensure_depth(&txn, &tree)?;
+            }
+        }
         Ok(convert::out_to_value(&txn, &Out::YMap(root.clone())))
     }
 
@@ -431,14 +533,40 @@ impl Doc {
     }
 
     /// The updates produced by local ops since the last call, merged into one.
-    /// Empty when nothing is pending.
-    pub fn take_outgoing(&mut self) -> Vec<u8> {
+    /// Empty when nothing is pending. If merging fails the updates stay pending
+    /// and the error is returned: outgoing bytes are never lost.
+    pub fn take_outgoing(&mut self) -> Result<Vec<u8>, OpError> {
         let pending = std::mem::take(&mut *lock(&self.outgoing));
         match pending.len() {
-            0 => Vec::new(),
-            1 => pending.into_iter().next().unwrap_or_default(),
-            _ => yrs::merge_updates_v1(&pending).unwrap_or_default(),
+            0 => Ok(Vec::new()),
+            1 => Ok(pending.into_iter().next().unwrap_or_default()),
+            _ => match yrs::merge_updates_v1(&pending) {
+                Ok(merged) => Ok(merged),
+                Err(e) => {
+                    *lock(&self.outgoing) = pending;
+                    Err(OpError::new(format!(
+                        "outgoing updates could not be merged: {e}"
+                    )))
+                }
+            },
         }
+    }
+
+    /// Put bytes taken with [`Doc::take_outgoing`] back, ahead of anything newer,
+    /// when the caller could not hand them on.
+    pub fn restore_outgoing(&mut self, update: Vec<u8>) {
+        if !update.is_empty() {
+            lock(&self.outgoing).insert(0, update);
+        }
+    }
+
+    /// True when this document has seen structs of `client`.
+    #[must_use]
+    pub fn knows_client(&self, client: u64) -> bool {
+        self.inner
+            .transact()
+            .state_vector()
+            .contains_client(&ClientID::new(client))
     }
 
     /// The state vector, for a peer to ask for a diff.
@@ -466,7 +594,7 @@ impl Doc {
         Ok(self.inner.transact().encode_state_as_update_v1(&sv))
     }
 
-    /// Structural dump of the profile and jobs roots (see `convert::dump_shape`):
+    /// Structural dump of the profile roots (see `convert::dump_shape`):
     /// it tells `Y.Map`, `Y.Array`, `Y.Text` and plain values apart, which
     /// `toJSON` cannot. Empty roots are left out.
     #[must_use]
@@ -476,7 +604,6 @@ impl Doc {
         for (name, root) in [
             ("cv_profile", &self.roots.cv),
             ("cl_profile", &self.roots.cl),
-            ("jobs", &self.roots.jobs),
         ] {
             if root.len(&txn) > 0 {
                 out.insert(

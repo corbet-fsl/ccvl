@@ -62,18 +62,31 @@ pub(crate) fn out_to_value<T: ReadTxn>(txn: &T, out: &Out) -> Value {
 /// `Y.Text` -> `{"$text": "..."}`, a plain array or object -> `{"$any": ...}`,
 /// primitives as themselves.
 pub(crate) fn dump_shape<T: ReadTxn>(txn: &T, out: &Out) -> Value {
+    dump_shape_at(txn, out, 0)
+}
+
+/// Nesting deeper than this is not dumped (the dump is a test and tooling aid).
+const SHAPE_DEPTH: usize = 256;
+
+fn dump_shape_at<T: ReadTxn>(txn: &T, out: &Out, depth: usize) -> Value {
+    if depth > SHAPE_DEPTH {
+        return Value::Null;
+    }
     match out {
         Out::YMap(m) => {
             let inner: Map<String, Value> = m
                 .iter(txn)
-                .map(|(k, v)| (k.to_string(), dump_shape(txn, &v)))
+                .map(|(k, v)| (k.to_string(), dump_shape_at(txn, &v, depth + 1)))
                 .collect();
             let mut o = Map::new();
             o.insert("$map".into(), Value::Object(inner));
             Value::Object(o)
         }
         Out::YArray(a) => {
-            let inner: Vec<Value> = a.iter(txn).map(|v| dump_shape(txn, &v)).collect();
+            let inner: Vec<Value> = a
+                .iter(txn)
+                .map(|v| dump_shape_at(txn, &v, depth + 1))
+                .collect();
             let mut o = Map::new();
             o.insert("$array".into(), Value::Array(inner));
             Value::Object(o)

@@ -1,8 +1,7 @@
 //! The `cvl.*` action ops: each expands, by reading the current tree, into a
 //! sequence of `node.*` / `selection.update` sub-ops that run as one batch.
 use serde_json::{Value, json};
-use yrs::MapRef;
-use yrs::ReadTxn;
+use yrs::{Array, MapRef, Out, ReadTxn};
 
 use super::OpError;
 use super::ops::{Ctx, fail, req_str};
@@ -11,44 +10,46 @@ use super::tree::{
     node_kind, parse_node_path, resolve_node_path, snapshot_node_fields,
 };
 
-fn walk_path<T: ReadTxn>(txn: &T, parent: &MapRef, parent_path: &str, id: &str) -> Option<String> {
-    for child in child_maps(txn, parent) {
-        let Some(cid) = node_id(txn, &child) else {
-            continue;
-        };
-        let path = format!("{parent_path}.{cid}");
-        if cid == id {
-            return Some(path);
-        }
-        if let Some(found) = walk_path(txn, &child, &path, id) {
-            return Some(found);
-        }
-    }
-    None
-}
-
-/// Dot path of a node from the tree root, wrappers included.
+/// Dot path of a node from the tree root, wrappers included (iterative pre-order).
 pub(crate) fn path_from_root<T: ReadTxn>(txn: &T, tree: &MapRef, id: &str) -> Option<String> {
     let root_id = node_id(txn, tree)?;
     if root_id == id {
         return Some(root_id);
     }
-    walk_path(txn, tree, &root_id, id)
+    let mut stack: Vec<(MapRef, String)> = child_maps(txn, tree)
+        .into_iter()
+        .rev()
+        .filter_map(|c| node_id(txn, &c).map(|cid| (c, format!("{root_id}.{cid}"))))
+        .collect();
+    while let Some((node, path)) = stack.pop() {
+        if node_id(txn, &node).as_deref() == Some(id) {
+            return Some(path);
+        }
+        for child in child_maps(txn, &node).into_iter().rev() {
+            if let Some(cid) = node_id(txn, &child) {
+                stack.push((child, format!("{path}.{cid}")));
+            }
+        }
+    }
+    None
 }
 
-/// The map directly containing `id` in its `children`, and the index there.
+/// The map directly containing `id` in its `children`, and the index there (iterative pre-order).
 pub(crate) fn find_direct_parent_of_id<T: ReadTxn>(
     txn: &T,
     root: &MapRef,
     id: &str,
 ) -> Option<(MapRef, u32)> {
-    let children = get_array(txn, root, "children")?;
-    if let Some(idx) = find_child_index(txn, &children, id) {
-        return Some((root.clone(), idx));
+    let mut stack = vec![root.clone()];
+    while let Some(node) = stack.pop() {
+        if let Some(children) = get_array(txn, &node, "children") {
+            if let Some(idx) = find_child_index(txn, &children, id) {
+                return Some((node, idx));
+            }
+            stack.extend(child_maps(txn, &node).into_iter().rev());
+        }
     }
-    child_maps(txn, root)
-        .iter()
-        .find_map(|child| find_direct_parent_of_id(txn, child, id))
+    None
 }
 
 fn parent_path_of(node_path: &str) -> Result<String, OpError> {
@@ -285,19 +286,21 @@ fn find_enclosing_list_item<T: ReadTxn>(txn: &T, tree: &MapRef, start: &MapRef) 
     None
 }
 
-/// Index of `child_id` in `parent.children`; a child inside a wrapper reports the wrapper's index.
+/// Index of `child_id` in `parent.children` (raw array index); a child inside a wrapper reports the wrapper's index.
 fn position_considering_wrappers<T: ReadTxn>(
     txn: &T,
     parent: &MapRef,
     child_id: &str,
 ) -> Option<u32> {
-    for (i, child) in child_maps(txn, parent).iter().enumerate() {
+    let children = get_array(txn, parent, "children")?;
+    for (i, out) in children.iter(txn).enumerate() {
+        let Out::YMap(child) = out else { continue };
         let index = u32::try_from(i).ok()?;
-        if node_id(txn, child).as_deref() == Some(child_id) {
+        if node_id(txn, &child).as_deref() == Some(child_id) {
             return Some(index);
         }
-        if kind_is(txn, child, VARIANT_POOL)
-            && let Some(inner) = get_array(txn, child, "children")
+        if kind_is(txn, &child, VARIANT_POOL)
+            && let Some(inner) = get_array(txn, &child, "children")
             && find_child_index(txn, &inner, child_id).is_some()
         {
             return Some(index);

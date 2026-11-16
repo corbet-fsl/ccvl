@@ -1,38 +1,56 @@
 //! The engine boundary beyond the vectors: typing, sync between two engines,
-//! outgoing bytes, dry runs and the refusals the vectors cannot carry.
+//! outgoing bytes, refusals that must change nothing, deep trees, and the
+//! checks the vectors cannot carry.
 #![cfg(feature = "doc")]
 #![allow(clippy::needless_pass_by_value)]
 
-use ccvl_core::doc::{ActorClass, Doc};
+use ccvl_core::doc::{ActorClass, Doc, NodeRef, inspect_update};
 use serde_json::{Value, json};
+use yrs::{Array, ArrayPrelim, Doc as YDoc, Map, MapPrelim, ReadTxn, Transact};
 
 const BRANCH: &str = "cv_profile.en";
 
 fn node(id: &str, kind: &str, data: Value, children: Vec<Value>) -> Value {
+    node_with_tier(id, kind, "HYBRID", data, children)
+}
+
+fn node_with_tier(id: &str, kind: &str, tier: &str, data: Value, children: Vec<Value>) -> Value {
     let active: Vec<Value> = children.iter().map(|c| c["id"].clone()).collect();
-    json!({ "id": id, "kind": kind, "tier": "HYBRID", "data": data,
+    json!({ "id": id, "kind": kind, "tier": tier, "data": data,
             "selection": { "active": active }, "children": children })
 }
 
-fn seed() -> Doc {
-    let tree = node(
+fn tree() -> Value {
+    node(
         "root",
         "cv-root",
         json!({}),
-        vec![node(
-            "item",
-            "list-item",
-            json!({ "heading": "Engineer" }),
-            vec![node(
-                "b1",
-                "bullet",
-                json!({ "text": "Built \u{1F600} things" }),
+        vec![
+            node_with_tier(
+                "info",
+                "personal-info",
+                "FIXED",
+                json!({ "name": "Ada" }),
                 vec![],
-            )],
-        )],
-    );
+            ),
+            node(
+                "item",
+                "list-item",
+                json!({ "heading": "Engineer" }),
+                vec![node(
+                    "b1",
+                    "bullet",
+                    json!({ "text": "Built \u{1F600} things" }),
+                    vec![],
+                )],
+            ),
+        ],
+    )
+}
+
+fn seed() -> Doc {
     let mut doc = Doc::with_client_id(1);
-    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": tree, "format": { "font": "Archivo" } }))
+    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "en", "tree": tree(), "format": { "font": "Archivo" } }))
         .expect("seed");
     doc
 }
@@ -43,38 +61,139 @@ fn sibling(from: &Doc, client: u64) -> Doc {
     doc
 }
 
+fn at(path: &str) -> NodeRef {
+    NodeRef {
+        branch: BRANCH.into(),
+        path: path.into(),
+    }
+}
+
+fn human(
+    doc: &mut Doc,
+    path: &str,
+    key: &str,
+    range: std::ops::Range<u32>,
+    text: &str,
+) -> Result<(), String> {
+    doc.type_text(BRANCH, path, key, range, text, ActorClass::Human)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+fn outgoing(doc: &mut Doc) -> Vec<u8> {
+    doc.take_outgoing().expect("outgoing")
+}
+
 #[test]
 fn type_text_counts_utf16_units() {
     let mut doc = seed();
-    // "Built " is 6 units, the emoji 2 more: replace the word after them.
     let changed = doc
-        .type_text(BRANCH, "root.item.b1", "text", 9..15, "systems")
+        .type_text(
+            BRANCH,
+            "root.item.b1",
+            "text",
+            9..15,
+            "systems",
+            ActorClass::Human,
+        )
         .expect("typed");
-    assert_eq!(changed.nodes, vec!["b1"]);
+    assert_eq!(changed.nodes, vec![at("root.item.b1")]);
     assert_eq!(
         doc.prose(BRANCH, "root.item.b1", "text").as_deref(),
         Some("Built \u{1F600} systems")
     );
+}
+
+#[test]
+fn a_refused_type_text_changes_nothing_and_emits_no_bytes() {
+    let mut doc = seed();
+    outgoing(&mut doc);
+    let before = doc.shape();
+    // 6..7 starts at the emoji's high surrogate, 7..8 would split it.
+    for (path, key, range, text, why) in [
+        ("root.item.b1", "text", 0..99, "x", "outside the text"),
+        (
+            "root.item.b1",
+            "text",
+            std::ops::Range { start: 9, end: 3 },
+            "x",
+            "outside the text",
+        ),
+        ("root.item.b1", "text", 7..8, "x", "splits a surrogate pair"),
+        ("root.item.b1", "text", 0..7, "x", "splits a surrogate pair"),
+        ("root.item.b1", "heading", 0..0, "x", "not a prose field"),
+        ("root.ghost", "text", 0..0, "x", "not found"),
+    ] {
+        let err = human(&mut doc, path, key, range, text).expect_err(why);
+        assert!(err.contains(why), "{why}: {err}");
+        assert_eq!(doc.shape(), before, "{why}: the document changed");
+        assert_eq!(outgoing(&mut doc).len(), 0, "{why}: bytes were emitted");
+    }
+}
+
+#[test]
+fn type_text_protects_fixed_nodes_from_non_humans() {
+    let mut doc = seed();
+    outgoing(&mut doc);
+    doc.apply_op(
+        &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.item.b1",
+        "patch": { "tier": "FIXED" } }),
+    )
+    .expect("fix it");
+    outgoing(&mut doc);
+    let before = doc.shape();
+    let err = doc
+        .type_text(BRANCH, "root.item.b1", "text", 0..0, "x", ActorClass::Agent)
+        .expect_err("protected");
+    assert!(err.message().starts_with("tier_protected: agent"), "{err}");
+    assert_eq!(doc.shape(), before);
+    assert_eq!(outgoing(&mut doc).len(), 0);
+    doc.type_text(BRANCH, "root.item.b1", "text", 0..0, "x", ActorClass::Human)
+        .expect("humans may");
+}
+
+#[test]
+fn type_text_seeds_a_y_text_from_a_plain_string() {
+    let mut doc = seed();
+    // A legacy bullet whose data is a plain object holding a string.
+    doc.apply_op(
+        &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.item.b1",
+        "patch": { "kind": "note", "data": { "text": "Plain words" } } }),
+    )
+    .expect("flatten");
+    doc.apply_op(
+        &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.item.b1",
+        "patch": { "kind": "bullet" } }),
+    )
+    .expect("back to prose, data stays plain");
     assert!(
-        doc.type_text(BRANCH, "root.item.b1", "text", 0..99, "x")
-            .is_err()
+        doc.prose(BRANCH, "root.item.b1", "text").is_none(),
+        "data is still a plain object"
     );
-    assert!(
-        doc.type_text(BRANCH, "root.item.b1", "nope", 0..0, "x")
-            .is_err()
+    outgoing(&mut doc);
+
+    // A refused range must not upgrade anything.
+    let before = doc.shape();
+    assert!(human(&mut doc, "root.item.b1", "text", 0..99, "x").is_err());
+    assert_eq!(doc.shape(), before);
+    assert_eq!(outgoing(&mut doc).len(), 0);
+
+    human(&mut doc, "root.item.b1", "text", 6..11, "text").expect("typed");
+    assert_eq!(
+        doc.prose(BRANCH, "root.item.b1", "text").as_deref(),
+        Some("Plain text")
     );
 }
 
 #[test]
-fn type_text_upgrades_a_plain_data_object() {
+fn type_text_creates_the_text_of_a_prose_node_that_has_none() {
     let mut doc = seed();
     doc.apply_op(
         &json!({ "kind": "node.create", "branch_path": BRANCH, "parent_path": "root.item",
         "node": node("b2", "bullet", json!({ "note": "n" }), vec![]) }),
     )
     .expect("create");
-    doc.type_text(BRANCH, "root.item.b2", "text", 0..0, "hello")
-        .expect("typed");
+    human(&mut doc, "root.item.b2", "text", 0..0, "hello").expect("typed");
     assert_eq!(
         doc.prose(BRANCH, "root.item.b2", "text").as_deref(),
         Some("hello")
@@ -96,43 +215,106 @@ fn view_returns_the_node_shape() {
 }
 
 #[test]
+fn changed_nodes_carry_their_location() {
+    // The same ids live in two language trees and under different parents.
+    let mut doc = seed();
+    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "de", "tree": tree() }))
+        .expect("de");
+    doc.apply_op(
+        &json!({ "kind": "node.create", "branch_path": BRANCH, "parent_path": "root.info",
+        "node": node("b1", "bullet", json!({ "text": "same id, other parent" }), vec![]) }),
+    )
+    .expect("twin");
+    let changed = doc
+        .apply_op(&json!({ "kind": "node.update", "branch_path": "cv_profile.de", "node_path": "root.item.b1",
+            "patch": { "tier": "OPEN" } }))
+        .expect("update");
+    assert_eq!(
+        changed.nodes,
+        vec![NodeRef {
+            branch: "cv_profile.de".into(),
+            path: "root.item.b1".into()
+        }]
+    );
+    let twin = doc
+        .apply_op(
+            &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.info.b1",
+            "patch": { "tier": "OPEN" } }),
+        )
+        .expect("twin update");
+    assert_eq!(twin.nodes, vec![at("root.info.b1")]);
+}
+
+#[test]
 fn two_engines_converge_through_outgoing_bytes() {
     let mut a = seed();
     let mut b = sibling(&a, 2);
-    a.take_outgoing();
-    assert!(
-        b.take_outgoing().is_empty(),
-        "loading a copy is not an edit"
-    );
+    outgoing(&mut a);
+    assert_eq!(outgoing(&mut b).len(), 0, "loading a copy is not an edit");
 
-    a.type_text(BRANCH, "root.item.b1", "text", 0..0, ">> ")
-        .expect("a types");
+    a.type_text(
+        BRANCH,
+        "root.item.b1",
+        "text",
+        0..0,
+        ">> ",
+        ActorClass::Human,
+    )
+    .expect("a types");
     a.apply_op(&json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.item", "patch": { "tier": "OPEN" } }))
         .expect("a updates");
-    let bytes = a.take_outgoing();
+    let bytes = outgoing(&mut a);
     assert_ne!(bytes.len(), 0);
-    assert_eq!(a.take_outgoing().len(), 0, "outgoing is taken once");
+    assert_eq!(outgoing(&mut a).len(), 0, "outgoing is taken once");
 
     let changed = b.receive(&bytes).expect("b receives");
-    assert_eq!(changed.nodes, vec!["b1", "item"]);
-    assert!(
-        b.take_outgoing().is_empty(),
-        "received updates are not echoed"
-    );
+    assert_eq!(changed.nodes, vec![at("root.item"), at("root.item.b1")]);
+    assert_eq!(outgoing(&mut b).len(), 0, "received updates are not echoed");
     assert_eq!(a.shape(), b.shape());
+}
+
+#[test]
+fn restored_outgoing_bytes_come_first() {
+    let mut a = seed();
+    let first = outgoing(&mut a);
+    a.type_text(BRANCH, "root.item.b1", "text", 0..0, "x", ActorClass::Human)
+        .expect("typed");
+    a.restore_outgoing(first.clone());
+    let merged = outgoing(&mut a);
+    let mut b = Doc::new();
+    b.receive(&merged)
+        .expect("both updates arrive in one piece");
+    assert!(!b.has_pending());
+    assert_eq!(b.shape(), a.shape());
+    a.restore_outgoing(Vec::new());
+    assert_eq!(outgoing(&mut a).len(), 0);
 }
 
 #[test]
 fn concurrent_prose_edits_merge() {
     let mut a = seed();
     let mut b = sibling(&a, 2);
-    a.take_outgoing();
-    a.type_text(BRANCH, "root.item.b1", "text", 0..0, "A:")
-        .expect("a");
+    outgoing(&mut a);
+    a.type_text(
+        BRANCH,
+        "root.item.b1",
+        "text",
+        0..0,
+        "A:",
+        ActorClass::Human,
+    )
+    .expect("a");
     let end = u32::try_from("Built \u{1F600} things".encode_utf16().count()).expect("small");
-    b.type_text(BRANCH, "root.item.b1", "text", end..end, ":B")
-        .expect("b");
-    let (from_a, from_b) = (a.take_outgoing(), b.take_outgoing());
+    b.type_text(
+        BRANCH,
+        "root.item.b1",
+        "text",
+        end..end,
+        ":B",
+        ActorClass::Human,
+    )
+    .expect("b");
+    let (from_a, from_b) = (outgoing(&mut a), outgoing(&mut b));
     a.receive(&from_b).expect("a gets b");
     b.receive(&from_a).expect("b gets a");
     assert_eq!(a.shape(), b.shape());
@@ -145,15 +327,110 @@ fn concurrent_prose_edits_merge() {
 #[test]
 fn dry_run_changes_nothing() {
     let mut doc = seed();
-    doc.take_outgoing();
+    outgoing(&mut doc);
     let before = doc.shape();
     let op = json!({ "kind": "node.delete", "branch_path": BRANCH, "node_path": "root.item.b1" });
     let changed = doc.dry_run_as(&op, ActorClass::Human).expect("would apply");
-    assert_eq!(changed.nodes, vec!["item"]);
+    assert_eq!(changed.nodes, vec![at("root.item")]);
     assert_eq!(doc.shape(), before);
-    assert_eq!(doc.take_outgoing().len(), 0);
+    assert_eq!(outgoing(&mut doc).len(), 0);
     let bad = json!({ "kind": "node.delete", "branch_path": BRANCH, "node_path": "root.ghost.x" });
     assert!(doc.dry_run_as(&bad, ActorClass::Human).is_err());
+}
+
+#[test]
+fn refused_ops_change_nothing_and_emit_no_bytes() {
+    let mut doc = seed();
+    outgoing(&mut doc);
+    let before = doc.shape();
+    let ops = [
+        // selection.update validates before it writes
+        json!({ "kind": "selection.update", "branch_path": BRANCH, "node_path": "root.item",
+                "delta": { "add": ["ghost"] } }),
+        json!({ "kind": "selection.update", "branch_path": BRANCH, "node_path": "root.item",
+                "delta": { "add": [5] } }),
+        json!({ "kind": "selection.update", "branch_path": BRANCH, "node_path": "root.item",
+                "delta": { "setActive": "b1" } }),
+        // node.create: ids are strings, and a duplicate is refused before any write
+        json!({ "kind": "node.create", "branch_path": BRANCH, "parent_path": "root.item",
+                "node": { "id": 5, "kind": "bullet", "tier": "HYBRID" } }),
+        json!({ "kind": "node.create", "branch_path": BRANCH, "parent_path": "root.item",
+                "node": node("b1", "bullet", json!({}), vec![]) }),
+        // translate refuses before it creates a language map or a children array
+        json!({ "kind": "translate", "source_path": "cv_profile.en.tree.root.item", "target_path": "cv_profile.fr.tree.root.item",
+                "source_lang": "en", "target_lang": "fr", "translated_node": node("item", "list-item", json!({}), vec![]) }),
+        // the server's rules: same profile, different languages, a valid node
+        json!({ "kind": "translate", "source_path": "cv_profile.en.tree.root.item", "target_path": "cl_profile.de.tree.root.item",
+                "source_lang": "en", "target_lang": "de", "translated_node": node("item", "list-item", json!({}), vec![]) }),
+        // tailored.* belongs to the jobs sub-document
+        json!({ "kind": "tailored.snapshot", "job_id": "j", "branch_path": BRANCH }),
+        json!({ "kind": "tailored.promote", "job_id": "j", "node_path": "root.item", "branch_path": BRANCH }),
+    ];
+    for op in &ops {
+        let err = doc.apply_op(op).expect_err("refused");
+        assert_ne!(err.message().len(), 0);
+        assert_eq!(doc.shape(), before, "{op}: the document changed");
+        assert_eq!(outgoing(&mut doc).len(), 0, "{op}: bytes were emitted");
+    }
+    let same_language = json!({ "kind": "translate", "source_path": "cv_profile.en.tree.root.item",
+        "target_path": "cv_profile.en.tree.root.item", "source_lang": "en", "target_lang": "en",
+        "translated_node": node("item", "list-item", json!({}), vec![]) });
+    assert!(doc.apply_op(&same_language).is_err());
+    let tailored = doc
+        .apply_op(&json!({ "kind": "tailored.snapshot", "job_id": "j", "branch_path": BRANCH }))
+        .expect_err("refused");
+    assert!(
+        tailored.message().contains("jobs sub-document"),
+        "{tailored}"
+    );
+}
+
+#[test]
+fn translate_follows_the_server_rules() {
+    let mut doc = seed();
+    doc.apply_op(&json!({ "kind": "cv_profile.replace", "lang": "de", "tree": tree() }))
+        .expect("de");
+    let translated = node(
+        "item",
+        "list-item",
+        json!({ "heading": "Ingenieurin" }),
+        vec![],
+    );
+    let op = |source_lang: &str, target_lang: &str, target: &str| {
+        json!({ "kind": "translate", "source_path": "cv_profile.en.tree.root.item", "target_path": target,
+                "source_lang": source_lang, "target_lang": target_lang, "translated_node": translated })
+    };
+    for (op, why) in [
+        (
+            op("en", "en", "cv_profile.de.tree.root.item"),
+            "must differ",
+        ),
+        (
+            op("en", "de", "cv_profile.en.tree.root.item"),
+            "different language trees",
+        ),
+        (
+            op("en", "de", "cl_profile.de.tree.root.item"),
+            "same profile",
+        ),
+        (
+            op("e", "de", "cv_profile.de.tree.root.item"),
+            "at least 2 characters",
+        ),
+    ] {
+        let err = doc.apply_op(&op).expect_err(why);
+        assert!(err.message().contains(why), "{why}: {err}");
+    }
+    let mut bad_node = op("en", "de", "cv_profile.de.tree.root.item");
+    bad_node["translated_node"]["tier"] = json!("SECRET");
+    assert!(
+        doc.apply_op(&bad_node)
+            .expect_err("tier")
+            .message()
+            .contains("tier FIXED, HYBRID or OPEN")
+    );
+    doc.apply_op(&op("en", "de", "cv_profile.de.tree.root.item"))
+        .expect("valid");
 }
 
 #[test]
@@ -164,12 +441,14 @@ fn a_move_into_its_own_subtree_is_refused() {
         "node": node("s1", "sub", json!({ "text": "s" }), vec![]) }),
     )
     .expect("create");
+    outgoing(&mut doc);
     let before = doc.shape();
     let err = doc
         .apply_op(&json!({ "kind": "node.move", "branch_path": BRANCH, "from_path": "root.item.b1", "to_parent_path": "root.item.b1.s1" }))
         .expect_err("refused");
     assert!(err.message().contains("is inside the moved node"), "{err}");
     assert_eq!(doc.shape(), before);
+    assert_eq!(outgoing(&mut doc).len(), 0);
 }
 
 #[test]
@@ -178,7 +457,10 @@ fn apply_op_json_and_ids_from_the_source() {
     let changed = doc
         .apply_op_json(r#"{"kind":"node.create","branch_path":"cv_profile.en","parent_path":"root.item","node":{"kind":"bullet","tier":"HYBRID","data":{"text":"x"}}}"#)
         .expect("created");
-    assert_eq!(changed.nodes, vec!["fixed-id-01", "item"]);
+    assert_eq!(
+        changed.nodes,
+        vec![at("root.item"), at("root.item.fixed-id-01")]
+    );
     assert!(doc.apply_op_json("{not json").is_err());
 }
 
@@ -202,7 +484,7 @@ fn a_surrogate_pair_edit_stays_valid_text() {
 }
 
 #[test]
-fn profile_json_and_pending_state() {
+fn profile_json_pending_state_and_update_inspection() {
     let mut doc = seed();
     assert_eq!(
         doc.profile_json("cv_profile").expect("json")["en"]["tree"]["id"],
@@ -212,13 +494,174 @@ fn profile_json_and_pending_state() {
     assert!(!doc.has_pending());
     // An update whose history this document lacks stays pending.
     let mut a = seed();
-    let first = a.take_outgoing();
-    let _ = first;
-    a.type_text(BRANCH, "root.item.b1", "text", 0..0, "x")
+    outgoing(&mut a);
+    a.type_text(BRANCH, "root.item.b1", "text", 0..0, "x", ActorClass::Human)
         .expect("a");
-    let later = a.take_outgoing();
+    let later = outgoing(&mut a);
     let mut empty = Doc::new();
     empty.receive(&later).expect("accepted as pending");
     assert!(empty.has_pending());
+
+    let info = inspect_update(&later).expect("inspect");
+    assert!(
+        info.roots.is_empty(),
+        "a nested edit names no root: {:?}",
+        info.roots
+    );
+    assert_eq!(info.clients.len(), 1);
+    assert!(a.knows_client(*info.clients.iter().next().expect("client")));
+    assert!(!Doc::new().knows_client(*info.clients.iter().next().expect("client")));
+    let seed_bytes = seed().encode_state();
+    let seed_info = inspect_update(&seed_bytes).expect("inspect");
+    assert!(seed_info.roots.contains("cv_profile"));
+    assert!(!seed_info.empty);
+    assert!(inspect_update(&[0, 0]).expect("empty update").empty);
     let _ = doc.generate_id();
+}
+
+/// A document whose tree nests `depth` levels deep, built the way a hostile peer could.
+fn deep_peer_update(depth: usize) -> Vec<u8> {
+    let peer = YDoc::new();
+    let root = peer.get_or_insert_map("cv_profile");
+    let mut txn = peer.transact_mut();
+    let lang = root.insert(&mut txn, "en", MapPrelim::default());
+    let tree = lang.insert(&mut txn, "tree", MapPrelim::default());
+    let mut current = tree;
+    for level in 0..depth {
+        current.insert(&mut txn, "id", format!("n{level}"));
+        current.insert(&mut txn, "kind", "section");
+        current.insert(&mut txn, "tier", "HYBRID");
+        let kids = current.insert(&mut txn, "children", ArrayPrelim::default());
+        current = kids.push_back(&mut txn, MapPrelim::default());
+    }
+    drop(txn);
+    peer.transact()
+        .encode_state_as_update_v1(&yrs::StateVector::default())
+}
+
+#[test]
+fn a_tree_that_is_too_deep_is_refused_not_a_stack_overflow() {
+    let mut doc = Doc::new();
+    let changed = doc
+        .receive(&deep_peer_update(2_000))
+        .expect("frames are accepted; reading is guarded");
+    assert_ne!(changed.nodes.len(), 0);
+    let leaf_path = (0..2_000).map(|i| format!("n{i}")).collect::<Vec<_>>();
+    for err in [
+        doc.view(BRANCH, "n0").expect_err("view").to_string(),
+        doc.tree_json(BRANCH).expect_err("tree").to_string(),
+        doc.profile_json("cv_profile")
+            .expect_err("profile")
+            .to_string(),
+        doc.apply_op(&json!({ "kind": "node.move", "branch_path": BRANCH,
+            "from_path": "n0.n1", "to_parent_path": "n0" }))
+            .expect_err("move")
+            .to_string(),
+        doc.apply_op(&json!({ "kind": "cvl.break_out", "branch_path": BRANCH,
+            "node_path": leaf_path[..40].join(".") }))
+            .expect_err("cvl")
+            .to_string(),
+    ] {
+        assert_ne!(err.len(), 0);
+    }
+    // A deep node in an op is refused before any write.
+    let mut nested = node("leaf", "bullet", json!({}), vec![]);
+    for level in 0..200 {
+        nested = node(&format!("w{level}"), "section", json!({}), vec![nested]);
+    }
+    let mut ok = seed();
+    outgoing(&mut ok);
+    let before = ok.shape();
+    let err = ok
+        .apply_op(&json!({ "kind": "cv_profile.replace", "lang": "de", "tree": nested }))
+        .expect_err("too deep");
+    assert!(err.message().contains("deeper than"), "{err}");
+    assert_eq!(ok.shape(), before);
+    assert_eq!(outgoing(&mut ok).len(), 0);
+}
+
+#[test]
+fn values_of_the_wrong_type_are_refused_never_replaced() {
+    // A peer put a plain string where a node's children array belongs.
+    let peer = YDoc::new();
+    let root = peer.get_or_insert_map("cv_profile");
+    {
+        let mut txn = peer.transact_mut();
+        let lang = root.insert(&mut txn, "en", MapPrelim::default());
+        let tree = lang.insert(&mut txn, "tree", MapPrelim::default());
+        tree.insert(&mut txn, "id", "root");
+        tree.insert(&mut txn, "kind", "cv-root");
+        tree.insert(&mut txn, "tier", "FIXED");
+        tree.insert(&mut txn, "children", "not an array");
+        tree.insert(&mut txn, "selection", "not a map");
+    }
+    let mut doc = Doc::new();
+    doc.receive(
+        &peer
+            .transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default()),
+    )
+    .expect("loads");
+    outgoing(&mut doc);
+    let before = doc.shape();
+    for op in [
+        json!({ "kind": "node.create", "branch_path": BRANCH, "parent_path": "root",
+                "node": node("x", "bullet", json!({}), vec![]) }),
+        json!({ "kind": "selection.update", "branch_path": BRANCH, "node_path": "root", "delta": { "add": [] } }),
+    ] {
+        let err = doc.apply_op(&op).expect_err("refused");
+        assert!(err.message().contains("is not"), "{err}");
+        assert_eq!(doc.shape(), before);
+        assert_eq!(outgoing(&mut doc).len(), 0);
+    }
+}
+
+#[test]
+fn indexes_address_the_raw_children_array() {
+    // A peer left a plain value in front of the real children.
+    let peer = YDoc::new();
+    let root = peer.get_or_insert_map("cv_profile");
+    {
+        let mut txn = peer.transact_mut();
+        let lang = root.insert(&mut txn, "en", MapPrelim::default());
+        let tree = lang.insert(&mut txn, "tree", MapPrelim::default());
+        tree.insert(&mut txn, "id", "root");
+        tree.insert(&mut txn, "kind", "cv-root");
+        tree.insert(&mut txn, "tier", "FIXED");
+        let kids = tree.insert(&mut txn, "children", ArrayPrelim::default());
+        kids.push_back(&mut txn, "stray value");
+        for id in ["a", "b", "c"] {
+            let child = kids.push_back(&mut txn, MapPrelim::default());
+            child.insert(&mut txn, "id", id);
+            child.insert(&mut txn, "kind", "section");
+            child.insert(&mut txn, "tier", "HYBRID");
+            child.insert(&mut txn, "children", ArrayPrelim::default());
+        }
+    }
+    let mut doc = Doc::new();
+    doc.receive(
+        &peer
+            .transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default()),
+    )
+    .expect("loads");
+    doc.apply_op(&json!({ "kind": "node.delete", "branch_path": BRANCH, "node_path": "root.b" }))
+        .expect("delete b");
+    let ids = |doc: &Doc| -> Vec<Value> {
+        doc.tree_json(BRANCH).expect("tree")["children"]
+            .as_array()
+            .expect("children")
+            .iter()
+            .map(|c| c["id"].clone())
+            .collect()
+    };
+    assert_eq!(
+        ids(&doc),
+        vec![Value::Null, json!("a"), json!("c")],
+        "only b went; the stray value stays"
+    );
+    doc.apply_op(&json!({ "kind": "node.move", "branch_path": BRANCH, "from_path": "root.c", "to_parent_path": "root", "to_index": 2 }))
+        .expect("move c within the raw array");
+    assert_eq!(ids(&doc).len(), 3);
+    assert_eq!(ids(&doc)[1], json!("a"));
 }
