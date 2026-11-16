@@ -400,6 +400,14 @@ pub(crate) fn apply_string_to_ytext(
     if current == next {
         return;
     }
+    // A text with embedded content has more positions than characters, so a
+    // diff over the string would drift: replace it whole.
+    let length = target.len(&*txn);
+    if u32::try_from(current.encode_utf16().count()).ok() != Some(length) {
+        target.remove_range(txn, 0, length);
+        target.insert(txn, 0, next);
+        return;
+    }
     let edit = compute_middle_edit(&current, next);
     if edit.remove_len > 0 {
         target.remove_range(txn, edit.position, edit.remove_len);

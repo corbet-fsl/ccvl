@@ -665,3 +665,47 @@ fn indexes_address_the_raw_children_array() {
     assert_eq!(ids(&doc).len(), 3);
     assert_eq!(ids(&doc)[1], json!("a"));
 }
+
+#[test]
+fn text_with_embedded_content_is_refused_by_type_text_and_replaced_whole_by_updates() {
+    use yrs::{Any, Text, TextPrelim};
+    let peer = YDoc::new();
+    let root = peer.get_or_insert_map("cv_profile");
+    {
+        let mut txn = peer.transact_mut();
+        let lang = root.insert(&mut txn, "en", MapPrelim::default());
+        let tree = lang.insert(&mut txn, "tree", MapPrelim::default());
+        tree.insert(&mut txn, "id", "root");
+        tree.insert(&mut txn, "kind", "cv-root");
+        tree.insert(&mut txn, "tier", "FIXED");
+        let kids = tree.insert(&mut txn, "children", ArrayPrelim::default());
+        let bullet = kids.push_back(&mut txn, MapPrelim::default());
+        bullet.insert(&mut txn, "id", "b");
+        bullet.insert(&mut txn, "kind", "bullet");
+        bullet.insert(&mut txn, "tier", "HYBRID");
+        bullet.insert(&mut txn, "children", ArrayPrelim::default());
+        let data = bullet.insert(&mut txn, "data", MapPrelim::default());
+        let text = data.insert(&mut txn, "text", TextPrelim::new("ab"));
+        text.insert_embed(&mut txn, 1, Any::Bool(true));
+    }
+    let mut doc = Doc::new();
+    doc.receive(
+        &peer
+            .transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default()),
+    )
+    .expect("loads");
+    outgoing(&mut doc);
+    let before = doc.shape();
+    let err = human(&mut doc, "root.b", "text", 0..0, "x").expect_err("embed");
+    assert!(err.contains("embedded content"), "{err}");
+    assert_eq!(doc.shape(), before);
+    assert_eq!(outgoing(&mut doc).len(), 0);
+    doc.apply_op(
+        &json!({ "kind": "node.update", "branch_path": BRANCH, "node_path": "root.b",
+        "patch": { "data": { "text": "xyz" } } }),
+    )
+    .expect("replaced whole");
+    assert_eq!(doc.prose(BRANCH, "root.b", "text").as_deref(), Some("xyz"));
+    human(&mut doc, "root.b", "text", 0..1, "w").expect("typing works once the embed is gone");
+}
