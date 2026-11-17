@@ -164,7 +164,7 @@ fn guess_column_mapping(header: &str, settings: &Settings) -> ImportColumnMappin
     }
 }
 
-/// `parseImportFile` for CSV bytes: parse the first sheet and guess a mapping for every header of
+/// `parseImportFile` for a CSV file or an `.xlsx`/`.xls` workbook: parse the first sheet and guess a mapping for every header of
 /// the first data row.
 pub fn parse_import_csv(bytes: &[u8], settings: &Settings) -> Result<ImportPreview, ImportError> {
     let raw_data = read_rows(bytes)?;
@@ -215,6 +215,16 @@ fn numeric_string(cell: &ImportCell) -> String {
 /// number (the column holds one number, as `firstNumber` does for extracted ads), `50,5%` is 50.5.
 /// Cells without a readable number keep the numeric reading.
 fn workload_string(cell: &ImportCell) -> String {
+    let text = workload_text(cell);
+    // A spreadsheet percentage cell holds the fraction (80% is 0.8, 100% is 1); a workload of one
+    // percent or less is never meant, so a fraction is read as the percentage it displays.
+    match js_number(&text) {
+        n if n > 0.0 && n <= 1.0 => number_to_string(js_round(n * 1e11) / 1e9),
+        _ => text,
+    }
+}
+
+fn workload_text(cell: &ImportCell) -> String {
     match cell {
         ImportCell::Text(s) if js_number(s).is_nan() => {
             // A decimal comma between digits is a decimal point.

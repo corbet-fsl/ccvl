@@ -19,6 +19,7 @@ pub mod import;
 #[doc(hidden)]
 pub mod jsnum;
 pub mod settings;
+pub mod sheet;
 
 pub use columns::{ColumnDef, DEFAULT_COLUMNS, column_config, default_column, is_special_group};
 pub use csvread::{ImportCell, ImportRow, read_rows, read_rows_text};

@@ -131,7 +131,7 @@ impl<'de> Deserialize<'de> for ImportRow {
 }
 
 #[derive(Debug, Clone)]
-enum Typed {
+pub(crate) enum Typed {
     /// No cell stored.
     Empty,
     Value(ImportCell),
@@ -140,9 +140,9 @@ enum Typed {
 }
 
 #[derive(Debug, Clone)]
-struct Stored {
-    text: String,
-    typed: Typed,
+pub(crate) struct Stored {
+    pub(crate) text: String,
+    pub(crate) typed: Typed,
 }
 
 fn type_cell(raw: &str) -> Stored {
@@ -339,8 +339,12 @@ fn decode(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// Parse CSV bytes into the rows `sheet_to_json` returns for the first sheet.
+/// Parse a file into the rows `sheet_to_json` returns for the first sheet: CSV text, or an `.xlsx` /
+/// `.xls` workbook (see [`crate::transfer::sheet`]).
 pub fn read_rows(bytes: &[u8]) -> Result<Vec<ImportRow>, ImportError> {
+    if crate::transfer::sheet::is_spreadsheet(bytes) {
+        return crate::transfer::sheet::read_rows(bytes);
+    }
     if sniffs_as_other_format(bytes) {
         return Err(ImportError::UnsupportedFormat);
     }
@@ -352,6 +356,15 @@ pub fn read_rows(bytes: &[u8]) -> Result<Vec<ImportRow>, ImportError> {
 #[must_use]
 pub fn read_rows_text(text: &str) -> Vec<ImportRow> {
     let (grid, max_row, max_col) = split_grid(text);
+    rows_from_grid(&grid, max_row, max_col)
+}
+
+/// The header naming and row assembly of `sheet_to_json`, over a sparse grid (row 0 is the header).
+pub(crate) fn rows_from_grid(
+    grid: &HashMap<(usize, usize), Stored>,
+    max_row: usize,
+    max_col: usize,
+) -> Vec<ImportRow> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     let mut headers: Vec<String> = Vec::with_capacity(max_col + 1);
     for c in 0..=max_col {
