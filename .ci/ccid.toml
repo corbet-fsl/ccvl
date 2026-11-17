@@ -14,6 +14,16 @@ commands = [
 cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
 cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]
 
+[checks.pack]
+kind = "pack"
+crates = "."
+
+[release]
+kind = "library"
+version = "Cargo.toml"
+registries = ["crates"]
+build = ["pack"]
+
 [render]
 render_schema = 3
 
