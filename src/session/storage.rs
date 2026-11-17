@@ -15,6 +15,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use cvws::{Commit, Draft, Kind, Op, Origin, Store, StoreError, Yjs};
 use serde_json::{Map, Value, json};
 
+pub use cvws::{Imported, Manifest, export_bundle, export_bundle_with, import_bundle};
+
 use super::{ActorClass, Applied, OpError, Outgoing, SUB_DOCS, SubDoc, Workspace};
 
 /// Record schema of one Yjs sub-document.
@@ -114,6 +116,18 @@ fn snapshot_clock(metadata: &str, yjs: Option<&Yjs>) -> u64 {
         .and_then(|m| m.get("headClock").and_then(Value::as_u64))
         .or_else(|| yjs.map(|y| y.clock))
         .unwrap_or(0)
+}
+
+/// Export the workspace `ws_id` of any store as a bundle: documents with their Yjs state, retained
+/// revisions, op logs, receipts and assets, byte-exact. The CLI and the TUI call this.
+pub fn export_workspace(store: &dyn Store, ws_id: &str) -> Result<Vec<u8>, Error> {
+    Ok(export_bundle(store, ws_id)?)
+}
+
+/// Import a bundle into an empty workspace `ws_id` of any store (files, `SQLite` or a light server).
+/// Open it with [`Stored::open`] afterwards.
+pub fn import_workspace(store: &dyn Store, ws_id: &str, bundle: &[u8]) -> Result<Imported, Error> {
+    Ok(import_bundle(store, ws_id, bundle)?)
 }
 
 impl<S: Store> Stored<S> {

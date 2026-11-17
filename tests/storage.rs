@@ -62,3 +62,25 @@ fn a_second_writer_conflicts_and_merges_after_a_refresh() {
     a.refresh().unwrap();
     assert_eq!(bullet(&a), bullet(&b));
 }
+
+#[test]
+fn a_workspace_moves_between_backends_through_a_bundle() {
+    use ccvl::session::storage::{export_workspace, import_workspace};
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = Stored::open(
+        Backend::open_fs(dir.path().join("fs")).unwrap(),
+        "ws1",
+        writer("a"),
+    )
+    .unwrap();
+    seed(&mut s);
+    s.edit(&set_bullet("Shipped things")).unwrap();
+    let bundle = export_workspace(s.store(), "ws1").unwrap();
+    drop(s);
+    let db = Backend::open_sqlite(dir.path().join("ws.db")).unwrap();
+    import_workspace(&db, "ws1", &bundle).unwrap();
+    assert_eq!(export_workspace(&db, "ws1").unwrap(), bundle);
+    let again = Stored::open(db, "ws1", writer("a")).unwrap();
+    assert_eq!(bullet(&again), "Shipped things");
+    assert_eq!(again.clock(SubDoc::CvProfile), 2);
+}

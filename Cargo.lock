@@ -662,7 +662,7 @@ dependencies = [
 [[package]]
 name = "cvfs"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvfs.git?branch=main#699216eba2062245758f13338a8fa178e6ce1f65"
+source = "git+https://git.corbet.ch/corbet-fsl/cvfs.git?branch=main#96f9edf9ccf47994863f683b925c1a6366998358"
 dependencies = [
  "serde",
  "serde_json",
@@ -684,10 +684,11 @@ dependencies = [
 [[package]]
 name = "cvws"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvws.git?branch=main#550515cbf80d625d01cd4b6cd90d14677d0bca57"
+source = "git+https://git.corbet.ch/corbet-fsl/cvws.git?branch=main#605c17cd8a102f0a84ea817d39caf988cf9fee15"
 dependencies = [
  "cvdb",
  "cvfs",
+ "serde",
  "serde_json",
 ]
 
