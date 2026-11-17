@@ -13,6 +13,8 @@ pub mod doc;
 pub mod edit;
 #[cfg(feature = "jobid")]
 pub mod jobid;
+#[cfg(feature = "offline")]
+pub mod offline;
 #[cfg(feature = "render")]
 pub mod pdf;
 #[cfg(feature = "render")]

@@ -14,10 +14,13 @@ render = ["core", "dep:ctyp"]
 # so small binaries can take ids without the engine:
 # `ccvl = { version = "0.1", default-features = false, features = ["jobid"] }`.
 jobid = ["dep:sha2", "dep:url"]
+# The offline merge policy (`offline`): hybrid logical clock, stale/fresh classification of queued edits and
+# the three-way text range merge. No dependencies, so small binaries can take it alone.
+offline = []
 # Style contracts, bundles, edits and CSV transfer (`style`, `edit`, `transfer`, `contract`).
 core = ["dep:anyhow", "dep:cvst", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
-doc = ["core", "jobid", "dep:yrs", "dep:base64"]
+doc = ["core", "jobid", "offline", "dep:yrs", "dep:base64"]
 # Persistence through `cvws` (`session::storage`): on by default for native targets; a wasm32 build
 # compiles without it whatever the feature says.
 storage = ["doc", "dep:cvws"]

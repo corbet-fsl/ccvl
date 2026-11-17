@@ -1,0 +1,317 @@
+{
+ "threshold_ms": 3600000,
+ "cases": [
+  {
+   "name": "no conflict, now, text",
+   "kind": "text",
+   "base": "a",
+   "mine": "b",
+   "theirs": "a",
+   "age_ms": 0,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, now, single",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"x\"",
+   "age_ms": 0,
+   "expect": "apply"
+  },
+  {
+   "name": "same value elsewhere, now",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"y\"",
+   "age_ms": 0,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, 1min, text",
+   "kind": "text",
+   "base": "a",
+   "mine": "b",
+   "theirs": "a",
+   "age_ms": 60000,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, 1min, single",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"x\"",
+   "age_ms": 60000,
+   "expect": "apply"
+  },
+  {
+   "name": "same value elsewhere, 1min",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"y\"",
+   "age_ms": 60000,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, at threshold, text",
+   "kind": "text",
+   "base": "a",
+   "mine": "b",
+   "theirs": "a",
+   "age_ms": 3600000,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, at threshold, single",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"x\"",
+   "age_ms": 3600000,
+   "expect": "apply"
+  },
+  {
+   "name": "same value elsewhere, at threshold",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"y\"",
+   "age_ms": 3600000,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, just over, text",
+   "kind": "text",
+   "base": "a",
+   "mine": "b",
+   "theirs": "a",
+   "age_ms": 3600001,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, just over, single",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"x\"",
+   "age_ms": 3600001,
+   "expect": "apply"
+  },
+  {
+   "name": "same value elsewhere, just over",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"y\"",
+   "age_ms": 3600001,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, 3 days, text",
+   "kind": "text",
+   "base": "a",
+   "mine": "b",
+   "theirs": "a",
+   "age_ms": 259200000,
+   "expect": "apply"
+  },
+  {
+   "name": "no conflict, 3 days, single",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"x\"",
+   "age_ms": 259200000,
+   "expect": "apply"
+  },
+  {
+   "name": "same value elsewhere, 3 days",
+   "kind": "single",
+   "base": "\"x\"",
+   "mine": "\"y\"",
+   "theirs": "\"y\"",
+   "age_ms": 259200000,
+   "expect": "apply"
+  },
+  {
+   "name": "fresh text ranges merge 0",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 0,
+   "expect": "merged",
+   "text": "Hello world!"
+  },
+  {
+   "name": "fresh text overlap kept 0",
+   "kind": "text",
+   "base": "abc",
+   "mine": "aXc",
+   "theirs": "aYc",
+   "age_ms": 0,
+   "expect": "keep"
+  },
+  {
+   "name": "fresh single applies 0",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 0,
+   "expect": "apply"
+  },
+  {
+   "name": "fresh text ranges merge 60000",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 60000,
+   "expect": "merged",
+   "text": "Hello world!"
+  },
+  {
+   "name": "fresh text overlap kept 60000",
+   "kind": "text",
+   "base": "abc",
+   "mine": "aXc",
+   "theirs": "aYc",
+   "age_ms": 60000,
+   "expect": "keep"
+  },
+  {
+   "name": "fresh single applies 60000",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 60000,
+   "expect": "apply"
+  },
+  {
+   "name": "fresh text ranges merge 3600000",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 3600000,
+   "expect": "merged",
+   "text": "Hello world!"
+  },
+  {
+   "name": "fresh text overlap kept 3600000",
+   "kind": "text",
+   "base": "abc",
+   "mine": "aXc",
+   "theirs": "aYc",
+   "age_ms": 3600000,
+   "expect": "keep"
+  },
+  {
+   "name": "fresh single applies 3600000",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 3600000,
+   "expect": "apply"
+  },
+  {
+   "name": "stale text kept 3600001",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 3600001,
+   "expect": "keep"
+  },
+  {
+   "name": "stale single kept 3600001",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 3600001,
+   "expect": "keep"
+  },
+  {
+   "name": "stale text kept 86400000",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 86400000,
+   "expect": "keep"
+  },
+  {
+   "name": "stale single kept 86400000",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 86400000,
+   "expect": "keep"
+  },
+  {
+   "name": "stale text kept 259200000",
+   "kind": "text",
+   "base": "hello world",
+   "mine": "Hello world",
+   "theirs": "hello world!",
+   "age_ms": 259200000,
+   "expect": "keep"
+  },
+  {
+   "name": "stale single kept 259200000",
+   "kind": "single",
+   "base": "\"open\"",
+   "mine": "\"applied\"",
+   "theirs": "\"rejected\"",
+   "age_ms": 259200000,
+   "expect": "keep"
+  },
+  {
+   "name": "fresh emoji merge",
+   "kind": "text",
+   "base": "é😀 end",
+   "mine": "É😀 end",
+   "theirs": "é😀 end!",
+   "age_ms": 5,
+   "expect": "merged",
+   "text": "É😀 end!"
+  },
+  {
+   "name": "fresh deletion plus edit",
+   "kind": "text",
+   "base": "abc def",
+   "mine": "abc",
+   "theirs": "ABC def",
+   "age_ms": 5,
+   "expect": "merged",
+   "text": "ABC"
+  },
+  {
+   "name": "fresh same-point insert kept",
+   "kind": "text",
+   "base": "ab",
+   "mine": "aXb",
+   "theirs": "aYb",
+   "age_ms": 5,
+   "expect": "keep"
+  },
+  {
+   "name": "fresh far inserts merge",
+   "kind": "text",
+   "base": "ab",
+   "mine": "Xab",
+   "theirs": "abY",
+   "age_ms": 5,
+   "expect": "merged",
+   "text": "XabY"
+  }
+ ]
+}
