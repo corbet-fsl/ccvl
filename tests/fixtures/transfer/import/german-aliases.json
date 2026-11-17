@@ -1,0 +1,392 @@
+{
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 2,
+      "columns": [
+        {
+          "fileHeader": "Firma",
+          "targetColumnId": "organization",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Bezeichnung",
+          "targetColumnId": "title",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Ort",
+          "targetColumnId": "location",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Gehalt",
+          "targetColumnId": "salary",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Quelle",
+          "targetColumnId": "source",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Pensum",
+          "targetColumnId": "workload",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Phase",
+          "targetColumnId": "status",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Bemerkung",
+          "targetColumnId": "notes",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Frist",
+          "targetColumnId": "follow_up_at",
+          "confidence": 0.9
+        }
+      ],
+      "previewData": [
+        {
+          "Firma": "Acme AG",
+          "Bezeichnung": "Entwickler",
+          "Ort": "Zürich",
+          "Gehalt": "120'000",
+          "Quelle": "Jobs.ch",
+          "Pensum": 80,
+          "Phase": "Warten",
+          "Bemerkung": "Rückruf offen",
+          "Frist": "bald"
+        },
+        {
+          "Firma": "Beta GmbH",
+          "Bezeichnung": "Designerin",
+          "Ort": "Bern",
+          "Gehalt": 95000,
+          "Quelle": "Empfehlung",
+          "Pensum": 100,
+          "Phase": "Angebot"
+        }
+      ],
+      "rawData": [
+        {
+          "Firma": "Acme AG",
+          "Bezeichnung": "Entwickler",
+          "Ort": "Zürich",
+          "Gehalt": "120'000",
+          "Quelle": "Jobs.ch",
+          "Pensum": 80,
+          "Phase": "Warten",
+          "Bemerkung": "Rückruf offen",
+          "Frist": "bald"
+        },
+        {
+          "Firma": "Beta GmbH",
+          "Bezeichnung": "Designerin",
+          "Ort": "Bern",
+          "Gehalt": 95000,
+          "Quelle": "Empfehlung",
+          "Pensum": 100,
+          "Phase": "Angebot"
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Firma",
+        "targetColumnId": "organization",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Bezeichnung",
+        "targetColumnId": "title",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Ort",
+        "targetColumnId": "location",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Gehalt",
+        "targetColumnId": "salary",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Quelle",
+        "targetColumnId": "source",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Pensum",
+        "targetColumnId": "workload",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Phase",
+        "targetColumnId": "status",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Bemerkung",
+        "targetColumnId": "notes",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Frist",
+        "targetColumnId": "follow_up_at",
+        "confidence": 0.9
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "Entwickler",
+        "organization": "Acme AG",
+        "location": "Zürich",
+        "salary": "120'000",
+        "commute": "",
+        "workload": "80",
+        "source": "Jobs.ch",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "bald",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {},
+        "notes": "Rückruf offen"
+      },
+      {
+        "id": "imported-1",
+        "title": "Designerin",
+        "organization": "Beta GmbH",
+        "location": "Bern",
+        "salary": "95000",
+        "commute": "",
+        "workload": "100",
+        "source": "Empfehlung",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "Entwickler",
+                "organization": "Acme AG",
+                "industry": null,
+                "location": "Zürich",
+                "source": "Jobs.ch",
+                "salary": 120,
+                "commute": "",
+                "workload": 80,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "bald",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "location": "human",
+                  "salary": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": "Rückruf offen",
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L1",
+              "attributes": {
+                "title": "Designerin",
+                "organization": "Beta GmbH",
+                "industry": null,
+                "location": "Bern",
+                "source": "Empfehlung",
+                "salary": 95,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "location": "human",
+                  "salary": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

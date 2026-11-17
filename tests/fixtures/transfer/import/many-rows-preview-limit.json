@@ -1,0 +1,725 @@
+{
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 9,
+      "columns": [
+        {
+          "fileHeader": "Job",
+          "targetColumnId": "title",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Organization",
+          "targetColumnId": "organization",
+          "confidence": 1
+        }
+      ],
+      "previewData": [
+        {
+          "Job": "r0",
+          "Organization": "o0"
+        },
+        {
+          "Job": "r1",
+          "Organization": "o1"
+        },
+        {
+          "Job": "r2",
+          "Organization": "o2"
+        },
+        {
+          "Job": "r3",
+          "Organization": "o3"
+        },
+        {
+          "Job": "r4",
+          "Organization": "o4"
+        }
+      ],
+      "rawData": [
+        {
+          "Job": "r0",
+          "Organization": "o0"
+        },
+        {
+          "Job": "r1",
+          "Organization": "o1"
+        },
+        {
+          "Job": "r2",
+          "Organization": "o2"
+        },
+        {
+          "Job": "r3",
+          "Organization": "o3"
+        },
+        {
+          "Job": "r4",
+          "Organization": "o4"
+        },
+        {
+          "Job": "r5",
+          "Organization": "o5"
+        },
+        {
+          "Job": "r6",
+          "Organization": "o6"
+        },
+        {
+          "Job": "r7",
+          "Organization": "o7"
+        },
+        {
+          "Job": "r8",
+          "Organization": "o8"
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Job",
+        "targetColumnId": "title",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Organization",
+        "targetColumnId": "organization",
+        "confidence": 1
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "r0",
+        "organization": "o0",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-1",
+        "title": "r1",
+        "organization": "o1",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-2",
+        "title": "r2",
+        "organization": "o2",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-3",
+        "title": "r3",
+        "organization": "o3",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-4",
+        "title": "r4",
+        "organization": "o4",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-5",
+        "title": "r5",
+        "organization": "o5",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-6",
+        "title": "r6",
+        "organization": "o6",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-7",
+        "title": "r7",
+        "organization": "o7",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-8",
+        "title": "r8",
+        "organization": "o8",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "r0",
+                "organization": "o0",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L1",
+              "attributes": {
+                "title": "r1",
+                "organization": "o1",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L2",
+              "attributes": {
+                "title": "r2",
+                "organization": "o2",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L3",
+              "attributes": {
+                "title": "r3",
+                "organization": "o3",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L4",
+              "attributes": {
+                "title": "r4",
+                "organization": "o4",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L5",
+              "attributes": {
+                "title": "r5",
+                "organization": "o5",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L6",
+              "attributes": {
+                "title": "r6",
+                "organization": "o6",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L7",
+              "attributes": {
+                "title": "r7",
+                "organization": "o7",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L8",
+              "attributes": {
+                "title": "r8",
+                "organization": "o8",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

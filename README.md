@@ -25,6 +25,25 @@ With the `doc` feature, `ccvl::session::Workspace` keeps one Yrs document per pr
 sub-document and offers `open`, `apply`, `receive`, `take_outgoing` and `view`. It does no
 I/O and never interprets document content.
 
+## Jobs CSV transfer
+
+`ccvl::transfer` (no feature, no I/O, builds natively and for `wasm32`) is the dashboard's jobs
+spreadsheet transfer in the engine:
+
+- `export_csv(jobs, ordered_column_ids, settings, layout)` returns the bytes the web downloads today
+  (UTF-8 byte-order mark plus CSV): column order and visibility, custom evaluation columns (booleans
+  as Yes/No), status names, SheetJS number text and quoting.
+- `parse_import_csv(bytes, settings)` returns the mapping preview (EN/DE aliases, confidence
+  mapping, first five rows); `process_import_data` turns rows plus the confirmed mapping into jobs,
+  and `job_create_batches` into typed `job.create` ops (batches of 50). Hosts pass the date, the
+  instant and an id source in.
+
+Parity with the TypeScript reference (`lib/domain/src/{export,import}.ts` in the CareerVector
+monorepo, running on SheetJS) is proven by `tests/transfer.rs` against fixtures under
+`tests/fixtures/transfer`; `tests/transfer-ts/` regenerates them from the reference
+(`CV_ROOT=<checkout> bun --no-install gen.ts`, `--check` fails on drift). Known divergences from
+the reference are listed in the module documentation of `transfer::csvread` and tested by name.
+
 ## Storage and remote sessions
 
 - `storage` (default on native targets, ignored on wasm32): `ccvl::session::storage::Stored`

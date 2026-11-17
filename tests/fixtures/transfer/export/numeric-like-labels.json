@@ -1,0 +1,169 @@
+{
+  "jobs": [
+    {
+      "id": "job_1",
+      "title": "Role 1",
+      "organization": "Org 1",
+      "location": "Zurich",
+      "salary": "120",
+      "commute": "45",
+      "workload": "100",
+      "source": "LinkedIn",
+      "status_id": 1,
+      "applied_at": "2026-01-05",
+      "follow_up_at": "2026-02-01",
+      "snooze_count": 0,
+      "follow_up_manual": false,
+      "files": [],
+      "evaluations": {
+        "culture_fit": 5,
+        "growth_potential": 9
+      }
+    }
+  ],
+  "orderedColumnIds": [
+    "title",
+    "eval_culture_fit",
+    "organization",
+    "eval_growth_potential"
+  ],
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "2024"
+      },
+      {
+        "id": "growth_potential",
+        "label": "7"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "layout": {},
+  "expectedColumns": [
+    {
+      "id": "title",
+      "label": "Job",
+      "isCustom": false
+    },
+    {
+      "id": "eval_culture_fit",
+      "label": "2024",
+      "isCustom": true
+    },
+    {
+      "id": "organization",
+      "label": "Organization",
+      "isCustom": false
+    },
+    {
+      "id": "eval_growth_potential",
+      "label": "7",
+      "isCustom": true
+    }
+  ],
+  "written": true
+}

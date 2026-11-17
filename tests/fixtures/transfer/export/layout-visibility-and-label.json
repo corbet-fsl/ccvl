@@ -1,0 +1,244 @@
+{
+  "jobs": [
+    {
+      "id": "job_1",
+      "title": "Role 1",
+      "organization": "Org 1",
+      "location": "Zurich",
+      "salary": "120",
+      "commute": "45",
+      "workload": "100",
+      "source": "LinkedIn",
+      "status_id": 1,
+      "applied_at": "2026-01-05",
+      "follow_up_at": "2026-02-01",
+      "snooze_count": 0,
+      "follow_up_manual": false,
+      "files": [],
+      "evaluations": {}
+    },
+    {
+      "id": "job_2",
+      "title": "Role 2",
+      "organization": "Org 2",
+      "location": "Zurich",
+      "salary": "120",
+      "commute": "45",
+      "workload": "100",
+      "source": "LinkedIn",
+      "status_id": 1,
+      "applied_at": "2026-01-05",
+      "follow_up_at": "2026-02-01",
+      "snooze_count": 0,
+      "follow_up_manual": false,
+      "files": [],
+      "evaluations": {}
+    }
+  ],
+  "orderedColumnIds": [
+    "_category",
+    "_drag",
+    "source",
+    "title",
+    "organization",
+    "industry",
+    "location",
+    "workload",
+    "salary",
+    "commute",
+    "score",
+    "status",
+    "applied_at",
+    "follow_up_at",
+    "cv",
+    "cl",
+    "misc_files",
+    "delete"
+  ],
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "layout": {
+    "columnVisibility": {
+      "source": false,
+      "commute": false,
+      "eval_culture_fit": false
+    },
+    "columnLayout": {
+      "title": {
+        "label": "Position",
+        "superHeader": "Opportunity",
+        "subHeader": "Pos"
+      }
+    }
+  },
+  "expectedColumns": [
+    {
+      "id": "title",
+      "label": "Position",
+      "isCustom": false
+    },
+    {
+      "id": "organization",
+      "label": "Organization",
+      "isCustom": false
+    },
+    {
+      "id": "industry",
+      "label": "Industry",
+      "isCustom": false
+    },
+    {
+      "id": "location",
+      "label": "Location",
+      "isCustom": false
+    },
+    {
+      "id": "workload",
+      "label": "Workload",
+      "isCustom": false
+    },
+    {
+      "id": "salary",
+      "label": "Salary",
+      "isCustom": false
+    },
+    {
+      "id": "score",
+      "label": "Score",
+      "isCustom": false
+    },
+    {
+      "id": "status",
+      "label": "Status",
+      "isCustom": false
+    },
+    {
+      "id": "applied_at",
+      "label": "Last Action",
+      "isCustom": false
+    },
+    {
+      "id": "follow_up_at",
+      "label": "Next Action",
+      "isCustom": false
+    }
+  ],
+  "written": true
+}

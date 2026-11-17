@@ -1,0 +1,279 @@
+{
+  "settings": {
+    "customColumns": [],
+    "kanban": {
+      "phases": [
+        {
+          "id": 10,
+          "order": 2
+        },
+        {
+          "id": 20,
+          "order": 1
+        }
+      ],
+      "statuses": [
+        {
+          "id": 100,
+          "name": "second",
+          "phaseId": 10,
+          "order": 1
+        },
+        {
+          "id": 200,
+          "name": "third",
+          "phaseId": 10,
+          "order": 2
+        },
+        {
+          "id": 300,
+          "name": "first",
+          "phaseId": 20,
+          "order": 5
+        },
+        {
+          "id": 400,
+          "name": "",
+          "phaseId": 99,
+          "order": 0
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 3,
+      "columns": [
+        {
+          "fileHeader": "Job",
+          "targetColumnId": "title",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Status",
+          "targetColumnId": "status",
+          "confidence": 1
+        }
+      ],
+      "previewData": [
+        {
+          "Job": "A",
+          "Status": "x"
+        },
+        {
+          "Job": "B",
+          "Status": "second"
+        },
+        {
+          "Job": "C",
+          "Status": "third"
+        }
+      ],
+      "rawData": [
+        {
+          "Job": "A",
+          "Status": "x"
+        },
+        {
+          "Job": "B",
+          "Status": "second"
+        },
+        {
+          "Job": "C",
+          "Status": "third"
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Job",
+        "targetColumnId": "title",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Status",
+        "targetColumnId": "status",
+        "confidence": 1
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "A",
+        "organization": "Unknown Org",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 400,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-1",
+        "title": "B",
+        "organization": "Unknown Org",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 400,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      },
+      {
+        "id": "imported-2",
+        "title": "C",
+        "organization": "Unknown Org",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 400,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {}
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "A",
+                "organization": "Unknown Org",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 400,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L1",
+              "attributes": {
+                "title": "B",
+                "organization": "Unknown Org",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 400,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L2",
+              "attributes": {
+                "title": "C",
+                "organization": "Unknown Org",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 400,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

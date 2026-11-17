@@ -10,6 +10,9 @@ modules `doc` and `session`). The products `careervector-cli`, `careervector-tui
 - Rendered output stays byte-identical; the vectors in `tests/vectors` prove it.
 - Comments and documentation are English.
 
+`transfer` (jobs CSV export/import) reproduces the TypeScript reference byte for byte; its fixtures under
+`tests/fixtures/transfer` come from `tests/transfer-ts/gen.ts` (see its README), never from hand edits.
+
 Checks (CI runs the same): `cargo fmt --all -- --check`,
 `cargo clippy --locked --all-targets --all-features -- -D warnings`,
 `cargo test --locked --all-features`.

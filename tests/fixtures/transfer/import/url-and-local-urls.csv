@@ -1,0 +1,5 @@
+Job,URL,Organization
+a,  https://example.com/jobs/1  ,Acme
+b,,Beta
+c,"   ",Gamma
+d,https://example.com/jobs/4,Delta

@@ -1,0 +1,374 @@
+{
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 3,
+      "columns": [
+        {
+          "fileHeader": "Job",
+          "targetColumnId": "title",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Organization",
+          "targetColumnId": "organization",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Notes",
+          "targetColumnId": "notes",
+          "confidence": 1
+        }
+      ],
+      "previewData": [
+        {
+          "Job": "Comma, role",
+          "Organization": "Quote \"Q\" Org",
+          "Notes": "line1\nline2"
+        },
+        {
+          "Job": "B",
+          "Organization": "Beta",
+          "Notes": "trailing \" quote"
+        },
+        {
+          "Job": "C",
+          "Notes": "plain"
+        }
+      ],
+      "rawData": [
+        {
+          "Job": "Comma, role",
+          "Organization": "Quote \"Q\" Org",
+          "Notes": "line1\nline2"
+        },
+        {
+          "Job": "B",
+          "Organization": "Beta",
+          "Notes": "trailing \" quote"
+        },
+        {
+          "Job": "C",
+          "Notes": "plain"
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Job",
+        "targetColumnId": "title",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Organization",
+        "targetColumnId": "organization",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Notes",
+        "targetColumnId": "notes",
+        "confidence": 1
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "Comma, role",
+        "organization": "Quote \"Q\" Org",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {},
+        "notes": "line1\nline2"
+      },
+      {
+        "id": "imported-1",
+        "title": "B",
+        "organization": "Beta",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {},
+        "notes": "trailing \" quote"
+      },
+      {
+        "id": "imported-2",
+        "title": "C",
+        "organization": "Unknown Org",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {},
+        "notes": "plain"
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "Comma, role",
+                "organization": "Quote \"Q\" Org",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": "line1\nline2",
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L1",
+              "attributes": {
+                "title": "B",
+                "organization": "Beta",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": "trailing \" quote",
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L2",
+              "attributes": {
+                "title": "C",
+                "organization": "Unknown Org",
+                "industry": null,
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": "plain",
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

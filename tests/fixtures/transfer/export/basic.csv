@@ -1,0 +1,4 @@
+﻿Source,Job,Organization,Industry,Location,Workload,Salary,Commute,Score,Status,Last Action,Next Action
+LinkedIn,Role 1,Org 1,,Zurich,100,120,45,,Spotted,2026-01-05,2026-02-01
+LinkedIn,Role 2,Org 2,,Zurich,100,120,45,7.5,Submitted,2026-01-05,2026-02-01
+LinkedIn,Role 3,Org 3,,Zurich,100,120,45,,,2026-01-05,2026-02-01

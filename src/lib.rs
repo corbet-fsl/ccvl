@@ -15,6 +15,7 @@ pub mod render;
 #[cfg(feature = "doc")]
 pub mod session;
 pub mod style;
+pub mod transfer;
 
 pub use style::{StyleBundle, StyleDocument};
 

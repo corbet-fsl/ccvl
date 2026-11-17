@@ -1,0 +1,417 @@
+{
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 2,
+      "columns": [
+        {
+          "fileHeader": "Job",
+          "targetColumnId": "title",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Organization",
+          "targetColumnId": "organization",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Location",
+          "targetColumnId": "location",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Salary",
+          "targetColumnId": "salary",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Workload",
+          "targetColumnId": "workload",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Source",
+          "targetColumnId": "source",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Status",
+          "targetColumnId": "status",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Last Action",
+          "targetColumnId": "applied_at",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Next Action",
+          "targetColumnId": "follow_up_at",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Culture Fit",
+          "targetColumnId": "culture_fit",
+          "confidence": 1,
+          "isCustom": true
+        }
+      ],
+      "previewData": [
+        {
+          "Job": "Engineer",
+          "Organization": "Acme",
+          "Location": "Zurich",
+          "Salary": 120,
+          "Workload": 80,
+          "Source": "LinkedIn",
+          "Status": "Interview",
+          "Last Action": "sent",
+          "Next Action": "soon",
+          "Culture Fit": "Yes"
+        },
+        {
+          "Job": "Designer",
+          "Organization": "Globex",
+          "Location": "Bern",
+          "Salary": 95,
+          "Workload": 100,
+          "Source": "Referral",
+          "Status": "Spotted",
+          "Next Action": "later",
+          "Culture Fit": "No"
+        }
+      ],
+      "rawData": [
+        {
+          "Job": "Engineer",
+          "Organization": "Acme",
+          "Location": "Zurich",
+          "Salary": 120,
+          "Workload": 80,
+          "Source": "LinkedIn",
+          "Status": "Interview",
+          "Last Action": "sent",
+          "Next Action": "soon",
+          "Culture Fit": "Yes"
+        },
+        {
+          "Job": "Designer",
+          "Organization": "Globex",
+          "Location": "Bern",
+          "Salary": 95,
+          "Workload": 100,
+          "Source": "Referral",
+          "Status": "Spotted",
+          "Next Action": "later",
+          "Culture Fit": "No"
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Job",
+        "targetColumnId": "title",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Organization",
+        "targetColumnId": "organization",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Location",
+        "targetColumnId": "location",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Salary",
+        "targetColumnId": "salary",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Workload",
+        "targetColumnId": "workload",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Source",
+        "targetColumnId": "source",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Status",
+        "targetColumnId": "status",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Last Action",
+        "targetColumnId": "applied_at",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Next Action",
+        "targetColumnId": "follow_up_at",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Culture Fit",
+        "targetColumnId": "culture_fit",
+        "confidence": 1,
+        "isCustom": true
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "Engineer",
+        "organization": "Acme",
+        "location": "Zurich",
+        "salary": "120",
+        "commute": "",
+        "workload": "80",
+        "source": "LinkedIn",
+        "status_id": 10,
+        "applied_at": "sent",
+        "follow_up_at": "soon",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {
+          "culture_fit": true
+        }
+      },
+      {
+        "id": "imported-1",
+        "title": "Designer",
+        "organization": "Globex",
+        "location": "Bern",
+        "salary": "95",
+        "commute": "",
+        "workload": "100",
+        "source": "Referral",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "later",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {
+          "culture_fit": false
+        }
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "Engineer",
+                "organization": "Acme",
+                "industry": null,
+                "location": "Zurich",
+                "source": "LinkedIn",
+                "salary": 120,
+                "commute": "",
+                "workload": 80,
+                "status_id": 10,
+                "score": null,
+                "applied_at": "sent",
+                "follow_up_at": "soon",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {
+                  "culture_fit": true
+                },
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "location": "human",
+                  "salary": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          },
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L1",
+              "attributes": {
+                "title": "Designer",
+                "organization": "Globex",
+                "industry": null,
+                "location": "Bern",
+                "source": "Referral",
+                "salary": 95,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": null,
+                "applied_at": "",
+                "follow_up_at": "later",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": null,
+                "language": null,
+                "evaluations": {
+                  "culture_fit": false
+                },
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "location": "human",
+                  "salary": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": null,
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

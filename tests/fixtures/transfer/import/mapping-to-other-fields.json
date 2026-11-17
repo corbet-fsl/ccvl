@@ -1,0 +1,295 @@
+{
+  "settings": {
+    "customColumns": [
+      {
+        "id": "culture_fit",
+        "label": "Culture Fit"
+      },
+      {
+        "id": "ai_resilience",
+        "label": "AI Resilience"
+      },
+      {
+        "id": "growth_potential",
+        "label": "Growth"
+      }
+    ],
+    "kanban": {
+      "phases": [
+        {
+          "id": 1,
+          "name": "Discovery",
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Due Diligence",
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Application",
+          "order": 3
+        },
+        {
+          "id": 4,
+          "name": "Their Court",
+          "order": 4
+        },
+        {
+          "id": 5,
+          "name": "Resolution",
+          "order": 5
+        }
+      ],
+      "statuses": [
+        {
+          "id": 1,
+          "name": "Spotted",
+          "phaseId": 1,
+          "order": 1
+        },
+        {
+          "id": 2,
+          "name": "Maybe",
+          "phaseId": 1,
+          "order": 2
+        },
+        {
+          "id": 3,
+          "name": "Researching",
+          "phaseId": 2,
+          "order": 1
+        },
+        {
+          "id": 4,
+          "name": "Networking",
+          "phaseId": 2,
+          "order": 2
+        },
+        {
+          "id": 5,
+          "name": "To Apply",
+          "phaseId": 2,
+          "order": 3
+        },
+        {
+          "id": 6,
+          "name": "Drafting",
+          "phaseId": 3,
+          "order": 1
+        },
+        {
+          "id": 7,
+          "name": "Submitted",
+          "phaseId": 3,
+          "order": 2
+        },
+        {
+          "id": 8,
+          "name": "Waiting",
+          "phaseId": 4,
+          "order": 1
+        },
+        {
+          "id": 9,
+          "name": "Following Up",
+          "phaseId": 4,
+          "order": 2
+        },
+        {
+          "id": 10,
+          "name": "Interview",
+          "phaseId": 5,
+          "order": 1
+        },
+        {
+          "id": 11,
+          "name": "Offer",
+          "phaseId": 5,
+          "order": 2
+        },
+        {
+          "id": 12,
+          "name": "Closed",
+          "phaseId": 5,
+          "order": 3
+        }
+      ]
+    }
+  },
+  "mapping": {},
+  "workspaceId": "ws-test",
+  "expected": {
+    "preview": {
+      "totalRows": 1,
+      "columns": [
+        {
+          "fileHeader": "Job",
+          "targetColumnId": "title",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Notes",
+          "targetColumnId": "notes",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Description",
+          "targetColumnId": "description",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Language",
+          "targetColumnId": "language",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Industry",
+          "targetColumnId": "industry",
+          "confidence": 1
+        },
+        {
+          "fileHeader": "Company",
+          "targetColumnId": "organization",
+          "confidence": 0.9
+        },
+        {
+          "fileHeader": "Score",
+          "targetColumnId": "score",
+          "confidence": 1
+        }
+      ],
+      "previewData": [
+        {
+          "Job": "A",
+          "Notes": "n",
+          "Description": "d",
+          "Language": "de",
+          "Industry": "Tech",
+          "Company": "Acme",
+          "Score": 8.5
+        }
+      ],
+      "rawData": [
+        {
+          "Job": "A",
+          "Notes": "n",
+          "Description": "d",
+          "Language": "de",
+          "Industry": "Tech",
+          "Company": "Acme",
+          "Score": 8.5
+        }
+      ]
+    },
+    "mappings": [
+      {
+        "fileHeader": "Job",
+        "targetColumnId": "title",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Notes",
+        "targetColumnId": "notes",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Description",
+        "targetColumnId": "description",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Language",
+        "targetColumnId": "language",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Industry",
+        "targetColumnId": "industry",
+        "confidence": 1
+      },
+      {
+        "fileHeader": "Company",
+        "targetColumnId": "organization",
+        "confidence": 0.9
+      },
+      {
+        "fileHeader": "Score",
+        "targetColumnId": "score",
+        "confidence": 1
+      }
+    ],
+    "jobs": [
+      {
+        "id": "imported-0",
+        "title": "A",
+        "organization": "Acme",
+        "location": "",
+        "salary": "",
+        "commute": "",
+        "workload": "100",
+        "source": "Imported",
+        "status_id": 1,
+        "applied_at": "",
+        "follow_up_at": "<today>",
+        "snooze_count": 0,
+        "follow_up_manual": false,
+        "files": [],
+        "evaluations": {},
+        "notes": "n",
+        "description": "d",
+        "language": "de",
+        "industry": "Tech",
+        "score": "8.5"
+      }
+    ],
+    "batches": [
+      {
+        "kind": "batch",
+        "ops": [
+          {
+            "op": {
+              "kind": "job.create",
+              "url": "careervector-local://ws-test/L0",
+              "attributes": {
+                "title": "A",
+                "organization": "Acme",
+                "industry": "Tech",
+                "location": "",
+                "source": "Imported",
+                "salary": null,
+                "commute": "",
+                "workload": 100,
+                "status_id": 1,
+                "score": 8.5,
+                "applied_at": "",
+                "follow_up_at": "<today>",
+                "snooze_count": 0,
+                "follow_up_manual": false,
+                "description": "d",
+                "language": "de",
+                "evaluations": {},
+                "eval_reasoning": {},
+                "origins": {
+                  "title": "human",
+                  "organization": "human",
+                  "industry": "human",
+                  "workload": "human"
+                },
+                "files": [],
+                "connections": null,
+                "company_context": null,
+                "notes": "n",
+                "format_overrides": null,
+                "chain_overrides": null,
+                "created_at": "2030-01-01T10:00:00.000Z",
+                "updated_at": "2030-01-01T10:00:00.000Z"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

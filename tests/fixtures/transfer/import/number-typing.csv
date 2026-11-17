@@ -1,0 +1,8 @@
+Job,Salary,Workload,Commute,Notes
+a,120000,80%,007,1e3
+b,"95'000",100,"1,234",0x1F
+c,CHF 120k,"(5)",1.50,$1
+d,120.00,.5,5.5,+7
+e,TRUE,FALSE,true,=SUM(A1)
+f,#N/A,#NULL!,#REF!,="quoted"
+g,  42  ,   ,"1,2,3,4",-0

@@ -1,0 +1,17 @@
+{
+  "csv": "Job,Last Action,Next Action,Notes\nA,2026-01-05,01/02/2026,Jan 5 2026\nB,2026-01-05T10:00:00Z,5.1.2026,x\n",
+  "sheetjsRows": [
+    {
+      "Job": "A",
+      "Last Action": 46027,
+      "Next Action": 46024,
+      "Notes": "Jan 5 2026"
+    },
+    {
+      "Job": "B",
+      "Last Action": 46027.416666666664,
+      "Next Action": "5.1.2026",
+      "Notes": "x"
+    }
+  ]
+}
