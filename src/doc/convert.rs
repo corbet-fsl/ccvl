@@ -42,8 +42,10 @@ pub(crate) fn any_to_value(any: &Any) -> Value {
         Any::Number(n) => number_to_value(*n),
         Any::String(s) => Value::String(s.to_string()),
         Any::Array(items) => Value::Array(items.iter().map(any_to_value).collect()),
+        // A key holding `undefined` is absent in JSON, as `JSON.stringify` of `toJSON()` has it.
         Any::Map(map) => Value::Object(
             map.iter()
+                .filter(|(_, v)| !matches!(v, Any::Undefined))
                 .map(|(k, v)| (k.clone(), any_to_value(v)))
                 .collect::<Map<_, _>>(),
         ),
@@ -78,6 +80,7 @@ fn any_checked(any: &Any, depth: usize) -> Result<Value, OpError> {
         ),
         Any::Map(map) => Value::Object(
             map.iter()
+                .filter(|(_, v)| !matches!(v, Any::Undefined))
                 .map(|(k, v)| any_checked(v, depth + 1).map(|v| (k.clone(), v)))
                 .collect::<Result<Map<_, _>, _>>()?,
         ),
@@ -98,6 +101,7 @@ fn out_value<T: ReadTxn>(txn: &T, out: &Out, depth: usize) -> Result<Value, OpEr
         Out::YText(t) => Value::String(t.get_string(txn)),
         Out::YMap(m) => Value::Object(
             m.iter(txn)
+                .filter(|(_, v)| !matches!(v, Out::Any(Any::Undefined)))
                 .map(|(k, v)| out_value(txn, &v, depth + 1).map(|v| (k.to_string(), v)))
                 .collect::<Result<Map<_, _>, _>>()?,
         ),

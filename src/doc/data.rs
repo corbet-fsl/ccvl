@@ -386,6 +386,10 @@ pub(crate) fn rows<T: ReadTxn>(
     };
     for id in wanted {
         if let Some(out) = root.get(txn, &id) {
+            // A key holding `undefined` is absent in JSON (`JSON.stringify` of `toJSON()`).
+            if matches!(out, Out::Any(Any::Undefined)) {
+                continue;
+            }
             o.insert(id, plain(txn, &out)?);
         }
     }

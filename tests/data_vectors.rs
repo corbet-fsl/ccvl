@@ -181,3 +181,27 @@ fn rows_and_ids_read_the_visible_window() {
     assert!(row["attributes"]["evaluations"]["fit"].is_number());
     assert!(doc.rows("settings", None).is_err());
 }
+
+/// Real production settings hold a key set to `undefined` (a JavaScript client wrote it). In JSON
+/// that key is absent, exactly as `JSON.stringify(map.toJSON())` has it: the rows must not show it
+/// as `null`, or a reader that tells `null` from absent sees another document.
+#[test]
+fn a_key_holding_undefined_is_absent_in_rows() {
+    use yrs::{Any, Map, ReadTxn, Transact};
+    let source = yrs::Doc::new();
+    {
+        let settings = source.get_or_insert_map("settings");
+        let mut txn = source.transact_mut();
+        settings.insert(&mut txn, "views", Any::Undefined);
+        settings.insert(&mut txn, "theme", "dark");
+        settings.insert(&mut txn, "off", Any::Null);
+    }
+    let update = {
+        source
+            .transact()
+            .encode_state_as_update_v1(&yrs::StateVector::default())
+    };
+    let doc = load("settings", &update);
+    let rows = doc.rows("settings", None).expect("rows");
+    assert_eq!(rows, json!({ "theme": "dark", "off": null }));
+}

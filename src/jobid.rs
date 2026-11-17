@@ -67,6 +67,15 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     }
     let mut url =
         Url::parse(input).map_err(|_| format!("normalizeUrl: not a valid URL: {input}"))?;
+    // The TypeScript lowercases the host explicitly (`parsed.host = parsed.host.toLowerCase()`):
+    // a non-special scheme such as `careervector-local://Host/id` keeps its host case otherwise.
+    if let Some(host) = url.host_str() {
+        let lower = host.to_lowercase();
+        if lower != host {
+            url.set_host(Some(&lower))
+                .map_err(|_| format!("normalizeUrl: not a valid URL: {input}"))?;
+        }
+    }
     url.set_fragment(None);
 
     let pairs: Vec<(String, String)> = url
@@ -147,6 +156,27 @@ mod tests {
         let b = job_id_from_url("https://example.com/jobs/1?a=1&b=2").unwrap();
         assert_eq!(a, b);
         assert_eq!(a.len(), 4 + 16);
+    }
+
+    #[test]
+    fn host_is_lowercased_for_every_scheme_like_the_typescript() {
+        // Vectors from the real `normalizeUrl`/`jobIdFromUrl` (@cv/jobcache/ids).
+        assert_eq!(
+            normalize_url("careervector-local://Foo_Bar/ABC-1").unwrap(),
+            "careervector-local://foo_bar/ABC-1"
+        );
+        assert_eq!(
+            job_id_from_url("careervector-local://Foo_Bar/ABC-1").unwrap(),
+            "job_e4cq2vew7qbsvzhp"
+        );
+        assert_eq!(
+            job_id_from_url("careervector-local://FooBar:80/x").unwrap(),
+            "job_2fapclykhvqdchcw"
+        );
+        assert_eq!(
+            normalize_url("foo://User@Host.Example/Path").unwrap(),
+            "foo://User@host.example/Path"
+        );
     }
 
     #[test]
