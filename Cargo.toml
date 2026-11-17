@@ -8,10 +8,16 @@ license = "FSL-1.1-ALv2"
 readme = "README.md"
 
 [features]
-default = ["storage"]
-render = ["dep:ctyp"]
+default = ["core", "storage"]
+render = ["core", "dep:ctyp"]
+# The CareerVector job id language: `normalize_url` and `job_id_from_url`. Needs only `sha2` and `url`,
+# so small binaries can take ids without the engine:
+# `ccvl = { version = "0.1", default-features = false, features = ["jobid"] }`.
+jobid = ["dep:sha2", "dep:url"]
+# Style contracts, bundles, edits and CSV transfer (`style`, `edit`, `transfer`, `contract`).
+core = ["dep:anyhow", "dep:cvst", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
-doc = ["dep:yrs", "dep:base64", "dep:url"]
+doc = ["core", "jobid", "dep:yrs", "dep:base64"]
 # Persistence through `cvws` (`session::storage`): on by default for native targets; a wasm32 build
 # compiles without it whatever the feature says.
 storage = ["doc", "dep:cvws"]
@@ -19,15 +25,15 @@ storage = ["doc", "dep:cvws"]
 remote = ["storage", "dep:cvdb"]
 
 [dependencies]
-anyhow = "1.0"
+anyhow = { version = "1.0", optional = true }
 base64 = { version = "0.22", optional = true }
 ctyp = { version = "0.1", optional = true, default-features = false, features = ["pdf", "pdf-normalize", "raster"] }
-cvst = "0.1"
-serde = { version = "1.0", features = ["derive", "rc"] }
+cvst = { version = "0.1", optional = true }
+serde = { version = "1.0", features = ["derive", "rc"], optional = true }
 # preserve_order: embedded JSON strings of job fields keep their key order, as JSON.stringify does.
-serde_json = { version = "1.0", features = ["preserve_order"] }
-sha2 = "0.10"
-toml = "1.1"
+serde_json = { version = "1.0", features = ["preserve_order"], optional = true }
+sha2 = { version = "0.10", optional = true }
+toml = { version = "1.1", optional = true }
 url = { version = "2", optional = true }
 yrs = { version = "0.28", optional = true }
 
@@ -40,6 +46,14 @@ yrs = "0.28"
 tempfile = "3"
 flate2 = "1"
 cvdb = { version = "0.2", features = ["fake-server"] }
+
+# Every integration test below needs more than `jobid`; `tests/jobid.rs` runs under `jobid` alone.
+[[test]]
+name = "bundle_v1"
+required-features = ["core"]
+[[test]]
+name = "transfer"
+required-features = ["core"]
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -10,7 +10,7 @@ modules `doc` and `session`). The products `careervector-cli`, `careervector-tui
 - Rendered output stays byte-identical; the vectors in `tests/vectors` prove it.
 - Comments and documentation are English.
 
-The data sub-documents (`jobs`, `settings`, `layout`, `order-state`) are `Doc::scoped_data`; their ops are in `src/doc/data.rs` and pinned by `tests/vectors/v7-data.json`. `src/doc/jobid.rs` holds the frozen URL-to-job-id math of `@cv/jobcache/ids`; it must stay identical to the `jobcache` contract crate of the CareerVector monorepo (the vectors fail on drift).
+The data sub-documents (`jobs`, `settings`, `layout`, `order-state`) are `Doc::scoped_data`; their ops are in `src/doc/data.rs` and pinned by `tests/vectors/v7-data.json`. `src/jobid.rs` (feature `jobid`, re-exported at `doc::jobid`) holds the frozen URL-to-job-id math of `@cv/jobcache/ids`, public on purpose as the shared id language. Only `normalize_url` and `job_id_from_url` live here; the RADAR-only ids stay private in `crates/jobcache`. It must stay identical to the TypeScript (the vectors fail on drift).
 
 `transfer` (jobs CSV export/import) reproduces the TypeScript reference byte for byte; its fixtures under
 `tests/fixtures/transfer` come from `tests/transfer-ts/gen.ts` (see its README), never from hand edits.

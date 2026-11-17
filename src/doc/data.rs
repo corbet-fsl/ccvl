@@ -9,8 +9,8 @@ use yrs::{Any, Map as _, MapPrelim, MapRef, Out, ReadTxn, TransactionMut};
 
 use super::OpError;
 use super::convert::{out_to_value, value_to_any};
-use super::jobid::job_id_from_url;
 use super::ops::{Ctx, fail};
+use crate::jobid::job_id_from_url;
 use crate::transfer::jsnum::{number_to_string, order_properties};
 
 /// Job attribute fields whose values merge per key instead of replacing the container.

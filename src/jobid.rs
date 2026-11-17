@@ -61,7 +61,7 @@ fn decode_unreserved_percents(s: &str) -> String {
 }
 
 /// `normalizeUrl`: the error text is the TypeScript one.
-pub(crate) fn normalize_url(input: &str) -> Result<String, String> {
+pub fn normalize_url(input: &str) -> Result<String, String> {
     if input.is_empty() {
         return Err("normalizeUrl: input must be a non-empty string, got string".into());
     }
@@ -132,7 +132,7 @@ fn hash_text(input: &str) -> String {
 }
 
 /// `jobIdFromUrl`.
-pub(crate) fn job_id_from_url(url: &str) -> Result<String, String> {
+pub fn job_id_from_url(url: &str) -> Result<String, String> {
     let normalized = normalize_url(url)?;
     Ok(format!("job_{}", hash_text(&format!("job:{normalized}"))))
 }

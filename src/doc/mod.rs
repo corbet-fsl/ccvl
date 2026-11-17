@@ -32,10 +32,10 @@
     clippy::cast_sign_loss
 )]
 
+pub use crate::jobid;
 mod convert;
 mod cvl;
 mod data;
-mod jobid;
 mod ops;
 mod text;
 mod track;
