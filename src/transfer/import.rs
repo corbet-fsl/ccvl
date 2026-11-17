@@ -211,6 +211,42 @@ fn numeric_string(cell: &ImportCell) -> String {
     }
 }
 
+/// A workload cell: a percentage. `80%` is 80, a range (`80-100%`, `80–100%`, `80 to 100`) is its first
+/// number (the column holds one number, as `firstNumber` does for extracted ads), `50,5%` is 50.5.
+/// Cells without a readable number keep the numeric reading.
+fn workload_string(cell: &ImportCell) -> String {
+    match cell {
+        ImportCell::Text(s) if js_number(s).is_nan() => {
+            // A decimal comma between digits is a decimal point.
+            let chars: Vec<char> = s.chars().collect();
+            let normalized: String = chars
+                .iter()
+                .enumerate()
+                .map(|(i, &c)| {
+                    let digit_around = i > 0
+                        && chars[i - 1].is_ascii_digit()
+                        && chars.get(i + 1).is_some_and(char::is_ascii_digit);
+                    if c == ',' && digit_around { '.' } else { c }
+                })
+                .collect();
+            match first_decimal(&normalized) {
+                Some(found)
+                    if !normalized.trim_start().starts_with('-') && !normalized.contains('(') =>
+                {
+                    let n = js_number(found);
+                    if n.is_nan() {
+                        numeric_string(cell)
+                    } else {
+                        number_to_string(n)
+                    }
+                }
+                _ => numeric_string(cell),
+            }
+        }
+        other => numeric_string(other),
+    }
+}
+
 /// A JSON number the way JavaScript would keep it: an integer when the value is integral.
 fn num_value(n: f64) -> Value {
     #[allow(clippy::cast_possible_truncation)]
@@ -280,7 +316,9 @@ pub fn process_import_data(
                 }
                 let target = mapping.target_column_id.as_str();
                 let numeric = mapping.is_custom == Some(true) || NUMERIC_TARGETS.contains(&target);
-                let text = if numeric {
+                let text = if target == "workload" && mapping.is_custom != Some(true) {
+                    workload_string(cell)
+                } else if numeric {
                     numeric_string(cell)
                 } else {
                     cell_string(cell)

@@ -11,8 +11,8 @@
 //!   without a mark as Latin-1.
 //! - Cells arrive as typed. A cell that reads as a number keeps its text unless the number prints
 //!   as exactly that text: `80%`, `007`, `1,2` and `7.50` stay text, `42` and `7.5` become numbers.
-//!   A column that wants the number (workload, salary, score, custom evaluations) parses the text
-//!   again with [`crate::transfer::jsnum::fuzzy_number`], which is what `SheetJS` did up front.
+//!   A column that wants the number (salary, score, custom evaluations) parses the text
+//!   again with [`crate::transfer::jsnum::fuzzy_number`], which is what `SheetJS` did up front. A workload reads percentages: `80%` is 80, `80-100%` is 80.
 //!
 //! Its readers for non-CSV formats are not reproduced (such files are refused).
 

@@ -93,9 +93,9 @@ fn plain_numbers_stay_numbers_in_the_preview() {
 #[test]
 fn numeric_columns_keep_their_parsing() {
     let (_, jobs) = import(b"Job,Workload,Salary,Score\nA,80%,\"$95,000\",\"1,2\"\n");
-    // workload and score keep SheetJS's reading (80% is 0.8, 1,2 is 12); the salary text is read by
+    // score keeps SheetJS's reading (1,2 is 12); a workload of 80% is 80, see the workload stories; the salary text is read by
     // the salary rules downstream
-    assert_eq!(jobs[0]["workload"], "0.8");
+    assert_eq!(jobs[0]["workload"], "80");
     assert_eq!(jobs[0]["score"], "12");
     assert_eq!(jobs[0]["salary"], "95000");
 }
@@ -255,4 +255,66 @@ fn the_refusals_say_what_the_web_says() {
         ImportError::UnsupportedFormat.to_string(),
         "The file is not a CSV file"
     );
+}
+
+#[test]
+fn a_workload_of_80_percent_is_80() {
+    let (_, jobs) = import(b"Job,Workload\nA,80%\nB,100\nC,\"50,5%\"\nD,60.5\n");
+    assert_eq!(jobs[0]["workload"], "80");
+    assert_eq!(jobs[1]["workload"], "100");
+    assert_eq!(jobs[2]["workload"], "50.5");
+    assert_eq!(jobs[3]["workload"], "60.5");
+}
+
+#[test]
+fn a_workload_range_is_its_first_number_as_the_column_stores_one() {
+    let (_, jobs) = import(
+        "Job,Workload\nA,80-100%\nB,80–100%\nC,\"80 – 100 %\"\nD,80 to 100\nE,n/a\n".as_bytes(),
+    );
+    for (i, job) in jobs.iter().take(4).enumerate() {
+        assert_eq!(job["workload"], "80", "row {i}");
+    }
+    assert_eq!(
+        jobs[4]["workload"], "n/a",
+        "no number: left to the later number rules"
+    );
+}
+
+#[test]
+fn workload_survives_export_and_import_and_the_ops_hold_a_number() {
+    let settings = settings();
+    let jobs = vec![
+        json!({"id": "a", "title": "T", "workload": 80, "status_id": 1}),
+        json!({"id": "b", "title": "U", "workload": 100, "status_id": 1}),
+    ];
+    let ids: Vec<String> = ["title", "workload"]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+    let bytes = export_csv(&jobs, &ids, &settings, &Layout::default());
+    let (_, imported) = import(&bytes);
+    assert_eq!(imported[0]["workload"], "80");
+    let ops = ccvl::transfer::job_create_batches(
+        &imported,
+        &ccvl::transfer::OpContext {
+            workspace_id: "w",
+            today: "2026-11-18",
+            now: "2026-11-18T00:00:00Z",
+            initial_follow_up: None,
+        },
+        || "l".into(),
+    );
+    assert_eq!(ops[0]["ops"][0]["op"]["attributes"]["workload"], json!(80));
+    let (_, pct) = import(b"Job,Workload\nA,80%\n");
+    let ops = ccvl::transfer::job_create_batches(
+        &pct,
+        &ccvl::transfer::OpContext {
+            workspace_id: "w",
+            today: "t",
+            now: "n",
+            initial_follow_up: None,
+        },
+        || "l".into(),
+    );
+    assert_eq!(ops[0]["ops"][0]["op"]["attributes"]["workload"], json!(80));
 }

@@ -66,6 +66,14 @@ fn denonfinite(v: &Value) -> Value {
     }
 }
 
+fn as_number(v: &Value) -> Option<f64> {
+    match v {
+        Value::String(s) => s.parse().ok(),
+        Value::Number(n) => n.as_f64(),
+        _ => None,
+    }
+}
+
 /// The reader keeps number-like cells as typed text unless the number prints as that text (see
 /// `csvread`), where the reference holds the number. Replace such strings in `ours` by the reference
 /// number when `SheetJS`'s fuzzy parse of the text gives exactly that number: the one deliberate
@@ -89,6 +97,14 @@ fn typed_text_as_reference_number(ours: &Value, theirs: &Value) -> Value {
         (Value::Object(x), Value::Object(y)) => Value::Object(
             x.iter()
                 .map(|(k, v)| {
+                    // Workload percentages: `80%` is 80 here, the reference read it as 0.8.
+                    if k == "workload"
+                        && let Some(w) = y.get(k)
+                        && let (Some(a), Some(b)) = (as_number(v), as_number(w))
+                        && (a - b * 100.0).abs() < 1e-9
+                    {
+                        return (k.clone(), y[k].clone());
+                    }
                     let v = y
                         .get(k)
                         .map_or_else(|| v.clone(), |w| typed_text_as_reference_number(v, w));
