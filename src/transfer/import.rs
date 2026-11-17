@@ -1,17 +1,19 @@
 //! CSV import: the column-mapping guess and preview of `parseImportFile`, the row conversion of
 //! `processImportData`, and the `job.create` ops the dashboard commits for the converted jobs.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value, json};
 
 use crate::transfer::ImportError;
 use crate::transfer::columns::DEFAULT_COLUMNS;
 use crate::transfer::csvread::{ImportCell, ImportRow, read_rows};
-use crate::transfer::jsnum::{js_number, js_parse_float, js_round, js_trim, number_to_string};
+use crate::transfer::jsnum::{
+    fuzzy_number, js_number, js_parse_float, js_round, js_trim, number_to_string,
+};
 use crate::transfer::settings::Settings;
 
 /// How one file header maps to a workspace column.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImportColumnMapping {
     #[serde(rename = "fileHeader")]
     pub file_header: String,
@@ -19,12 +21,12 @@ pub struct ImportColumnMapping {
     #[serde(rename = "targetColumnId")]
     pub target_column_id: String,
     pub confidence: f64,
-    #[serde(rename = "isCustom", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "isCustom", default, skip_serializing_if = "Option::is_none")]
     pub is_custom: Option<bool>,
 }
 
 /// The preview shown before an import is committed.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImportPreview {
     #[serde(rename = "totalRows")]
     pub total_rows: usize,
@@ -190,6 +192,25 @@ fn cell_string(cell: &ImportCell) -> String {
     }
 }
 
+/// The columns whose cells are numbers; every other column takes the text as typed.
+const NUMERIC_TARGETS: [&str; 3] = ["workload", "salary", "score"];
+
+/// A cell for a column that wants a number: text that reads as a number (`80%`, `1,2`, `$5`) becomes
+/// the number's text, which is what the reader produced for such cells before it kept them as typed.
+fn numeric_string(cell: &ImportCell) -> String {
+    match cell {
+        ImportCell::Text(s) if !js_trim(s).is_empty() => {
+            let n = fuzzy_number(s);
+            if n.is_nan() {
+                s.clone()
+            } else {
+                number_to_string(n)
+            }
+        }
+        other => cell_string(other),
+    }
+}
+
 /// A JSON number the way JavaScript would keep it: an integer when the value is integral.
 fn num_value(n: f64) -> Value {
     #[allow(clippy::cast_possible_truncation)]
@@ -257,8 +278,13 @@ pub fn process_import_data(
                 if *cell == ImportCell::Null {
                     continue;
                 }
-                let text = cell_string(cell);
                 let target = mapping.target_column_id.as_str();
+                let numeric = mapping.is_custom == Some(true) || NUMERIC_TARGETS.contains(&target);
+                let text = if numeric {
+                    numeric_string(cell)
+                } else {
+                    cell_string(cell)
+                };
                 if mapping.is_custom == Some(true) {
                     let evaluations = job
                         .entry("evaluations")

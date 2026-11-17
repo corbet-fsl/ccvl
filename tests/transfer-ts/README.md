@@ -18,3 +18,9 @@ CV_ROOT=/path/to/careervector bun --no-install gen.ts --check   # fail on drift
 
 Fixtures never contain date-like text for import: SheetJS turns it into serial numbers and the engine
 keeps the text (`dates.json` records the divergence).
+
+Three differences are deliberate, and `tests/transfer.rs` reconciles them explicitly while
+`tests/transfer_stories.rs` states them as user stories: dates stay as written; a file without a
+byte-order mark is read as UTF-8 when it is valid UTF-8 (the fixture `utf8-no-bom-is-read-as-latin1`
+records the old reading and is skipped); a cell that reads as a number keeps its typed text unless
+the number prints as that text (`80%`, `007`, `1,2`), while the numeric columns parse it as before.

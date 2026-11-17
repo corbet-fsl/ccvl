@@ -2,15 +2,27 @@
 //! (`XLSX.read` + `sheet_to_json`) hands the TypeScript import: encoding rules, separator guess,
 //! cell typing, header naming and blank-row handling.
 //!
-//! Not reproduced: `SheetJS`'s date recognition (it turns date-looking text into spreadsheet serial
-//! numbers; this reader keeps the text) and its readers for non-CSV formats (they are refused).
+//! Three deliberate differences from `SheetJS`, each a user story rather than an accident:
+//!
+//! - Dates stay as written. `SheetJS` turns date-looking text into spreadsheet serial numbers; this
+//!   reader keeps the text, so a file exported by the app imports with the same dates.
+//! - Encoding. A byte-order mark selects UTF-8; without one the bytes are UTF-8 when they are valid
+//!   UTF-8 (umlauts from another tool survive) and Windows-1252 otherwise. `SheetJS` read everything
+//!   without a mark as Latin-1.
+//! - Cells arrive as typed. A cell that reads as a number keeps its text unless the number prints
+//!   as exactly that text: `80%`, `007`, `1,2` and `7.50` stay text, `42` and `7.5` become numbers.
+//!   A column that wants the number (workload, salary, score, custom evaluations) parses the text
+//!   again with [`crate::transfer::jsnum::fuzzy_number`], which is what `SheetJS` did up front.
+//!
+//! Its readers for non-CSV formats are not reproduced (such files are refused).
 
 use std::collections::HashMap;
 
-use serde::{Serialize, Serializer, ser::SerializeMap};
+use serde::de::{self, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeMap};
 
 use crate::transfer::ImportError;
-use crate::transfer::jsnum::{fuzzy_number, js_trim, order_properties};
+use crate::transfer::jsnum::{fuzzy_number, js_trim, number_to_string, order_properties};
 
 /// A value in a parsed row.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +42,47 @@ impl Serialize for ImportCell {
             Self::Number(_) | Self::Null => s.serialize_none(),
             Self::Bool(b) => s.serialize_bool(*b),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for ImportCell {
+    /// The inverse of the serialization: a string is text, a number a number, `null` the `#NULL!`
+    /// cell. This is how the host hands the previewed rows back for the conversion.
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct CellVisitor;
+        impl Visitor<'_> for CellVisitor {
+            type Value = ImportCell;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a string, number, boolean or null")
+            }
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<ImportCell, E> {
+                Ok(ImportCell::Text(v.to_owned()))
+            }
+            fn visit_string<E: de::Error>(self, v: String) -> Result<ImportCell, E> {
+                Ok(ImportCell::Text(v))
+            }
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<ImportCell, E> {
+                Ok(ImportCell::Bool(v))
+            }
+            #[allow(clippy::cast_precision_loss)]
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<ImportCell, E> {
+                Ok(ImportCell::Number(v as f64))
+            }
+            #[allow(clippy::cast_precision_loss)]
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<ImportCell, E> {
+                Ok(ImportCell::Number(v as f64))
+            }
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<ImportCell, E> {
+                Ok(ImportCell::Number(v))
+            }
+            fn visit_unit<E: de::Error>(self) -> Result<ImportCell, E> {
+                Ok(ImportCell::Null)
+            }
+            fn visit_none<E: de::Error>(self) -> Result<ImportCell, E> {
+                Ok(ImportCell::Null)
+            }
+        }
+        d.deserialize_any(CellVisitor)
     }
 }
 
@@ -57,6 +110,26 @@ impl Serialize for ImportRow {
             map.serialize_entry(k, v)?;
         }
         map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ImportRow {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct RowVisitor;
+        impl<'de> Visitor<'de> for RowVisitor {
+            type Value = ImportRow;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an object of header names to cells")
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<ImportRow, A::Error> {
+                let mut entries = Vec::with_capacity(map.size_hint().unwrap_or(0));
+                while let Some(entry) = map.next_entry::<String, ImportCell>()? {
+                    entries.push(entry);
+                }
+                Ok(ImportRow(entries))
+            }
+        }
+        d.deserialize_map(RowVisitor)
     }
 }
 
@@ -117,7 +190,12 @@ fn type_cell(raw: &str) -> Stored {
                 _ => Typed::Value(ImportCell::Text(s)),
             }
         } else {
-            Typed::Value(ImportCell::Number(n))
+            // The number only when it prints as the typed text; otherwise the typed text itself.
+            if number_to_string(n) == s {
+                Typed::Value(ImportCell::Number(n))
+            } else {
+                Typed::Value(ImportCell::Text(s))
+            }
         }
     };
     Stored { text, typed }
@@ -237,14 +315,31 @@ fn sniffs_as_other_format(b: &[u8]) -> bool {
     }
 }
 
-/// Decode like `read_prn`: a UTF-8 byte-order mark selects UTF-8, anything else is read byte for
-/// byte as Latin-1.
+/// Windows-1252 for the bytes 0x80 to 0x9F; the five bytes it leaves undefined map to the C1
+/// control of the same value, as browsers do.
+const CP1252_HIGH: [char; 32] = [
+    '\u{20AC}', '\u{81}', '\u{201A}', '\u{192}', '\u{201E}', '\u{2026}', '\u{2020}', '\u{2021}',
+    '\u{2C6}', '\u{2030}', '\u{160}', '\u{2039}', '\u{152}', '\u{8D}', '\u{17D}', '\u{8F}',
+    '\u{90}', '\u{2018}', '\u{2019}', '\u{201C}', '\u{201D}', '\u{2022}', '\u{2013}', '\u{2014}',
+    '\u{2DC}', '\u{2122}', '\u{161}', '\u{203A}', '\u{153}', '\u{9D}', '\u{17E}', '\u{178}',
+];
+
+/// Decode the file: a UTF-8 byte-order mark wins; without one the bytes are UTF-8 when they are
+/// valid UTF-8 and Windows-1252 (a superset of Latin-1 for text) otherwise.
 fn decode(bytes: &[u8]) -> String {
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        String::from_utf8_lossy(&bytes[3..]).into_owned()
-    } else {
-        bytes.iter().map(|b| char::from(*b)).collect()
+    if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        return String::from_utf8_lossy(rest).into_owned();
     }
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return text.to_owned();
+    }
+    bytes
+        .iter()
+        .map(|&b| match b {
+            0x80..=0x9F => CP1252_HIGH[usize::from(b - 0x80)],
+            _ => char::from(b),
+        })
+        .collect()
 }
 
 /// Parse CSV bytes into the rows `sheet_to_json` returns for the first sheet.

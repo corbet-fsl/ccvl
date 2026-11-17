@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use ccvl::transfer::jsnum::{general_number, number_to_string};
+use ccvl::transfer::jsnum::{fuzzy_number, general_number, number_to_string};
 use ccvl::transfer::{
     DEFAULT_COLUMNS, ImportColumnMapping, ImportContext, ImportError, ImportPreview, Layout,
     OpContext, Settings, default_column, export_csv, job_create_batches, parse_import_csv,
@@ -63,6 +63,49 @@ fn denonfinite(v: &Value) -> Value {
             Value::Object(o.iter().map(|(k, v)| (k.clone(), denonfinite(v))).collect())
         }
         other => other.clone(),
+    }
+}
+
+/// The reader keeps number-like cells as typed text unless the number prints as that text (see
+/// `csvread`), where the reference holds the number. Replace such strings in `ours` by the reference
+/// number when `SheetJS`'s fuzzy parse of the text gives exactly that number: the one deliberate
+/// difference of cell typing, nothing else is touched.
+#[allow(clippy::float_cmp)]
+fn typed_text_as_reference_number(ours: &Value, theirs: &Value) -> Value {
+    match (ours, theirs) {
+        (Value::String(s), Value::Number(n))
+            if n.as_f64().is_some_and(|f| fuzzy_number(s) == f)
+                && s.trim() != ""
+                && number_to_string(fuzzy_number(s)) != *s =>
+        {
+            theirs.clone()
+        }
+        // The same cell in a text column: the reference holds the number's text, ours the typed text.
+        (Value::String(s), Value::String(t))
+            if s != t && s.trim() != "" && number_to_string(fuzzy_number(s)) == *t =>
+        {
+            theirs.clone()
+        }
+        (Value::Object(x), Value::Object(y)) => Value::Object(
+            x.iter()
+                .map(|(k, v)| {
+                    let v = y
+                        .get(k)
+                        .map_or_else(|| v.clone(), |w| typed_text_as_reference_number(v, w));
+                    (k.clone(), v)
+                })
+                .collect(),
+        ),
+        (Value::Array(x), Value::Array(y)) => Value::Array(
+            x.iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    y.get(i)
+                        .map_or_else(|| v.clone(), |w| typed_text_as_reference_number(v, w))
+                })
+                .collect(),
+        ),
+        _ => ours.clone(),
     }
 }
 
@@ -146,9 +189,10 @@ fn cell_typing_matches_sheetjs() {
     for case in table["typed"].as_array().unwrap() {
         let csv = case["csv"].as_str().unwrap();
         let ours = serde_json::to_value(read_rows_text(csv)).unwrap();
+        let theirs = canon(&denonfinite(&case["rows"]));
         assert_same(
-            &canon(&ours),
-            &canon(&denonfinite(&case["rows"])),
+            &typed_text_as_reference_number(&canon(&ours), &theirs),
+            &theirs,
             &format!("csv {csv:?}"),
         );
         checked += 1;
@@ -205,6 +249,10 @@ fn apply_overrides(mappings: &mut [ImportColumnMapping], overrides: &Value) {
 #[test]
 fn import_matches_the_reference() {
     for name in case_names("import") {
+        // Recorded with the reference's Latin-1 reading; the engine reads UTF-8 (transfer_stories.rs).
+        if name == "utf8-no-bom-is-read-as-latin1" {
+            continue;
+        }
         let case = read_json(&fixtures().join(format!("import/{name}.json")));
         let bytes = fs::read(fixtures().join(format!("import/{name}.csv"))).unwrap();
         let settings = settings_of(&case["settings"]);
@@ -216,9 +264,13 @@ fn import_matches_the_reference() {
         }
         let preview: ImportPreview = preview.unwrap_or_else(|e| panic!("{name}: {e}"));
         let expected = &case["expected"];
+        let theirs = canon(&denonfinite(&expected["preview"]));
         assert_same(
-            &canon(&serde_json::to_value(&preview).unwrap()),
-            &canon(&denonfinite(&expected["preview"])),
+            &typed_text_as_reference_number(
+                &canon(&serde_json::to_value(&preview).unwrap()),
+                &theirs,
+            ),
+            &theirs,
             &format!("import case {name}: preview"),
         );
 
@@ -242,9 +294,10 @@ fn import_matches_the_reference() {
             },
         );
         let jobs_value = Value::Array(jobs.iter().cloned().map(Value::Object).collect());
+        let theirs = canon(&denonfinite(&expected["jobs"]));
         assert_same(
-            &canon(&jobs_value),
-            &canon(&denonfinite(&expected["jobs"])),
+            &typed_text_as_reference_number(&canon(&jobs_value), &theirs),
+            &theirs,
             &format!("import case {name}: jobs"),
         );
 
@@ -259,9 +312,10 @@ fn import_matches_the_reference() {
             local += 1;
             format!("L{}", local - 1)
         });
+        let theirs = canon(&denonfinite(&expected["batches"]));
         assert_same(
-            &canon(&Value::Array(batches)),
-            &canon(&denonfinite(&expected["batches"])),
+            &typed_text_as_reference_number(&canon(&Value::Array(batches)), &theirs),
+            &theirs,
             &format!("import case {name}: ops"),
         );
     }
