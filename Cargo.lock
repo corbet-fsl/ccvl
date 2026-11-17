@@ -404,9 +404,9 @@ dependencies = [
 
 [[package]]
 name = "cletter"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba3d6afb327e3519485aaa341809a7464b6376d1f8d9dc25268f7c71e30b263"
+checksum = "a84c79c43458c01a14f25b8a8b9f6b7da71078bffde6e41389eb4a5c475c5d52"
 dependencies = [
  "cdate",
  "cink",
@@ -616,7 +616,7 @@ dependencies = [
 [[package]]
 name = "ctyp"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/ctyp.git?branch=main#29b66ed6e6d2a9b88201f15c568ff861d35c14bf"
+source = "git+https://git.corbet.ch/corbet-fsl/ctyp.git?branch=main#5b50b2c4a1ca9b4269594f5ffc4324558a5c333e"
 dependencies = [
  "cletter",
  "ctypst",
@@ -628,9 +628,9 @@ dependencies = [
 
 [[package]]
 name = "ctypst"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "884715c97b6ea7ceb29ef6b8885355854a1212c002cfc2f71412facb80048224"
+checksum = "b30dc5d836a8ad19301b3a052b129d9950cff8b76f7487a408d04387c7270f8b"
 dependencies = [
  "serde",
  "serde_json",
@@ -675,7 +675,7 @@ dependencies = [
 [[package]]
 name = "cvst"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvst.git?branch=main#dad3f34e16efcbf49323ffe023578a5c8908b47f"
+source = "git+https://git.corbet.ch/corbet-fsl/cvst.git?branch=main#5ae77bda39bd51617be4043e14739e42520533bc"
 dependencies = [
  "anyhow",
  "cletter",
