@@ -8,6 +8,7 @@ These files pin the `doc` engine to what CareerVector's TypeScript op applier
 | `states.json` | all | the pre-state of every case, one Yjs update each |
 | `v1-ops.json` | V1 ops (V4 shape is asserted by every case) | one op or prose edit applied: resulting structure, changed nodes, the Yjs update bytes |
 | `v3-errors.json` | V3 errors | refused ops: the exact reason, document unchanged, no bytes emitted |
+| `v7-data.json` | data sub-documents | `job.*`, `settings.update`, `layout.update`, `order_state.update` and batches of them on the `jobs`, `settings`, `layout` and `order-state` documents: structure, changed row keys, the TypeScript Yjs update, or the exact refusal (`tests/data_vectors.rs`; generator `ccvl-data-vectors.ts`, reverse check `ccvl-data-verify-rust.ts`) |
 | `v6-ids.json` | V6 changed nodes | peer frames received, singly or as a sequence (out of order, duplicate, no visible effect): structure and changed nodes per frame |
 
 V4 (storage traps) is not a separate file: every case compares the structure, so a lazily

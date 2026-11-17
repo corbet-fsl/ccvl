@@ -52,6 +52,10 @@ const OP_KINDS: [&str; 21] = [
 pub(crate) struct Roots {
     pub cv: MapRef,
     pub cl: MapRef,
+    pub jobs: MapRef,
+    pub settings: MapRef,
+    pub layout: MapRef,
+    pub order_state: MapRef,
     pub scope: Option<&'static str>,
 }
 
@@ -60,6 +64,10 @@ impl Roots {
         Self {
             cv: doc.get_or_insert_map("cv_profile"),
             cl: doc.get_or_insert_map("cl_profile"),
+            jobs: doc.get_or_insert_map("jobs"),
+            settings: doc.get_or_insert_map("settings"),
+            layout: doc.get_or_insert_map("layout"),
+            order_state: doc.get_or_insert_map("order_state"),
             scope,
         }
     }
@@ -67,6 +75,24 @@ impl Roots {
     /// True when `name` is a profile root this document owns.
     pub(crate) fn owns(&self, name: &str) -> bool {
         matches!(name, "cv_profile" | "cl_profile") && self.scope.is_none_or(|s| s == name)
+    }
+
+    /// True when `name` is a data root (`jobs`, `settings`, `layout`, `order_state`) this document owns.
+    pub(crate) fn owns_data(&self, name: &str) -> bool {
+        matches!(name, "jobs" | "settings" | "layout" | "order_state")
+            && self.scope.is_none_or(|s| s == name)
+    }
+
+    pub(crate) fn data(&self, name: &str) -> Option<&MapRef> {
+        if !self.owns_data(name) {
+            return None;
+        }
+        match name {
+            "jobs" => Some(&self.jobs),
+            "settings" => Some(&self.settings),
+            "layout" => Some(&self.layout),
+            _ => Some(&self.order_state),
+        }
     }
 
     pub(crate) fn profile(&self, name: &str) -> Option<&MapRef> {
@@ -83,6 +109,8 @@ impl Roots {
 pub(crate) struct Ctx<'a> {
     pub roots: &'a Roots,
     pub actor: ActorClass,
+    /// Who the actor is (`device:<id>`): human evaluation votes are recorded under it.
+    pub actor_id: Option<&'a str>,
     pub ids: &'a mut dyn FnMut() -> String,
 }
 
@@ -210,6 +238,12 @@ pub(crate) fn apply_op(
         "node.delete" => node_delete(ctx, txn, op),
         "node.move" => node_move(ctx, txn, op),
         "batch" => batch(ctx, txn, op),
+        "job.create" => super::data::job_create(ctx, txn, op),
+        "job.update" => super::data::job_update(ctx, txn, op),
+        "job.delete" => super::data::job_delete(ctx, txn, op),
+        "settings.update" | "layout.update" | "order_state.update" => {
+            super::data::flat_update(ctx, txn, op, &kind)
+        }
         "selection.update" => selection_update(ctx, txn, op),
         "cvl.duplicate_as_variant" | "cvl.break_out" | "cvl.promote_sub" | "cvl.demote_bullet" => {
             cvl_action(ctx, txn, op, &kind)
@@ -624,6 +658,7 @@ fn batch(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), 
         let mut probe_ctx = Ctx {
             roots: &probe_roots,
             actor: ctx.actor,
+            actor_id: ctx.actor_id,
             ids: &mut probe_ids,
         };
         for inner in &sub_ops {

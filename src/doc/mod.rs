@@ -34,6 +34,8 @@
 
 mod convert;
 mod cvl;
+mod data;
+mod jobid;
 mod ops;
 mod text;
 mod track;
@@ -436,6 +438,22 @@ impl Doc {
         Some(Self::build(None, Some(scope)))
     }
 
+    /// An empty document that owns one data root: `jobs`, `settings`, `layout` or
+    /// `order_state` (the sub-documents `jobs`, `settings`, `layout`, `order-state`). It
+    /// reports a changed row as `NodeRef { branch: <root>, path: [<key>] }` and refuses the
+    /// ops of every other sub-document. `None` for any other name.
+    #[must_use]
+    pub fn scoped_data(root: &str) -> Option<Self> {
+        let scope = match root {
+            "jobs" => "jobs",
+            "settings" => "settings",
+            "layout" => "layout",
+            "order_state" => "order_state",
+            _ => return None,
+        };
+        Some(Self::build(None, Some(scope)))
+    }
+
     /// Replace the generator used when an op omits an id (`node.create`, promotions).
     #[must_use]
     pub fn with_id_source(mut self, source: impl FnMut() -> String + Send + 'static) -> Self {
@@ -454,6 +472,21 @@ impl Doc {
         let doc = new_doc(client_id);
         let roots = Roots::new(&doc, scope);
         let tracker = Arc::new(Mutex::new(Tracker::default()));
+        for (name, root) in [
+            ("jobs", &roots.jobs),
+            ("settings", &roots.settings),
+            ("layout", &roots.layout),
+            ("order_state", &roots.order_state),
+        ] {
+            // An unscoped document owns every root but reports profile changes only.
+            if scope != Some(name) {
+                continue;
+            }
+            let tracker = Arc::clone(&tracker);
+            yrs::DeepObservable::observe_deep(root, name, move |txn, events| {
+                track::record_flat(name, events, txn, &mut lock(&tracker));
+            });
+        }
         for (name, root) in [("cv_profile", &roots.cv), ("cl_profile", &roots.cl)] {
             if !roots.owns(name) {
                 continue;
@@ -485,7 +518,13 @@ impl Doc {
         }
     }
 
-    fn run<F>(&mut self, actor: ActorClass, remote: bool, f: F) -> Result<Changed, OpError>
+    fn run<F>(
+        &mut self,
+        actor: ActorClass,
+        actor_id: Option<&str>,
+        remote: bool,
+        f: F,
+    ) -> Result<Changed, OpError>
     where
         F: FnOnce(&mut Ctx<'_>, &mut TransactionMut) -> Result<(), OpError>,
     {
@@ -499,6 +538,7 @@ impl Doc {
             let mut ctx = Ctx {
                 roots: &self.roots,
                 actor,
+                actor_id,
                 ids: &mut *self.ids,
             };
             f(&mut ctx, &mut txn)
@@ -525,7 +565,20 @@ impl Doc {
 
     /// Apply one op; the op shapes are those of the `@cv/mutations` catalogue.
     pub fn apply_op_as(&mut self, op: &Value, actor: ActorClass) -> Result<Changed, OpError> {
-        self.run(actor, false, |ctx, txn| ops::apply_op(ctx, txn, op))
+        self.run(actor, None, false, |ctx, txn| ops::apply_op(ctx, txn, op))
+    }
+
+    /// Apply one op as `actor` with its identity: a human `job.update` of `evaluations` records
+    /// the votes under `actor_id` (`device:<id>`), as the server does.
+    pub fn apply_op_for(
+        &mut self,
+        op: &Value,
+        actor: ActorClass,
+        actor_id: Option<&str>,
+    ) -> Result<Changed, OpError> {
+        self.run(actor, actor_id, false, |ctx, txn| {
+            ops::apply_op(ctx, txn, op)
+        })
     }
 
     /// Replace `range` (UTF-16 units) of a prose field with `replacement`.
@@ -575,7 +628,7 @@ impl Doc {
     ) -> Result<Changed, OpError> {
         let node_path = segments.join(".");
         let node_path = node_path.as_str();
-        self.run(actor, false, |ctx, txn| {
+        self.run(actor, None, false, |ctx, txn| {
             let branch = ops::resolve_branch_root(ctx.roots, &*txn, branch_path)?;
             let Some(tree) = tree::get_map(&*txn, &branch, "tree") else {
                 return ops::fail(format!("type_text: tree not found at '{branch_path}'"));
@@ -754,6 +807,29 @@ impl Doc {
         convert::out_to_value(&txn, &Out::YMap(root.clone()))
     }
 
+    /// The keys of a data root (`jobs`, `settings`, `layout`, `order_state`), sorted: the job
+    /// ids, or the setting names.
+    pub fn row_ids(&self, root: &str) -> Result<Vec<String>, OpError> {
+        let map = self.data_root(root)?;
+        Ok(data::keys(&self.inner.transact(), map))
+    }
+
+    /// Rows of a data root as `{ "<key>": <plain JSON> }`: a job is `{ "url", "attributes" }`.
+    /// `only` limits it to those keys (a virtualised list reads its visible window; keys that do
+    /// not exist are left out); `None` reads every row.
+    pub fn rows(&self, root: &str, only: Option<&[String]>) -> Result<Value, OpError> {
+        let map = self.data_root(root)?;
+        data::rows(&self.inner.transact(), map, only)
+    }
+
+    fn data_root(&self, root: &str) -> Result<&yrs::MapRef, OpError> {
+        self.roots.data(root).ok_or_else(|| {
+            OpError::new(format!(
+                "'{root}' is not a data root of this document (jobs, settings, layout, order_state)"
+            ))
+        })
+    }
+
     /// True when received updates are waiting for missing causal history.
     #[must_use]
     pub fn has_pending(&self) -> bool {
@@ -771,7 +847,7 @@ impl Doc {
     pub fn receive(&mut self, update: &[u8]) -> Result<Changed, OpError> {
         let update = Update::decode_v1(update)
             .map_err(|e| OpError::new(format!("receive: undecodable update: {e}")))?;
-        self.run(ActorClass::Human, true, |_, txn| {
+        self.run(ActorClass::Human, None, true, |_, txn| {
             txn.apply_update(update)
                 .map_err(|e| OpError::new(format!("receive: update refused: {e}")))
         })
@@ -863,6 +939,19 @@ impl Doc {
             ("cl_profile", &self.roots.cl),
         ] {
             if self.roots.owns(name) && root.len(&txn) > 0 {
+                out.insert(
+                    name.into(),
+                    convert::dump_shape(&txn, &Out::YMap(root.clone())),
+                );
+            }
+        }
+        for (name, root) in [
+            ("jobs", &self.roots.jobs),
+            ("settings", &self.roots.settings),
+            ("layout", &self.roots.layout),
+            ("order_state", &self.roots.order_state),
+        ] {
+            if self.roots.owns_data(name) && root.len(&txn) > 0 {
                 out.insert(
                     name.into(),
                     convert::dump_shape(&txn, &Out::YMap(root.clone())),

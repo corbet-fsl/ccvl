@@ -198,3 +198,27 @@ pub(crate) fn record(
         record_event(root_name, root, txn, event, t);
     }
 }
+
+/// Flat roots (`jobs`, `settings`, `layout`, `order_state`): a change is reported as
+/// `NodeRef { branch: <root>, path: [<key>] }`. Removed keys are reported too, so a
+/// host drops the row it shows.
+pub(crate) fn record_flat(root_name: &str, events: &Events, txn: &TransactionMut, t: &mut Tracker) {
+    for event in events.iter() {
+        let path: Vec<PathSegment> = event.path().into_iter().collect();
+        match path.first() {
+            None => {
+                if let Event::Map(me) = event {
+                    for key in me.keys(txn).keys() {
+                        t.nodes
+                            .insert(NodeRef::new(root_name, vec![key.to_string()]));
+                    }
+                }
+            }
+            Some(PathSegment::Key(key)) => {
+                t.nodes
+                    .insert(NodeRef::new(root_name, vec![key.to_string()]));
+            }
+            Some(PathSegment::Index(_)) => {}
+        }
+    }
+}
