@@ -32,14 +32,14 @@ url = { version = "2", optional = true }
 yrs = { version = "0.28", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-cvws = { git = "https://git.corbet.ch/corbet-fsl/cvws.git", branch = "main", optional = true }
-cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", default-features = false, optional = true }
+cvws = { version = "0.1", optional = true }
+cvdb = { version = "0.2", default-features = false, optional = true }
 
 [dev-dependencies]
 yrs = "0.28"
 tempfile = "3"
 flate2 = "1"
-cvdb = { git = "https://git.corbet.ch/corbet-fsl/cvdb.git", branch = "main", features = ["fake-server"] }
+cvdb = { version = "0.2", features = ["fake-server"] }
 
 [lints.rust]
 unsafe_code = "forbid"

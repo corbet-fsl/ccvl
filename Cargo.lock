@@ -647,7 +647,8 @@ dependencies = [
 [[package]]
 name = "cvdb"
 version = "0.2.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvdb.git?branch=main#27fa11957eff6a0b82e3353aac2aaad0252f6a4b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1a428552f063bb6e865465c36d517db3a35c6daa02c1ac6668902b0d4dae44f"
 dependencies = [
  "base64 0.22.1",
  "cvfs",
@@ -663,7 +664,8 @@ dependencies = [
 [[package]]
 name = "cvfs"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvfs.git?branch=main#96f9edf9ccf47994863f683b925c1a6366998358"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "049c6c19fea6d9a04d0910acc6da7710c39885870752c466cd40d11234d18ef8"
 dependencies = [
  "serde",
  "serde_json",
@@ -685,7 +687,8 @@ dependencies = [
 [[package]]
 name = "cvws"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-fsl/cvws.git?branch=main#605c17cd8a102f0a84ea817d39caf988cf9fee15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92a58745a463fe1058b017a5f45bf945e5f069d76faf2cd60ba1bcee96584162"
 dependencies = [
  "cvdb",
  "cvfs",
