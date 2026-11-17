@@ -21,8 +21,8 @@ remote = ["storage", "dep:cvdb"]
 [dependencies]
 anyhow = "1.0"
 base64 = { version = "0.22", optional = true }
-ctyp = { git = "https://git.corbet.ch/corbet-fsl/ctyp.git", branch = "main", optional = true, default-features = false, features = ["pdf", "pdf-normalize", "raster"] }
-cvst = { git = "https://git.corbet.ch/corbet-fsl/cvst.git", branch = "main" }
+ctyp = { version = "0.1", optional = true, default-features = false, features = ["pdf", "pdf-normalize", "raster"] }
+cvst = "0.1"
 serde = { version = "1.0", features = ["derive", "rc"] }
 # preserve_order: embedded JSON strings of job fields keep their key order, as JSON.stringify does.
 serde_json = { version = "1.0", features = ["preserve_order"] }
