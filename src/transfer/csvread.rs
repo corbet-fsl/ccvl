@@ -78,9 +78,6 @@ impl<'de> Deserialize<'de> for ImportCell {
             fn visit_unit<E: de::Error>(self) -> Result<ImportCell, E> {
                 Ok(ImportCell::Null)
             }
-            fn visit_none<E: de::Error>(self) -> Result<ImportCell, E> {
-                Ok(ImportCell::Null)
-            }
         }
         d.deserialize_any(CellVisitor)
     }

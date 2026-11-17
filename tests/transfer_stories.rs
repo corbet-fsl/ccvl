@@ -176,3 +176,83 @@ fn a_second_round_trip_changes_nothing() {
     let second = export_csv(&again, &ids, &settings, &Layout::default());
     assert_eq!(first, second);
 }
+
+#[test]
+fn previewed_rows_survive_the_trip_through_json() {
+    use ccvl::transfer::{ImportCell, ImportColumnMapping};
+    let row: ccvl::transfer::ImportRow = serde_json::from_value(
+        json!({"t": "text", "n": 42, "u": 18_446_744_073_709_551_615u64, "i": -7, "f": 7.5, "b": true, "z": null}),
+    )
+    .unwrap();
+    let get = |k: &str| row.get(k).unwrap().clone();
+    assert_eq!(get("t"), ImportCell::Text("text".into()));
+    assert_eq!(get("n"), ImportCell::Number(42.0));
+    assert_eq!(get("i"), ImportCell::Number(-7.0));
+    assert_eq!(get("f"), ImportCell::Number(7.5));
+    assert_eq!(get("b"), ImportCell::Bool(true));
+    assert_eq!(get("z"), ImportCell::Null);
+    assert!(matches!(get("u"), ImportCell::Number(n) if n > 1.8e19));
+    assert_eq!(
+        row.keys().collect::<Vec<_>>(),
+        ["t", "n", "u", "i", "f", "b", "z"]
+    );
+    // a cell that is an object or array is not a spreadsheet cell
+    assert_eq!(
+        serde_json::from_str::<ImportCell>("\"typed\"").unwrap(),
+        ImportCell::Text("typed".into())
+    );
+    let refused = serde_json::from_value::<ImportCell>(json!({"a": 1})).unwrap_err();
+    assert!(
+        refused
+            .to_string()
+            .contains("a string, number, boolean or null"),
+        "{refused}"
+    );
+    let refused = serde_json::from_value::<ccvl::transfer::ImportRow>(json!(5)).unwrap_err();
+    assert!(
+        refused.to_string().contains("header names to cells"),
+        "{refused}"
+    );
+    assert!(serde_json::from_value::<ccvl::transfer::ImportRow>(json!([1, 2])).is_err());
+    // a mapping without isCustom reads as "not custom"
+    let m: ImportColumnMapping = serde_json::from_value(
+        json!({"fileHeader": "Job", "targetColumnId": "title", "confidence": 1.0}),
+    )
+    .unwrap();
+    assert_eq!(m.is_custom, None);
+}
+
+#[test]
+fn every_windows_1252_byte_reads_as_its_character() {
+    // 0x80..=0x9F differ from Latin-1: a real euro sign, quotes and dashes instead of C1 controls
+    let expected = "€\u{81}‚ƒ„…†‡ˆ‰Š‹Œ\u{8D}Ž\u{8F}\u{90}‘’“”•–—˜™š›œ\u{9D}žŸ";
+    let mut bytes = b"Job,Organization\nA,".to_vec();
+    bytes.extend(0x80u8..=0x9F);
+    bytes.push(b'\n');
+    let rows = read_rows(&bytes).unwrap();
+    let Some(ccvl::transfer::ImportCell::Text(text)) = rows[0].get("Organization") else {
+        panic!("not text")
+    };
+    assert_eq!(text, expected);
+}
+
+#[test]
+fn bool_and_error_cells_keep_their_spreadsheet_meaning() {
+    let (preview, jobs) = import(b"Job,Remote,Fit\nA,TRUE,#NULL!\nB,FALSE,#DIV/0!\n");
+    let rows = serde_json::to_value(&preview.raw_data).unwrap();
+    assert_eq!(rows[0]["Remote"], json!(true));
+    assert_eq!(rows[0]["Fit"], Value::Null);
+    assert!(rows[1].get("Fit").is_none(), "an error cell has no key");
+    assert_eq!(jobs[0]["evaluations"]["remote"], json!(true));
+    assert_eq!(jobs[1]["evaluations"]["remote"], json!(false));
+}
+
+#[test]
+fn the_refusals_say_what_the_web_says() {
+    use ccvl::transfer::ImportError;
+    assert_eq!(ImportError::Empty.to_string(), "File appears to be empty");
+    assert_eq!(
+        ImportError::UnsupportedFormat.to_string(),
+        "The file is not a CSV file"
+    );
+}
