@@ -1,5 +1,5 @@
 #![cfg(feature = "core")]
-//! The offline policy against the shared JSON vectors (the TypeScript twin in the CareerVector
+//! The offline policy against the shared JSON vectors (the TypeScript twin in the `CareerVector`
 //! workspace-client reads a copy of `tests/vectors/offline.json`).
 
 use ccvl::offline::{FieldKind, Resolution, STALE_AFTER_MS, resolve};
