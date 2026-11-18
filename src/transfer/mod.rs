@@ -19,16 +19,17 @@ pub mod import;
 #[doc(hidden)]
 pub mod jsnum;
 pub mod settings;
+#[cfg(feature = "sheet")]
 pub mod sheet;
 
 pub use columns::{ColumnDef, DEFAULT_COLUMNS, column_config, default_column, is_special_group};
-pub use csvread::{ImportCell, ImportRow, read_rows, read_rows_text};
+pub use csvread::{ImportCell, ImportRow, is_workbook, read_rows, read_rows_text};
 pub use export::{
     Cell, ExportColumn, ExportData, csv_bytes, csv_text, export_csv, prepare_export_data,
 };
 pub use import::{
     EXTRA_IMPORT_FIELDS, ImportColumnMapping, ImportContext, ImportPreview, OpContext,
-    job_create_batches, parse_import_csv, process_import_data,
+    job_create_batches, parse_import_csv, parse_import_rows, process_import_data,
 };
 pub use settings::{CustomColumn, Kanban, Layout, Phase, Settings, Status};
 

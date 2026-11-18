@@ -1,3 +1,4 @@
+#![cfg(feature = "sheet")]
 //! Spreadsheet imports (`.xlsx`, `.xls`) follow the CSV rules: dates as displayed, cell text as typed,
 //! numeric columns parse. The fixtures: `jobs.xlsx` and `jobs.xls` are `LibreOffice` exports of
 //! `jobs.fods`; `excel-style.xlsx` is built the way Excel stores a workbook (shared strings, serial

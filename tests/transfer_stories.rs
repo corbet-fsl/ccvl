@@ -351,3 +351,17 @@ fn files_that_are_not_text_are_refused_by_their_signature() {
     // text that merely starts like a header is read
     assert!(read_rows(b"Job,Organization\nA,B\n").is_ok());
 }
+
+#[test]
+fn rows_a_host_read_itself_give_the_same_preview_as_the_file() {
+    use ccvl::transfer::{parse_import_rows, read_rows};
+    let bytes = b"Job,Organization,Workload\nA,B,80%\nC,D,100\n";
+    let settings = settings();
+    let from_file = parse_import_csv(bytes, &settings).unwrap();
+    let from_rows = parse_import_rows(read_rows(bytes).unwrap(), &settings).unwrap();
+    assert_eq!(from_file, from_rows);
+    assert_eq!(
+        parse_import_rows(Vec::new(), &settings).unwrap_err(),
+        ccvl::transfer::ImportError::Empty
+    );
+}

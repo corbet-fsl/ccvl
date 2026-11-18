@@ -338,11 +338,23 @@ fn decode(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// Whether the bytes start like an `.xlsx` (ZIP) or `.xls` (OLE2) workbook.
+#[must_use]
+pub fn is_workbook(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"PK\x03\x04")
+        || bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
+}
+
 /// Parse a file into the rows `sheet_to_json` returns for the first sheet: CSV text, or an `.xlsx` /
 /// `.xls` workbook (see [`crate::transfer::sheet`]).
 pub fn read_rows(bytes: &[u8]) -> Result<Vec<ImportRow>, ImportError> {
-    if crate::transfer::sheet::is_spreadsheet(bytes) {
+    if is_workbook(bytes) {
+        #[cfg(feature = "sheet")]
         return crate::transfer::sheet::read_rows(bytes);
+        // Without the `sheet` feature a workbook is not read here: the host reads it with its own
+        // reader (the web loads the spreadsheet module) and hands the rows to `parse_import_rows`.
+        #[cfg(not(feature = "sheet"))]
+        return Err(ImportError::UnsupportedFormat);
     }
     if sniffs_as_other_format(bytes) {
         return Err(ImportError::UnsupportedFormat);

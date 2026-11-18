@@ -167,7 +167,15 @@ fn guess_column_mapping(header: &str, settings: &Settings) -> ImportColumnMappin
 /// `parseImportFile` for a CSV file or an `.xlsx`/`.xls` workbook: parse the first sheet and guess a mapping for every header of
 /// the first data row.
 pub fn parse_import_csv(bytes: &[u8], settings: &Settings) -> Result<ImportPreview, ImportError> {
-    let raw_data = read_rows(bytes)?;
+    parse_import_rows(read_rows(bytes)?, settings)
+}
+
+/// The preview of rows a host already read (a workbook read by the spreadsheet module): the mapping
+/// guess and the first five rows, exactly as for a CSV file.
+pub fn parse_import_rows(
+    raw_data: Vec<ImportRow>,
+    settings: &Settings,
+) -> Result<ImportPreview, ImportError> {
     let Some(first) = raw_data.first() else {
         return Err(ImportError::Empty);
     };
