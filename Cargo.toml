@@ -1,6 +1,6 @@
 [package]
 name = "ccvl"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 rust-version = "1.94"
 description = "Shared CareerVector engine: style contracts, document bundles and the Yrs document engine"
@@ -9,11 +9,11 @@ readme = "README.md"
 
 [features]
 # Excel (.xlsx, .xls) import for the jobs transfer (calamine). Off in the editor's wasm; a second wasm module carries it.
-sheet = ["dep:calamine"]
+sheet = ["core", "dep:calamine"]
 # The document locale (wording locale + formatting region) for hosts that pick a letter's locale: cletter's own
 # resolver, re-exported so the CLI and TUI call what the web calls. Off for the wasm build (cletter pulls image code).
 locale = ["dep:cletter"]
-default = ["core", "storage"]
+default = ["core", "storage", "sheet"]
 render = ["core", "dep:ctyp"]
 # The CareerVector job id language: `normalize_url` and `job_id_from_url`. Needs only `sha2` and `url`,
 # so small binaries can take ids without the engine:
