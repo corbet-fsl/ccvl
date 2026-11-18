@@ -168,6 +168,9 @@ pub(crate) fn job_create(
         Some(_) => return fail("job.create: 'attributes' must be an object"),
     };
     let job_id = job_id_from_url(url).map_err(OpError::new)?;
+    if !crate::safeurl::is_storable_job_url(url) {
+        return fail(format!("job.create: {}", crate::safeurl::UNSAFE_JOB_URL));
+    }
     if jobs.contains_key(&*txn, &job_id) {
         // Idempotent: the same URL twice collapses on the existing row.
         return Ok(());

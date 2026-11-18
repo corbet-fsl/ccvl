@@ -1,0 +1,185 @@
+{
+ "source": "lib/schemas/src/safe-url.ts",
+ "cases": [
+  {
+   "url": "https://example.com/jobs/1",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "http://example.com/a?b=1#c",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "HTTPS://EXAMPLE.COM/x",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "mailto:jobs@example.com",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "mailto:jobs@example.com?subject=Application",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "MAILTO:a@b.c",
+   "storable": true,
+   "link": true
+  },
+  {
+   "url": "careervector-local://ws1/abc",
+   "storable": true,
+   "link": false
+  },
+  {
+   "url": "javascript:alert(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "JaVaScRiPt:alert(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "java\tscript:alert(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "java\nscript:alert(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": " javascript:alert(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "javascript:alert(1) ",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "data:text/html,<script>alert(1)</script>",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "vbscript:msgbox(1)",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "file:///etc/passwd",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "ftp://example.com/job",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "blob:https://x/1",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "tel:+41000000",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "sms:+41000000",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "ws://example.com",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "wss://example.com",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "//evil.example",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "not-a-url",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "https://",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "http://",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "   https://example.com/x",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "https://example.com/ ",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "https://example.com/\u0000",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "https://example.com/",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "https://exa mple.com",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "about:blank",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "chrome://settings",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": "intent://x#Intent;scheme=http;end",
+   "storable": false,
+   "link": false
+  },
+  {
+   "url": " https://example.com",
+   "storable": false,
+   "link": false
+  }
+ ]
+}

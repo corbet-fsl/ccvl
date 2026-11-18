@@ -1,6 +1,6 @@
 [package]
 name = "ccvl"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 rust-version = "1.94"
 description = "Shared CareerVector engine: style contracts, document bundles and the Yrs document engine"
