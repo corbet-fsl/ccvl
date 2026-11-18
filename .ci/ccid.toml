@@ -10,6 +10,7 @@ commands = [
   ["cargo", "fmt", "--all", "--", "--check"],
   ["cargo", "clippy", "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"],
   ["cargo", "test", "--locked", "--all-features"],
+  [".ci/check-features.sh"],
 ]
 cache_tools = [["rustc", "-vV"], ["cargo", "--version"]]
 cache_env = ["RUST_TOOLCHAIN", "RUSTUP_TOOLCHAIN"]

@@ -21,9 +21,9 @@ pub mod offline;
 pub mod pdf;
 #[cfg(feature = "render")]
 pub mod render;
-#[cfg(feature = "doc")]
 #[cfg(feature = "jobid")]
 pub mod safeurl;
+#[cfg(feature = "doc")]
 pub mod session;
 #[cfg(feature = "core")]
 pub mod style;
