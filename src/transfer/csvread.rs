@@ -295,7 +295,6 @@ fn split_grid(text: &str) -> (HashMap<(usize, usize), Stored>, usize, usize) {
 fn sniffs_as_other_format(b: &[u8]) -> bool {
     let n = |i: usize| b.get(i).copied().unwrap_or(0);
     match n(0) {
-        0xD0 => b.len() >= 8 && b[1..8] == [0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1],
         0x09 => n(1) <= 0x08,
         0x49 => (n(1) == 0x49 && n(2) == 0x2A && n(3) == 0) || n(1) == 0x44,
         0x54 => n(1) == 0x41 && n(2) == 0x42 && n(3) == 0x4C,

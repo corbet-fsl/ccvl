@@ -37,11 +37,48 @@ fn iso(ymd_hms_milli: (u16, u8, u8, u8, u8, u8, u16)) -> String {
     }
 }
 
+/// A date stored as ISO 8601 text (`2026-11-17`, `2026-11-17T10:30:00Z`) reads like a date cell:
+/// the date, plus `HH:MM[:SS]` when it has a time. Anything else is kept as written.
+#[doc(hidden)]
+#[must_use]
+pub fn iso_text(s: &str) -> String {
+    let (date, time) = s.split_once(['T', ' ']).unwrap_or((s, ""));
+    let looks_like_date = date.len() == 10
+        && date.bytes().enumerate().all(|(i, b)| {
+            if i == 4 || i == 7 {
+                b == b'-'
+            } else {
+                b.is_ascii_digit()
+            }
+        });
+    if !looks_like_date {
+        return s.to_owned();
+    }
+    let clock: String = time
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == ':')
+        .collect();
+    let mut parts = clock.split(':');
+    let (Some(h), Some(m)) = (parts.next(), parts.next()) else {
+        return date.to_owned();
+    };
+    let sec = parts.next().unwrap_or("00");
+    match (h, m, sec) {
+        ("00", "00", "00") => date.to_owned(),
+        (h, m, "00") => format!("{date} {h}:{m}"),
+        (h, m, sec) => format!("{date} {h}:{m}:{sec}"),
+    }
+}
+
 fn typed(cell: &Data) -> (String, Typed) {
     match cell {
         Data::Empty => (String::new(), Typed::Empty),
         Data::String(s) if s.is_empty() => (String::new(), Typed::Empty),
-        Data::String(s) | Data::DateTimeIso(s) | Data::DurationIso(s) => {
+        Data::DateTimeIso(s) => {
+            let text = iso_text(s);
+            (text.clone(), Typed::Value(ImportCell::Text(text)))
+        }
+        Data::String(s) | Data::DurationIso(s) => {
             (s.clone(), Typed::Value(ImportCell::Text(s.clone())))
         }
         Data::Float(f) => (number_to_string(*f), Typed::Value(ImportCell::Number(*f))),

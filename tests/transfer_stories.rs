@@ -318,3 +318,36 @@ fn workload_survives_export_and_import_and_the_ops_hold_a_number() {
     );
     assert_eq!(ops[0]["ops"][0]["op"]["attributes"]["workload"], json!(80));
 }
+
+#[test]
+fn files_that_are_not_text_are_refused_by_their_signature() {
+    use ccvl::transfer::ImportError;
+    let refused: &[&[u8]] = &[
+        b"\x09\x02rest",
+        b"II*\x00rest",
+        b"IDrest",
+        b"TABLrest",
+        b"PK\x01\x02rest",
+        b"\xEF\xBB\xBF<xml",
+        b"\xFF\xFErest",
+        b"\x00\x00\x02\x00rest",
+        b"\x00\x00\x00\x08rest",
+        b"{\\rtf1",
+        b"\x0a\x0drest",
+        b"<html>",
+        b"\x08\xE7rest",
+        b"\x0c\xECrest",
+        b"\x02\x00\x04\x04rest",
+        b"\x89PNG",
+        b"\x03\x00",
+    ];
+    for bytes in refused {
+        assert_eq!(
+            read_rows(bytes).unwrap_err(),
+            ImportError::UnsupportedFormat,
+            "{bytes:?}"
+        );
+    }
+    // text that merely starts like a header is read
+    assert!(read_rows(b"Job,Organization\nA,B\n").is_ok());
+}

@@ -102,3 +102,48 @@ fn a_file_that_is_not_a_workbook_is_refused() {
         ImportError::UnsupportedFormat
     );
 }
+
+#[test]
+fn a_date_stored_as_iso_text_reads_like_a_date_cell() {
+    // not reachable through the fixtures (Excel never writes ISO date cells), so through the helper's contract
+    use ccvl::transfer::sheet::iso_text;
+    assert_eq!(iso_text("2026-11-17"), "2026-11-17");
+    assert_eq!(iso_text("2026-11-17T00:00:00Z"), "2026-11-17");
+    assert_eq!(iso_text("2026-11-17T10:30:00.000Z"), "2026-11-17 10:30");
+    assert_eq!(iso_text("2026-11-17 10:30:15"), "2026-11-17 10:30:15");
+    assert_eq!(iso_text("2026-11-17T09"), "2026-11-17");
+    assert_eq!(iso_text("not a date"), "not a date");
+    assert_eq!(iso_text("17.11.2026"), "17.11.2026");
+}
+
+#[test]
+fn every_cell_kind_of_a_workbook_has_a_reading() {
+    let rows = serde_json::to_value(read_rows(&fixture("edge.xlsx")).unwrap()).unwrap();
+    assert_eq!(rows[0]["Num"].as_f64(), Some(7.0), "an integer cell");
+    assert_eq!(rows[0]["Flag"], json!(true));
+    assert_eq!(rows[0].get("Err"), None, "#DIV/0! has no key");
+    assert_eq!(rows[0]["Null"], Value::Null, "#NULL! reads as null");
+    assert_eq!(
+        rows[0]["Duration"], "36:00:00",
+        "[h]:mm:ss is the total time"
+    );
+    assert_eq!(
+        rows[0].get("Blank"),
+        None,
+        "an empty string cell has no key"
+    );
+    assert_eq!(rows[1]["Num"], "text", "an inline string");
+    assert_eq!(rows[1]["Flag"], json!(false));
+    assert_eq!(rows[1]["Duration"], "-6:00:00", "a negative duration");
+    assert_eq!(rows[1]["Blank"], "kept");
+}
+
+#[test]
+fn a_workbook_without_data_is_empty() {
+    assert_eq!(read_rows(&fixture("empty.xlsx")).unwrap().len(), 0);
+    let settings = Settings::default();
+    assert_eq!(
+        parse_import_csv(&fixture("empty.xlsx"), &settings).unwrap_err(),
+        ImportError::Empty
+    );
+}
