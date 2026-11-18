@@ -304,7 +304,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "calamine",
- "cletter 0.5.0",
+ "cletter 0.5.1",
  "ctyp",
  "cvdb",
  "cvst",
@@ -451,9 +451,9 @@ dependencies = [
 
 [[package]]
 name = "cletter"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6dfa65e10c4a43e5b5a5fec9e28c5a8649ed5965bbfa84bf2b13ec91221ab23"
+checksum = "690d85d3cb3412de2b537a2379c1b046fde7a689897db8f126fc56eca9ed4439"
 dependencies = [
  "cdate",
  "cink",
@@ -685,9 +685,9 @@ dependencies = [
 
 [[package]]
 name = "ctypst"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b30dc5d836a8ad19301b3a052b129d9950cff8b76f7487a408d04387c7270f8b"
+checksum = "a5baac5fe931ef45e45f57df6f3262c3ddca0f3b560304e9386c1d380b328ba2"
 dependencies = [
  "serde",
  "serde_json",

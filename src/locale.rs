@@ -27,9 +27,21 @@ mod tests {
     #[test]
     fn english_in_zurich_is_english_wording_with_swiss_formatting() {
         let d = document_locale(Some("en"), Some("Zürich, Zug"), None, None);
-        assert_eq!(d.locale, "en-ch");
+        assert_eq!(
+            d.locale, "en",
+            "a Swiss location does not derive the en-ch wording locale"
+        );
         assert_eq!(d.date_locale.as_deref(), Some("en-ch"));
         assert_eq!(d.region.as_deref(), Some("CH"));
+    }
+
+    #[test]
+    fn an_explicit_en_ch_pick_is_kept() {
+        let d = document_locale(Some("en-CH"), Some("London, United Kingdom"), None, None);
+        assert_eq!(
+            (d.locale.as_str(), d.region.as_deref()),
+            ("en-ch", Some("CH"))
+        );
     }
 
     #[test]
