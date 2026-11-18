@@ -313,5 +313,31 @@
    "expect": "merged",
    "text": "XabY"
   }
+ ],
+ "single_by_time": [
+  {
+   "name": "remote made later: mine drops",
+   "mine_ms": 100,
+   "theirs_ms": 200,
+   "expect": "drop"
+  },
+  {
+   "name": "mine made later: mine applies",
+   "mine_ms": 200,
+   "theirs_ms": 100,
+   "expect": "apply"
+  },
+  {
+   "name": "tie: mine applies",
+   "mine_ms": 100,
+   "theirs_ms": 100,
+   "expect": "apply"
+  },
+  {
+   "name": "no recent remote change: mine applies",
+   "mine_ms": 100,
+   "theirs_ms": null,
+   "expect": "apply"
+  }
  ]
 }

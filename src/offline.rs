@@ -151,6 +151,8 @@ pub enum Resolution {
     Merged(String),
     /// Do not send. Roll the field back to the current value and keep the edit for the person to review.
     Keep,
+    /// Do not send and do not keep: the same single value was changed elsewhere later (see [`decide_single`]).
+    Drop,
 }
 
 /// Decide one edit. `base` is the field value the edit was made on, `mine` the value it produced, `theirs`
@@ -170,6 +172,18 @@ pub fn resolve(kind: FieldKind, base: &str, mine: &str, theirs: &str, age_ms: u6
             Some(merged) => Resolution::Merged(merged),
             None => Resolution::Keep,
         },
+    }
+}
+
+/// A fresh conflict on a single value: the change made last wins. `mine_made_ms` is when the edit was made;
+/// `theirs_made_ms` is when the last change elsewhere was made (its server time, as it was made online), or
+/// `None` when no recent change to the field is known: such a change is older than any fresh edit, so mine wins.
+/// Equal times keep mine (the edit that waited is not punished for a tie).
+#[must_use]
+pub fn decide_single(mine_made_ms: u64, theirs_made_ms: Option<u64>) -> Resolution {
+    match theirs_made_ms {
+        Some(theirs) if theirs > mine_made_ms => Resolution::Drop,
+        _ => Resolution::Apply,
     }
 }
 
@@ -500,6 +514,14 @@ mod tests {
         assert_eq!(merge_text("abc def", "abc", "abc DEF").as_deref(), None);
         assert_eq!(merge_text("", "x", "").as_deref(), Some("x"));
         assert_eq!(merge_text("", "x", "y"), None);
+    }
+
+    #[test]
+    fn single_value_race_is_decided_by_made_time() {
+        assert_eq!(decide_single(100, Some(200)), Resolution::Drop);
+        assert_eq!(decide_single(200, Some(100)), Resolution::Apply);
+        assert_eq!(decide_single(100, Some(100)), Resolution::Apply);
+        assert_eq!(decide_single(100, None), Resolution::Apply);
     }
 
     #[test]

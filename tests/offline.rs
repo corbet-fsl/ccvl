@@ -2,7 +2,7 @@
 //! The offline policy against the shared JSON vectors (the TypeScript twin in the `CareerVector`
 //! workspace-client reads a copy of `tests/vectors/offline.json`).
 
-use ccvl::offline::{FieldKind, Resolution, STALE_AFTER_MS, resolve};
+use ccvl::offline::{FieldKind, Resolution, STALE_AFTER_MS, decide_single, resolve};
 use serde_json::Value;
 
 #[test]
@@ -51,5 +51,19 @@ fn an_edit_ages_from_applied_to_kept_only_when_something_changed_elsewhere() {
         );
         let changed = resolve(FieldKind::Single, "\"a\"", "\"b\"", "\"c\"", age);
         assert_eq!(changed == Resolution::Keep, age > STALE_AFTER_MS);
+    }
+}
+
+#[test]
+fn single_value_races_by_made_time_match_the_vectors() {
+    let v: Value = serde_json::from_str(include_str!("vectors/offline.json")).unwrap();
+    for c in v["single_by_time"].as_array().unwrap() {
+        let got = decide_single(c["mine_ms"].as_u64().unwrap(), c["theirs_ms"].as_u64());
+        let want = if c["expect"] == "drop" {
+            Resolution::Drop
+        } else {
+            Resolution::Apply
+        };
+        assert_eq!(got, want, "{}", c["name"]);
     }
 }
