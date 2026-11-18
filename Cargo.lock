@@ -257,9 +257,9 @@ checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
 name = "bytes"
-version = "1.12.1"
+version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 
 [[package]]
 name = "calamine"
@@ -304,6 +304,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "calamine",
+ "cletter 0.5.0",
  "ctyp",
  "cvdb",
  "cvst",
@@ -440,6 +441,19 @@ name = "cletter"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a84c79c43458c01a14f25b8a8b9f6b7da71078bffde6e41389eb4a5c475c5d52"
+dependencies = [
+ "cdate",
+ "cink",
+ "cnice",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cletter"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6dfa65e10c4a43e5b5a5fec9e28c5a8649ed5965bbfa84bf2b13ec91221ab23"
 dependencies = [
  "cdate",
  "cink",
@@ -661,7 +675,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2770519fa9a75730e434e575a612056c905af23947b3a318f988eed37ba1415"
 dependencies = [
- "cletter",
+ "cletter 0.4.4",
  "ctypst",
  "lopdf",
  "regex",
@@ -722,7 +736,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52a01cf8636aa748e0a211f0c27df13e6bab5fa21828c563b0d308803ec6ad7d"
 dependencies = [
  "anyhow",
- "cletter",
+ "cletter 0.4.4",
  "regex",
  "serde_json",
  "toml 1.2.1+spec-1.1.0",
@@ -2190,9 +2204,9 @@ dependencies = [
 
 [[package]]
 name = "pic-scale"
-version = "0.7.12"
+version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6edb0ff645d35accaec252de081d55984a0d6c952cb1e5dc2b9afa7c78f07288"
+checksum = "e8ee5747ff9d46f571e25570fbb3ceb82846b29a4ead247e6ec01610a1efcde6"
 dependencies = [
  "num-traits",
  "pxfm",
@@ -4419,9 +4433,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+checksum = "85ccff8a4805aba1eaa4cd4afcd49f7557dd2cf5fd79ffc37f8959466effc5aa"
 
 [[package]]
 name = "zerotrie"
