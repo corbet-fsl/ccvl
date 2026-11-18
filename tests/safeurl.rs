@@ -45,3 +45,8 @@ fn story_people_apply_by_email_so_mailto_is_stored_and_linked_but_ftp_is_not() {
             && !is_safe_link_url("careervector-local://ws1/abc")
     );
 }
+
+#[test]
+fn story_a_job_without_a_link_keeps_an_empty_url_that_is_never_rendered() {
+    assert!(is_storable_job_url("") && !is_safe_link_url(""));
+}

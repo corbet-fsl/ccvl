@@ -21,9 +21,12 @@ fn scheme_of(value: &str) -> Option<String> {
     Url::parse(value).ok().map(|u| u.scheme().to_string())
 }
 
-/// May this URL be stored on a job?
+/// May this URL be stored on a job? An empty URL is a job without a link (stored, never rendered).
 #[must_use]
 pub fn is_storable_job_url(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
+    }
     scheme_of(value).is_some_and(|s| STORED.contains(&s.as_str()))
 }
 
