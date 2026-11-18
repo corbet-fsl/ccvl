@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "ed667cc0086ddf240d1f13de67a83701cca8315b4db79fbe8a043dbe6c4d9ead",
+  "manifest_sha256": "60c017ffd3b8fdda60f3e714927d01465e303dd378c15f8e4b0d2998981aef81",
   "jobs": {
     "release": {
       "job": "release",
