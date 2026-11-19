@@ -25,12 +25,16 @@ version = "Cargo.toml"
 registries = ["crates"]
 build = ["pack"]
 
+[checks.portable-paths]
+kind = "commands"
+commands = [["ccid", "portable-paths", "--mode", "enforce"]]
+
 [render]
 render_schema = 3
 
 [jobs.verify]
 scheduler = "forgejo"
 runs_on = "linux"
-checks = ["rust"]
+checks = ["rust", "portable-paths"]
 workflow = "ci"
 command = ["ccid:run-declared-checks"]

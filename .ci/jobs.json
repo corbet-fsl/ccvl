@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "",
-  "manifest_sha256": "60c017ffd3b8fdda60f3e714927d01465e303dd378c15f8e4b0d2998981aef81",
+  "manifest_sha256": "63bba4bf1e9af39627c0789350ebb3d4cc70041b02f4240a2a7b29532bdfe17c",
   "jobs": {
     "release": {
       "job": "release",
@@ -36,7 +36,8 @@
       "job": "verify",
       "scheduler": "forgejo",
       "checks": [
-        "rust"
+        "rust",
+        "portable-paths"
       ],
       "workflow": "ci",
       "command": [
