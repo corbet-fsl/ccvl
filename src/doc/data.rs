@@ -285,6 +285,28 @@ pub(crate) fn job_update(
         None | Some(Value::Null) => return fail(NO_ENTRIES),
         Some(_) => return fail("job.update: 'patch' must be an object"),
     };
+    // `unset` (layered jobs, "reset to ad"): validated before any write, applied after the patch.
+    let unset: Vec<String> = match op.get("unset") {
+        None => Vec::new(),
+        Some(Value::Array(items)) => {
+            let mut keys = Vec::with_capacity(items.len());
+            for item in items {
+                match item.as_str() {
+                    Some(key) if !key.is_empty() => keys.push(key.to_owned()),
+                    _ => return fail("job.update: unset must be an array of attribute keys"),
+                }
+            }
+            for key in &keys {
+                if ENVELOPE_FIELDS.contains(&key.as_str()) {
+                    return fail(format!(
+                        "{kind}: '{key}' is reserved for the workspace job envelope"
+                    ));
+                }
+            }
+            keys
+        }
+        Some(_) => return fail("job.update: unset must be an array of attribute keys"),
+    };
     let attributes = match entry.get(&*txn, "attributes") {
         Some(Out::YMap(m)) => m,
         _ => entry.insert(txn, "attributes", MapPrelim::default()),
@@ -301,6 +323,9 @@ pub(crate) fn job_update(
                 attributes.insert(txn, k.as_str(), value_to_any(&v));
             }
         }
+    }
+    for key in &unset {
+        attributes.remove(txn, key.as_str());
     }
     Ok(())
 }

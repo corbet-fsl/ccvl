@@ -1,4 +1,4 @@
-//! The Yrs document engine: the `CareerVector` `Y.Doc` layout and op catalogue (v10)
+//! The Yrs document engine: the `CareerVector` `Y.Doc` layout and op catalogue (v11)
 //! behind a small boundary, with no I/O.
 //!
 //! The layout is the wire contract with the web client, byte for byte: profile
@@ -60,7 +60,7 @@ use ops::{Ctx, Roots};
 use track::Tracker;
 
 /// The op catalogue version this engine implements (`OP_CATALOG_VERSION` in `@cv/mutations`).
-pub const OP_CATALOG_VERSION: u32 = 10;
+pub const OP_CATALOG_VERSION: u32 = 11;
 
 /// An op the engine refused. The message is the one `@cv/mutations` throws.
 #[derive(Clone, Debug, PartialEq, Eq)]

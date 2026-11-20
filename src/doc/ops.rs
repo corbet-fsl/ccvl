@@ -1,4 +1,4 @@
-//! The op catalogue (version 10) applied to a Yrs document with the semantics of
+//! The op catalogue (version 11) applied to a Yrs document with the semantics of
 //! `applyOp` in `@cv/mutations`: same checks, same order, same error messages.
 //!
 //! Every op validates before it writes, so a refused op leaves the document
@@ -629,7 +629,7 @@ fn batch(ctx: &mut Ctx<'_>, txn: &mut TransactionMut, op: &Value) -> Result<(), 
                 return fail(format!(
                     "batch: cross-sub-doc batch cannot be applied through applyOp(doc, op); \
                      sub-ops span sub-docs '{first}' and '{sub_doc}'. \
-                     Use planBatch + per-sub-doc dispatch (server: commitBatchOp; client: applyBatch)."
+                     Use planBatch + per-sub-doc dispatch (server: commitProducedBatch; client: applyBatch)."
                 ));
             }
             Some(_) => {}
