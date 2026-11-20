@@ -10,13 +10,15 @@
 //!    with one of [`NAME_SUFFIXES`] or starts with one of [`NAME_PREFIXES`];
 //! 3. it is a host-scoped alert parameter of [`HOST_PARAMS`] (never for allow-listed names).
 //!
-//! An email-shaped path segment or userinfo makes the URL personal as a whole ([`is_personal_url`]); the path is never rewritten.
+//! Separators: `&`, and `;` only where a `name=` token follows it ([`split_params`]), so a `;` inside a value or an entity such as
+//! `&apos;` never splits. Any userinfo (`user:pass@host`) or an email-shaped path segment makes the URL personal as a whole
+//! ([`is_personal_url`]); the path is never rewritten.
 
 /// The version of the URL rule set. 1: tracking parameters, fragment, trailing slash, unreserved percent-escapes, sorted keys.
 /// 2: a first, narrow personal-data rule (ccvl 0.1.12, superseded before any id was computed with it). 3: this module.
 pub const URL_RULE_VERSION: u32 = 3;
 
-/// Separators of query parameters (and of path parameters after a path segment).
+/// Separators of query parameters (and of path parameters after a path segment). `;` separates only before a `name=` token.
 pub const QUERY_SEPARATORS: &[char] = &['&', ';'];
 
 /// Rule 2, name contains (lowercase).
@@ -31,7 +33,7 @@ pub const NAME_CONTAINS: &[&str] = &[
     "api_key",
 ];
 /// Rule 2, name equals (lowercase).
-pub const NAME_EQUALS: &[&str] = &["auth", "authorization"];
+pub const NAME_EQUALS: &[&str] = &["auth", "authorization", "pass", "pwd", "passwd"];
 /// Rule 2, name ends with (lowercase).
 pub const NAME_SUFFIXES: &[&str] = &["sig", "hash"];
 /// Rule 2, name starts with (lowercase).
@@ -220,6 +222,36 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Split `s` at every `;` that is followed by a `name=` token (a non-empty run of characters other than `&`, `;` and `=`, then
+/// `=`). Any other `;` stays inside its part. The parts keep their text; the `;` themselves are dropped.
+#[must_use]
+pub fn split_params(s: &str) -> Vec<&str> {
+    let bytes = s.as_bytes();
+    let mut parts = Vec::new();
+    let mut start = 0;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b';' {
+            continue;
+        }
+        let mut j = i + 1;
+        while j < bytes.len() && !matches!(bytes[j], b'&' | b';' | b'=') {
+            j += 1;
+        }
+        if j > i + 1 && j < bytes.len() && bytes[j] == b'=' {
+            parts.push(&s[start..i]);
+            start = i + 1;
+        }
+    }
+    parts.push(&s[start..]);
+    parts
+}
+
+/// The raw query with every separating `;` turned into `&`, ready for form decoding.
+#[must_use]
+pub fn query_with_ampersands(query: &str) -> String {
+    split_params(query).join("&")
+}
+
 /// Remove path parameters (`/job/123;jsessionid=ABC`) the rules drop, with their `;`. The path is otherwise untouched.
 #[must_use]
 pub fn strip_path_params(host: &str, path: &str) -> String {
@@ -228,7 +260,7 @@ pub fn strip_path_params(host: &str, path: &str) -> String {
     }
     path.split('/')
         .map(|segment| {
-            let mut parts = segment.split(';');
+            let mut parts = split_params(segment).into_iter();
             let mut out = parts.next().unwrap_or("").to_string();
             for p in parts {
                 let (n, v) = p.split_once('=').unwrap_or((p, ""));
@@ -244,16 +276,13 @@ pub fn strip_path_params(host: &str, path: &str) -> String {
         .join("/")
 }
 
-/// An email-shaped path segment or userinfo makes the URL personal as a whole. The client and the ingest use this to refuse
+/// Any userinfo, or an email in a path segment, makes the URL personal as a whole. The client and the ingest use this to refuse
 /// or flag such a URL; normalization never rewrites the path.
 pub fn is_personal_url(input: &str) -> Result<bool, String> {
     let url =
         url::Url::parse(input).map_err(|_| format!("normalizeUrl: not a valid URL: {input}"))?;
-    if contains_email(&percent_decode(url.username()))
-        || url
-            .password()
-            .is_some_and(|p| contains_email(&percent_decode(p)))
-    {
+    // Any userinfo (`user:pass@host`) is personal, an email in it or not.
+    if !url.username().is_empty() || url.password().is_some() {
         return Ok(true);
     }
     Ok(url

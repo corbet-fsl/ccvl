@@ -5,7 +5,7 @@
 //! `jobcache` contract crate mirrors. `job.create` derives the row key from them, so the engine
 //! needs them to put a row where the TypeScript applier does. Parity is proven by the vectors
 //! (`tests/vectors/v7-data.json`), which come from the real `jobIdFromUrl`.
-use crate::url_rules::{drop_param, strip_path_params};
+use crate::url_rules::{drop_param, query_with_ampersands, strip_path_params};
 use sha2::{Digest, Sha256};
 use url::Url;
 
@@ -82,10 +82,10 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     }
     url.set_fragment(None);
 
-    // Query parameters are separated by `&` and `;`. The parsing is the URL standard's form decoding (`+` is a space, `%XX` is
+    // Query parameters are separated by `&` and by `;` before a `name=` token. The parsing is the URL standard's form decoding (`+` is a space, `%XX` is
     // decoded) on the raw query, so a URL without `;` yields exactly the pairs `query_pairs()` gave before.
     let host = url.host_str().unwrap_or("").to_string();
-    let raw_query = url.query().unwrap_or("").replace(';', "&");
+    let raw_query = query_with_ampersands(url.query().unwrap_or(""));
     let pairs: Vec<(String, String)> = url::form_urlencoded::parse(raw_query.as_bytes())
         .map(|(k, v)| (k.into_owned(), v.into_owned()))
         .collect();

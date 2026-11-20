@@ -111,6 +111,30 @@ fn hand_written_expectations() {
         format!("{b}?a=1&b=2")
     );
     assert_eq!(
+        normalize_url(&format!("{b}?pass=1&pwd=2&passwd=3&id=1")).unwrap(),
+        format!("{b}?id=1")
+    );
+    // `;` splits only before a name= token: in a value, before an empty name, in an entity it does not
+    assert_eq!(
+        normalize_url(&format!("{b}?x=a;b&id=1")).unwrap(),
+        format!("{b}?id=1&x=a%3Bb")
+    );
+    assert_eq!(
+        normalize_url(&format!("{b}?q=it&apos;s&id=1")).unwrap(),
+        format!("{b}?apos%3Bs=&id=1&q=it")
+    );
+    assert_eq!(
+        normalize_url(&format!("{b}?x=1;=2&id=1")).unwrap(),
+        format!("{b}?id=1&x=1%3B%3D2")
+    );
+    assert_eq!(
+        normalize_url("https://jobs.example.com/job/123;final/x").unwrap(),
+        "https://jobs.example.com/job/123;final/x"
+    );
+    assert!(is_personal_url("https://user:pass@jobs.example.com/p/1").unwrap());
+    assert!(is_personal_url("https://user@jobs.example.com/p/1").unwrap());
+    assert!(!is_personal_url(&format!("{b}?id=1")).unwrap());
+    assert_eq!(
         normalize_url("https://jobs.example.com/job/123;jsessionid=ABC").unwrap(),
         "https://jobs.example.com/job/123"
     );
@@ -182,10 +206,10 @@ fn allow_list_corpus_names_and_lookalikes_are_kept() {
     }
     assert_eq!(
         normalize_url(&format!(
-            "{b}?pass=1&pwd=2&design=3&hashtag=4&option=5&author=6&id=1"
+            "{b}?passport=1&pwdx=2&design=3&hashtag=4&option=5&author=6&id=1"
         ))
         .unwrap(),
-        format!("{b}?author=6&design=3&hashtag=4&id=1&option=5&pass=1&pwd=2")
+        format!("{b}?author=6&design=3&hashtag=4&id=1&option=5&passport=1&pwdx=2")
     );
     assert_eq!(
         normalize_url(&format!("{b}?q=a@b&q2=@example.com&q3=a@b.c&id=1")).unwrap(),

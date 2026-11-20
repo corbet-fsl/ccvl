@@ -18,7 +18,10 @@
 		],
 		"name_equals": [
 			"auth",
-			"authorization"
+			"authorization",
+			"pass",
+			"pwd",
+			"passwd"
 		],
 		"name_suffixes": [
 			"sig",
@@ -383,10 +386,17 @@
 			"personal": false
 		},
 		{
+			"name": "r2: exact pass, pwd, passwd",
+			"input": "https://jobs.example.com/p/42?pass=1&pwd=2&passwd=3&PWD=4&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1",
+			"job_id": "job_b74mcvey3b5j7pav",
+			"personal": false
+		},
+		{
 			"name": "r2: names that look similar but are not matched",
-			"input": "https://jobs.example.com/p/42?pass=1&pwd=2&design=3&hashtag=4&option=5&id=1",
-			"normalized": "https://jobs.example.com/p/42?design=3&hashtag=4&id=1&option=5&pass=1&pwd=2",
-			"job_id": "job_4l6gxeryjkiz53ks",
+			"input": "https://jobs.example.com/p/42?passport=1&pwdx=2&design=3&hashtag=4&option=5&id=1",
+			"normalized": "https://jobs.example.com/p/42?design=3&hashtag=4&id=1&option=5&passport=1&pwdx=2",
+			"job_id": "job_tg7xkajcytj52fd2",
 			"personal": false
 		},
 		{
@@ -537,10 +547,45 @@
 			"personal": false
 		},
 		{
-			"name": "sep: semicolon inside a value splits it",
+			"name": "sep: a semicolon inside a value does not split",
 			"input": "https://jobs.example.com/p/42?x=a;b&id=1",
-			"normalized": "https://jobs.example.com/p/42?b=&id=1&x=a",
-			"job_id": "job_oflnt4r7urob3x6n",
+			"normalized": "https://jobs.example.com/p/42?id=1&x=a%3Bb",
+			"job_id": "job_k5oxihmxkjkgehkc",
+			"personal": false
+		},
+		{
+			"name": "sep: an entity does not split (&apos;)",
+			"input": "https://jobs.example.com/p/42?q=it&apos;s&id=1",
+			"normalized": "https://jobs.example.com/p/42?apos%3Bs=&id=1&q=it",
+			"job_id": "job_6cex2rt5t7k26f6s",
+			"personal": false
+		},
+		{
+			"name": "sep: a semicolon before an empty name does not split",
+			"input": "https://jobs.example.com/p/42?x=1;=2&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1&x=1%3B%3D2",
+			"job_id": "job_v223xzslzsly6bmi",
+			"personal": false
+		},
+		{
+			"name": "sep: a trailing semicolon does not split",
+			"input": "https://jobs.example.com/p/42?x=1;&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1&x=1%3B",
+			"job_id": "job_ul4zb33qersxdw7j",
+			"personal": false
+		},
+		{
+			"name": "sep: a semicolon before a name without = does not split",
+			"input": "https://jobs.example.com/p/42?x=1;y&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1&x=1%3By",
+			"job_id": "job_r56f5vhoflztzrpe",
+			"personal": false
+		},
+		{
+			"name": "sep: a semicolon before name= inside a value splits (the specified cost)",
+			"input": "https://jobs.example.com/p/42?redirect=/a;token=zz&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1&redirect=%2Fa",
+			"job_id": "job_s5swd7pivsrzmdlo",
 			"personal": false
 		},
 		{
@@ -593,6 +638,20 @@
 			"personal": false
 		},
 		{
+			"name": "path: a semicolon before a name without = stays",
+			"input": "https://jobs.example.com/job/123;final/x",
+			"normalized": "https://jobs.example.com/job/123;final/x",
+			"job_id": "job_eiwt3qu5kjnmplev",
+			"personal": false
+		},
+		{
+			"name": "path: a semicolon before a name without = then a param",
+			"input": "https://jobs.example.com/job/123;final;jsessionid=ABC",
+			"normalized": "https://jobs.example.com/job/123;final",
+			"job_id": "job_xkdtjd2lnharrr7g",
+			"personal": false
+		},
+		{
 			"name": "path: stripped, then trailing slash trimmed",
 			"input": "https://jobs.example.com/job/123/;jsessionid=ABC",
 			"normalized": "https://jobs.example.com/job/123",
@@ -635,11 +694,18 @@
 			"personal": true
 		},
 		{
-			"name": "personal: plain userinfo without an email",
+			"name": "personal: plain userinfo (any userinfo is personal)",
 			"input": "https://user:pass@jobs.example.com/p/1",
 			"normalized": "https://user:pass@jobs.example.com/p/1",
 			"job_id": "job_tmna77oe7n2a4xyd",
-			"personal": false
+			"personal": true
+		},
+		{
+			"name": "personal: a username only",
+			"input": "https://user@jobs.example.com/p/1",
+			"normalized": "https://user@jobs.example.com/p/1",
+			"job_id": "job_2f75hdpgq4mcjsx5",
+			"personal": true
 		},
 		{
 			"name": "personal: an ordinary URL",
