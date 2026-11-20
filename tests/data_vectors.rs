@@ -112,6 +112,12 @@ fn data_ops_match_yjs() {
                 expect["error"].as_str().expect("error"),
                 "{name}: refusal"
             );
+            // The TypeScript side recorded that the refused op left its document untouched; the engine must too.
+            assert_eq!(
+                expect["unchanged"],
+                json!(true),
+                "{name}: the vector must record an unchanged document"
+            );
             assert_eq!(
                 doc.shape(),
                 before,
