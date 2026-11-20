@@ -1,63 +1,15 @@
 //! The workspace job id of a URL: `normalizeUrl` and `jobIdFromUrl` of `@cv/jobcache/ids`.
 //!
-//! The rules are frozen (changing them re-keys every job row), and versioned: [`URL_RULE_VERSION`] 2 (ccvl 0.1.12) also drops
-//! query parameters that carry personal data or credentials. The same normalization the
+//! The rules are frozen (changing them re-keys every job row), and versioned: [`URL_RULE_VERSION`] 3 also drops query and path
+//! parameters that carry personal data or credentials (`crate::url_rules`). The same normalization the
 //! `jobcache` contract crate mirrors. `job.create` derives the row key from them, so the engine
 //! needs them to put a row where the TypeScript applier does. Parity is proven by the vectors
 //! (`tests/vectors/v7-data.json`), which come from the real `jobIdFromUrl`.
+use crate::url_rules::{drop_param, strip_path_params};
 use sha2::{Digest, Sha256};
 use url::Url;
 
-/// The version of the URL rule set. 1: tracking parameters, fragment, trailing slash, unreserved percent-escapes, sorted keys.
-/// 2 (ccvl 0.1.12): additionally drops personal-data query parameters, see [`PERSONAL_PARAMS`] and [`is_email_shaped`].
-/// The TypeScript twin is `URL_RULE_VERSION` in `@cv/jobcache/ids`; both read `tests/fixtures/normalize-url.json`.
-pub const URL_RULE_VERSION: u32 = 2;
-
-/// Query parameters dropped by NAME (case-insensitive) because they carry credentials. `key`, `id`, `uid`, `sid` and `jk`
-/// are NOT here on purpose: boards use them as job ids.
-const PERSONAL_PARAMS: &[&str] = &[
-    "token",
-    "access_token",
-    "auth",
-    "authorization",
-    "password",
-    "pass",
-    "pwd",
-    "secret",
-    "signature",
-    "sig",
-    "session",
-    "sessionid",
-    "apikey",
-    "api_key",
-];
-
-/// Email-shaped: no ASCII whitespace, exactly one `@`, a non-empty local part, and a domain with a `.` that is neither its
-/// first nor its last character. Hand-written (no regex, ASCII-only whitespace) so it matches the TypeScript twin exactly.
-#[must_use]
-pub fn is_email_shaped(value: &str) -> bool {
-    let mut at: Option<usize> = None;
-    for (i, ch) in value.char_indices() {
-        if matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{0c}' | '\u{0b}') {
-            return false;
-        }
-        if ch == '@' {
-            if at.is_some() {
-                return false;
-            }
-            at = Some(i);
-        }
-    }
-    let Some(at) = at else { return false };
-    if at == 0 {
-        return false;
-    }
-    // A `.` strictly inside the domain: not its first and not its last character.
-    let mut domain = value[at + 1..].chars();
-    domain.next();
-    domain.next_back();
-    domain.any(|c| c == '.')
-}
+pub use crate::url_rules::{URL_RULE_VERSION, contains_email, is_personal_url};
 
 /// Tracking-only query parameters stripped during normalization (frozen list).
 const TRACKING_PARAMS: &[&str] = &[
@@ -130,8 +82,11 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     }
     url.set_fragment(None);
 
-    let pairs: Vec<(String, String)> = url
-        .query_pairs()
+    // Query parameters are separated by `&` and `;`. The parsing is the URL standard's form decoding (`+` is a space, `%XX` is
+    // decoded) on the raw query, so a URL without `;` yields exactly the pairs `query_pairs()` gave before.
+    let host = url.host_str().unwrap_or("").to_string();
+    let raw_query = url.query().unwrap_or("").replace(';', "&");
+    let pairs: Vec<(String, String)> = url::form_urlencoded::parse(raw_query.as_bytes())
         .map(|(k, v)| (k.into_owned(), v.into_owned()))
         .collect();
     let mut keys: Vec<&String> = Vec::new();
@@ -144,12 +99,11 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
     let mut kept: Vec<(&str, &str)> = Vec::new();
     for key in keys {
-        let lower = key.to_lowercase();
-        if TRACKING_PARAMS.contains(&lower.as_str()) || PERSONAL_PARAMS.contains(&lower.as_str()) {
+        if TRACKING_PARAMS.contains(&key.to_lowercase().as_str()) {
             continue;
         }
         for (k, v) in &pairs {
-            if k == key && !is_email_shaped(v) {
+            if k == key && !drop_param(&host, k, v) {
                 kept.push((k, v));
             }
         }
@@ -164,6 +118,10 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
         }
     }
 
+    let stripped = strip_path_params(&host, url.path());
+    if stripped != url.path() {
+        url.set_path(&stripped);
+    }
     let path = url.path().to_string();
     if path.len() > 1 && path.ends_with('/') {
         let trimmed = path.trim_end_matches('/');

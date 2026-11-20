@@ -29,9 +29,13 @@ pub mod session;
 pub mod style;
 #[cfg(feature = "core")]
 pub mod transfer;
+#[cfg(feature = "jobid")]
+pub mod url_rules;
 
 #[cfg(feature = "jobid")]
-pub use jobid::{URL_RULE_VERSION, is_email_shaped, job_id_from_url, normalize_url};
+pub use jobid::{
+    URL_RULE_VERSION, contains_email, is_personal_url, job_id_from_url, normalize_url,
+};
 #[cfg(feature = "core")]
 pub use style::{StyleBundle, StyleDocument};
 
