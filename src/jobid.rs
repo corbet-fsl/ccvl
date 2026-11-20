@@ -1,11 +1,63 @@
 //! The workspace job id of a URL: `normalizeUrl` and `jobIdFromUrl` of `@cv/jobcache/ids`.
 //!
-//! The rules are frozen (changing them re-keys every job row): the same normalization the
+//! The rules are frozen (changing them re-keys every job row), and versioned: [`URL_RULE_VERSION`] 2 (ccvl 0.1.12) also drops
+//! query parameters that carry personal data or credentials. The same normalization the
 //! `jobcache` contract crate mirrors. `job.create` derives the row key from them, so the engine
 //! needs them to put a row where the TypeScript applier does. Parity is proven by the vectors
 //! (`tests/vectors/v7-data.json`), which come from the real `jobIdFromUrl`.
 use sha2::{Digest, Sha256};
 use url::Url;
+
+/// The version of the URL rule set. 1: tracking parameters, fragment, trailing slash, unreserved percent-escapes, sorted keys.
+/// 2 (ccvl 0.1.12): additionally drops personal-data query parameters, see [`PERSONAL_PARAMS`] and [`is_email_shaped`].
+/// The TypeScript twin is `URL_RULE_VERSION` in `@cv/jobcache/ids`; both read `tests/fixtures/normalize-url.json`.
+pub const URL_RULE_VERSION: u32 = 2;
+
+/// Query parameters dropped by NAME (case-insensitive) because they carry credentials. `key`, `id`, `uid`, `sid` and `jk`
+/// are NOT here on purpose: boards use them as job ids.
+const PERSONAL_PARAMS: &[&str] = &[
+    "token",
+    "access_token",
+    "auth",
+    "authorization",
+    "password",
+    "pass",
+    "pwd",
+    "secret",
+    "signature",
+    "sig",
+    "session",
+    "sessionid",
+    "apikey",
+    "api_key",
+];
+
+/// Email-shaped: no ASCII whitespace, exactly one `@`, a non-empty local part, and a domain with a `.` that is neither its
+/// first nor its last character. Hand-written (no regex, ASCII-only whitespace) so it matches the TypeScript twin exactly.
+#[must_use]
+pub fn is_email_shaped(value: &str) -> bool {
+    let mut at: Option<usize> = None;
+    for (i, ch) in value.char_indices() {
+        if matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{0c}' | '\u{0b}') {
+            return false;
+        }
+        if ch == '@' {
+            if at.is_some() {
+                return false;
+            }
+            at = Some(i);
+        }
+    }
+    let Some(at) = at else { return false };
+    if at == 0 {
+        return false;
+    }
+    // A `.` strictly inside the domain: not its first and not its last character.
+    let mut domain = value[at + 1..].chars();
+    domain.next();
+    domain.next_back();
+    domain.any(|c| c == '.')
+}
 
 /// Tracking-only query parameters stripped during normalization (frozen list).
 const TRACKING_PARAMS: &[&str] = &[
@@ -92,11 +144,12 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
     let mut kept: Vec<(&str, &str)> = Vec::new();
     for key in keys {
-        if TRACKING_PARAMS.contains(&key.to_lowercase().as_str()) {
+        let lower = key.to_lowercase();
+        if TRACKING_PARAMS.contains(&lower.as_str()) || PERSONAL_PARAMS.contains(&lower.as_str()) {
             continue;
         }
         for (k, v) in &pairs {
-            if k == key {
+            if k == key && !is_email_shaped(v) {
                 kept.push((k, v));
             }
         }

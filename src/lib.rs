@@ -31,7 +31,7 @@ pub mod style;
 pub mod transfer;
 
 #[cfg(feature = "jobid")]
-pub use jobid::{job_id_from_url, normalize_url};
+pub use jobid::{URL_RULE_VERSION, is_email_shaped, job_id_from_url, normalize_url};
 #[cfg(feature = "core")]
 pub use style::{StyleBundle, StyleDocument};
 

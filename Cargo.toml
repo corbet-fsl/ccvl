@@ -1,6 +1,6 @@
 [package]
 name = "ccvl"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 rust-version = "1.94"
 description = "Shared CareerVector engine: style contracts, document bundles and the Yrs document engine"
@@ -55,6 +55,7 @@ cvdb = { version = "0.2", default-features = false, optional = true }
 yrs = "0.28"
 tempfile = "3"
 flate2 = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 cvdb = { version = "0.2", features = ["fake-server"] }
 
 # Every integration test below needs more than `jobid`; `tests/jobid.rs` runs under `jobid` alone.
