@@ -59,6 +59,8 @@ pub const HOST_PARAMS: &[(&str, &[&str])] = &[
     ("xing.com", &["lk"]),
     ("indeed.*", &["alid", "qd", "rd"]),
     ("stepstone.*", &["user_token", "emailhash"]),
+    ("glassdoor.*", &["guid", "jrtk"]),
+    ("jobs.ch", &["jobalert_id"]),
 ];
 /// Rule 1: shortest value tried as base64.
 pub const BASE64_MIN_LEN: usize = 16;

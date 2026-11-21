@@ -72,6 +72,19 @@
 					"user_token",
 					"emailhash"
 				]
+			},
+			{
+				"host": "glassdoor.*",
+				"names": [
+					"guid",
+					"jrtk"
+				]
+			},
+			{
+				"host": "jobs.ch",
+				"names": [
+					"jobalert_id"
+				]
 			}
 		],
 		"base64_min_len": 16
@@ -526,10 +539,38 @@
 			"personal": false
 		},
 		{
+			"name": "r3: glassdoor guid, jrtk (any tld), jobListingId stays",
+			"input": "https://www.glassdoor.com/job-listing/x?jl=1&guid=a&jrtk=b&jobListingId=1234",
+			"normalized": "https://www.glassdoor.com/job-listing/x?jl=1&jobListingId=1234",
+			"job_id": "job_7dzmo2sl364r7r4m",
+			"personal": false
+		},
+		{
+			"name": "r3: glassdoor on a country domain",
+			"input": "https://www.glassdoor.ch/job-listing/x?guid=a&jrtk=b&jl=1",
+			"normalized": "https://www.glassdoor.ch/job-listing/x?jl=1",
+			"job_id": "job_2wrd24yux56buubd",
+			"personal": false
+		},
+		{
+			"name": "r3: jobs.ch jobalert_id",
+			"input": "https://www.jobs.ch/en/vacancies/detail/abc/?jobalert_id=77&source=x&id=1",
+			"normalized": "https://www.jobs.ch/en/vacancies/detail/abc?id=1",
+			"job_id": "job_ik57doqam2pwr6me",
+			"personal": false
+		},
+		{
+			"name": "r3: jobs.ch bare domain",
+			"input": "https://jobs.ch/en/vacancies/detail/abc/?jobalert_id=77&id=1",
+			"normalized": "https://jobs.ch/en/vacancies/detail/abc?id=1",
+			"job_id": "job_b2iu4udmjrtsao5w",
+			"personal": false
+		},
+		{
 			"name": "r3: the same names on another host stay",
-			"input": "https://jobs.example.com/p/42?eid=a&refId=b&trackingId=c&lk=d&alid=e&qd=f&rd=g",
-			"normalized": "https://jobs.example.com/p/42?alid=e&eid=a&lk=d&qd=f&rd=g&refId=b&trackingId=c",
-			"job_id": "job_27nklin2b3q2mder",
+			"input": "https://jobs.example.com/p/42?eid=a&refId=b&trackingId=c&lk=d&alid=e&qd=f&rd=g&guid=h&jrtk=i&jobalert_id=j",
+			"normalized": "https://jobs.example.com/p/42?alid=e&eid=a&guid=h&jobalert_id=j&jrtk=i&lk=d&qd=f&rd=g&refId=b&trackingId=c",
+			"job_id": "job_eyp7vbnwrgn5mpec",
 			"personal": false
 		},
 		{
@@ -537,6 +578,13 @@
 			"input": "https://notlinkedin.com/jobs/1?eid=a",
 			"normalized": "https://notlinkedin.com/jobs/1?eid=a",
 			"job_id": "job_fs2fyt5f5c2a2cjw",
+			"personal": false
+		},
+		{
+			"name": "r3: a host that merely ends like jobs.ch",
+			"input": "https://notjobs.ch/vacancy/1?jobalert_id=5",
+			"normalized": "https://notjobs.ch/vacancy/1?jobalert_id=5",
+			"job_id": "job_kpfk27rk7jnnclw4",
 			"personal": false
 		},
 		{

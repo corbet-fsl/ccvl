@@ -238,3 +238,23 @@ fn email_detection() {
         assert!(!contains_email(no), "{no:?}");
     }
 }
+
+#[test]
+fn glassdoor_and_jobs_ch_alert_parameters_are_dropped() {
+    assert_eq!(
+        normalize_url(
+            "https://www.glassdoor.com/job-listing/x?jl=1&guid=a&jrtk=b&jobListingId=1234"
+        )
+        .unwrap(),
+        "https://www.glassdoor.com/job-listing/x?jl=1&jobListingId=1234"
+    );
+    assert_eq!(
+        normalize_url("https://www.jobs.ch/en/vacancies/detail/abc/?jobalert_id=77&id=1").unwrap(),
+        "https://www.jobs.ch/en/vacancies/detail/abc?id=1"
+    );
+    // NEGATIVE CONTROL: another host that merely ends like jobs.ch keeps the name
+    assert_eq!(
+        normalize_url("https://notjobs.ch/v/1?jobalert_id=5").unwrap(),
+        "https://notjobs.ch/v/1?jobalert_id=5"
+    );
+}
