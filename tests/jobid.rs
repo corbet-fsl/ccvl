@@ -258,3 +258,91 @@ fn glassdoor_and_jobs_ch_alert_parameters_are_dropped() {
         "https://notjobs.ch/v/1?jobalert_id=5"
     );
 }
+
+#[test]
+fn many_parameters_normalize_in_linear_time() {
+    let pairs: Vec<String> = (0..20_000u64)
+        .map(|i| format!("p{}=v{}", (i * 7919) % 20_000, i))
+        .collect();
+    let url = format!("https://jobs.example.com/p/1?{}&id=1", pairs.join("&"));
+    let t0 = std::time::Instant::now();
+    let out = normalize_url(&url).unwrap();
+    // 1.2 s before the sort-and-filter rewrite; well under a second now (the bound is loose for a busy machine)
+    assert!(
+        t0.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        t0.elapsed()
+    );
+    assert!(out.starts_with("https://jobs.example.com/p/1?id=1&p0="));
+    let long = format!(
+        "https://jobs.example.com/p/1?x={}{}&id=1",
+        "A".repeat(16),
+        "=".repeat(100_000)
+    );
+    let t1 = std::time::Instant::now();
+    normalize_url(&long).unwrap();
+    assert!(
+        t1.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        t1.elapsed()
+    );
+}
+
+/// The stable sort and filter keeps the order of the old key-by-key grouping: checked against a naive reference.
+#[test]
+fn sort_and_filter_matches_the_naive_grouping() {
+    let names = [
+        "a",
+        "b",
+        "B",
+        "z",
+        "\u{e9}",
+        "\u{1F600}",
+        "\u{FF21}",
+        "utm_source",
+        "token",
+        "id",
+        "q",
+    ];
+    let mut seed: u32 = 7;
+    let mut rnd = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        seed
+    };
+    for _ in 0..50 {
+        let n = 1 + (rnd() % 12) as usize;
+        let q: Vec<String> = (0..n)
+            .map(|_| format!("{}={}", names[(rnd() % 11) as usize], rnd() % 5))
+            .collect();
+        let url = format!("https://jobs.example.com/p/1?{}", q.join("&"));
+        let parsed = url::Url::parse(&url).unwrap();
+        let pairs: Vec<(String, String)> = parsed
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect();
+        let mut keys: Vec<&String> = Vec::new();
+        for (k, _) in &pairs {
+            if !keys.contains(&k) {
+                keys.push(k);
+            }
+        }
+        keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
+        let mut want: Vec<(String, String)> = Vec::new();
+        for k in keys {
+            if ["utm_source", "token"].contains(&k.to_lowercase().as_str()) {
+                continue;
+            }
+            for (pk, pv) in &pairs {
+                if pk == k {
+                    want.push((pk.clone(), pv.clone()));
+                }
+            }
+        }
+        let got = url::Url::parse(&normalize_url(&url).unwrap()).unwrap();
+        let got: Vec<(String, String)> = got
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect();
+        assert_eq!(got, want, "{url}");
+    }
+}

@@ -154,6 +154,11 @@ pub fn base64_email(s: &str) -> bool {
     if s.chars().count() < BASE64_MIN_LEN {
         return false;
     }
+    // Form decoding turns a raw `+` into a space, so a value with spaces is tried with them turned back into `+` as well.
+    base64_text_has_email(s) || (s.contains(' ') && base64_text_has_email(&s.replace(' ', "+")))
+}
+
+fn base64_text_has_email(s: &str) -> bool {
     let Some(bytes) = base64_decode(s) else {
         return false;
     };

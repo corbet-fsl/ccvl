@@ -224,6 +224,20 @@
 			"personal": false
 		},
 		{
+			"name": "r1: base64 with a raw + (arrives as a space after form decoding)",
+			"input": "https://jobs.example.com/p/42?s=fn5+bWFpbDphbGljZUBleGFtcGxlLmNvbQ==&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1",
+			"job_id": "job_b74mcvey3b5j7pav",
+			"personal": false
+		},
+		{
+			"name": "r1: the same base64 with the + percent-encoded",
+			"input": "https://jobs.example.com/p/42?s=fn5%2BbWFpbDphbGljZUBleGFtcGxlLmNvbQ%3D%3D&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1",
+			"job_id": "job_b74mcvey3b5j7pav",
+			"personal": false
+		},
+		{
 			"name": "r1: base64 text without an email stays",
 			"input": "https://jobs.example.com/p/42?state=anVzdCBzb21lIHByaW50YWJsZSB0ZXh0&id=1",
 			"normalized": "https://jobs.example.com/p/42?id=1&state=anVzdCBzb21lIHByaW50YWJsZSB0ZXh0",
@@ -250,6 +264,41 @@
 			"normalized": "https://jobs.example.com/p/42?id=1",
 			"job_id": "job_b74mcvey3b5j7pav",
 			"personal": false
+		},
+		{
+			"name": "bom: query param name with a BOM stays",
+			"input": "https://jobs.example.com/p/42?a=1;%EF%BB%BFpass=1&id=1",
+			"normalized": "https://jobs.example.com/p/42?a=1&id=1&%EF%BB%BFpass=1",
+			"job_id": "job_q6s7umtjhepezxqg",
+			"personal": false
+		},
+		{
+			"name": "bom: path param name with a BOM stays",
+			"input": "https://jobs.example.com/job/1;%EF%BB%BFpass=1",
+			"normalized": "https://jobs.example.com/job/1;%EF%BB%BFpass=1",
+			"job_id": "job_mbzjuue333efxcz7",
+			"personal": false
+		},
+		{
+			"name": "bom: base64 of BOM + @example.ch (the BOM is a local character)",
+			"input": "https://jobs.example.com/p/42?x=77u%2FQGV4YW1wbGUuY2g%3D&id=1",
+			"normalized": "https://jobs.example.com/p/42?id=1",
+			"job_id": "job_b74mcvey3b5j7pav",
+			"personal": false
+		},
+		{
+			"name": "bom: a personal path segment with a BOM local part",
+			"input": "https://jobs.example.com/u/%EF%BB%BF%40example.ch",
+			"normalized": "https://jobs.example.com/u/%EF%BB%BF%40example.ch",
+			"job_id": "job_vkrtfykr52vfxtxa",
+			"personal": true
+		},
+		{
+			"name": "bom: path param value with a BOM and an email",
+			"input": "https://jobs.example.com/job/1;who=%EF%BB%BF%40example.ch",
+			"normalized": "https://jobs.example.com/job/1",
+			"job_id": "job_yd6gdjp4frwaq3zl",
+			"personal": true
 		},
 		{
 			"name": "not email: no dot in the domain",

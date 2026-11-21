@@ -86,28 +86,19 @@ pub fn normalize_url(input: &str) -> Result<String, String> {
     // decoded) on the raw query, so a URL without `;` yields exactly the pairs `query_pairs()` gave before.
     let host = url.host_str().unwrap_or("").to_string();
     let raw_query = query_with_ampersands(url.query().unwrap_or(""));
-    let pairs: Vec<(String, String)> = url::form_urlencoded::parse(raw_query.as_bytes())
+    let mut pairs: Vec<(String, String)> = url::form_urlencoded::parse(raw_query.as_bytes())
         .map(|(k, v)| (k.into_owned(), v.into_owned()))
         .collect();
-    let mut keys: Vec<&String> = Vec::new();
-    for (k, _) in &pairs {
-        if !keys.contains(&k) {
-            keys.push(k);
-        }
-    }
-    // `Array.prototype.sort()` orders by UTF-16 code units.
-    keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
-    let mut kept: Vec<(&str, &str)> = Vec::new();
-    for key in keys {
-        if TRACKING_PARAMS.contains(&key.to_lowercase().as_str()) {
-            continue;
-        }
-        for (k, v) in &pairs {
-            if k == key && !drop_param(&host, k, v) {
-                kept.push((k, v));
-            }
-        }
-    }
+    // Keys in `Array.prototype.sort()` order (UTF-16 code units), the values of one key in their original order: a STABLE sort of
+    // the pairs by key, then one filtering pass. O(p log p); the earlier key-by-key grouping was O(p^2).
+    pairs.sort_by(|a, b| a.0.encode_utf16().cmp(b.0.encode_utf16()));
+    let kept: Vec<(&str, &str)> = pairs
+        .iter()
+        .filter(|(k, v)| {
+            !TRACKING_PARAMS.contains(&k.to_lowercase().as_str()) && !drop_param(&host, k, v)
+        })
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     if kept.is_empty() {
         url.set_query(None);
     } else {
