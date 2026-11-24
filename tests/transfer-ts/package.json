@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "nanoid": "5.1.5",
+    "nanoid": "5.1.16",
     "zod": "3.25.76",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
