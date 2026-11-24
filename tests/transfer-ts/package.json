@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "nanoid": "6.0.2",
-    "zod": "3.25.76",
+    "zod": "4.6.6",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
