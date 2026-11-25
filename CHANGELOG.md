@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.16
+
+- `styles` takes cvst 0.1.5, which packages every embedded file (0.1.4 left the archived edition's licence text out of the crate). Use 0.1.16, not 0.1.15.
+
 ## 0.1.15
 
 - New `styles` module and feature (implied by `core`): the styles and examples cvst owns, handed to every product through ccvl.

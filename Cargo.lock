@@ -325,7 +325,7 @@ dependencies = [
 
 [[package]]
 name = "ccvl"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -759,9 +759,9 @@ dependencies = [
 
 [[package]]
 name = "cvst"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d881d858247e39424579e917d91563cd922bdde0f2aea39edbc56fdb3a76e8b"
+checksum = "3775ec23c839dd4b1cdd0e015650a6557c0b75723794569df17fb55b266516c7"
 dependencies = [
  "anyhow",
  "cletter",
