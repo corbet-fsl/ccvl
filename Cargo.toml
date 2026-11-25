@@ -1,6 +1,6 @@
 [package]
 name = "ccvl"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 rust-version = "1.94"
 description = "Shared CareerVector engine: style contracts, document bundles and the Yrs document engine"
@@ -10,8 +10,8 @@ readme = "README.md"
 [features]
 # Excel (.xlsx, .xls) import for the jobs transfer (calamine). Off in the editor's wasm; a second wasm module carries it.
 sheet = ["core", "dep:calamine"]
-# The document locale (wording locale + formatting region) for hosts that pick a letter's locale: cletter's own
-# resolver, re-exported so the CLI and TUI call what the web calls. Off for the wasm build (cletter pulls image code).
+# The document locale (wording locale + formatting region): cletter's own resolver, re-exported so the CLI, the TUI
+# and the web call the same function. Part of `core` on every target (cletter builds for wasm32).
 locale = ["dep:cletter"]
 default = ["core", "storage", "sheet"]
 render = ["core", "dep:ctyp"]
@@ -23,7 +23,7 @@ jobid = ["dep:sha2", "dep:url"]
 # the three-way text range merge. No dependencies, so small binaries can take it alone.
 offline = []
 # Style contracts, bundles, edits and CSV transfer (`style`, `edit`, `transfer`, `contract`).
-core = ["dep:anyhow", "dep:cvst", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
+core = ["locale", "dep:anyhow", "dep:cvst", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
 doc = ["core", "jobid", "offline", "dep:yrs", "dep:base64"]
 # Persistence through `cvws` (`session::storage`): on by default for native targets; a wasm32 build
