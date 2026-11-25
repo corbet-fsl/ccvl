@@ -1,6 +1,6 @@
 [package]
 name = "ccvl"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2024"
 rust-version = "1.94"
 description = "Shared CareerVector engine: style contracts, document bundles and the Yrs document engine"
@@ -22,8 +22,11 @@ jobid = ["dep:sha2", "dep:url"]
 # The offline merge policy (`offline`): hybrid logical clock, stale/fresh classification of queued edits and
 # the three-way text range merge. No dependencies, so small binaries can take it alone.
 offline = []
+# The styles and examples cvst hands to every product (`styles`): catalogue, contracts, Typst engine package, showcase
+# content. Alone it needs only `cvst` and `sha2`: `ccvl = { version = "0.1", default-features = false, features = ["styles"] }`.
+styles = ["dep:cvst", "dep:sha2"]
 # Style contracts, bundles, edits and CSV transfer (`style`, `edit`, `transfer`, `contract`).
-core = ["locale", "dep:anyhow", "dep:cvst", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
+core = ["locale", "styles", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:toml", "dep:sha2"]
 # The Yrs document engine: the CareerVector Y.Doc layout and op catalogue, no I/O.
 doc = ["core", "jobid", "offline", "dep:yrs", "dep:base64"]
 # Persistence through `cvws` (`session::storage`): on by default for native targets; a wasm32 build
@@ -38,7 +41,7 @@ calamine = { version = "0.38", default-features = false, optional = true }
 anyhow = { version = "1.0", optional = true }
 base64 = { version = "0.23", optional = true }
 ctyp = { version = "0.1", optional = true, default-features = false, features = ["pdf", "pdf-normalize", "raster"] }
-cvst = { version = "0.1", optional = true }
+cvst = { version = "0.1.4", optional = true }
 serde = { version = "1.0", features = ["derive", "rc"], optional = true }
 # preserve_order: embedded JSON strings of job fields keep their key order, as JSON.stringify does.
 serde_json = { version = "1.0", features = ["preserve_order"], optional = true }

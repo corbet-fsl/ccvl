@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.15
+
+- New `styles` module and feature (implied by `core`): the styles and examples cvst owns, handed to every product through ccvl.
+  `styles::tree()` / `files()` / `file()` (text files at the style repository layout: `outputs/...`, `.agent/typst/...`),
+  `catalogue()`, `engine_package()` and `engine_package_spec()` (the `@local/ccvl` Typst package), `fingerprint()`.
+  Products depend on ccvl only and carry no copy of the style trees.
+
 ## 0.1.13
 
 - **URL rule version 3** (`ccvl::URL_RULE_VERSION`, `ccvl::url_rules`). `normalize_url` now also drops query parameters and path

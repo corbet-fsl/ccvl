@@ -27,6 +27,8 @@ pub mod safeurl;
 pub mod session;
 #[cfg(feature = "core")]
 pub mod style;
+#[cfg(feature = "styles")]
+pub mod styles;
 #[cfg(feature = "core")]
 pub mod transfer;
 #[cfg(feature = "jobid")]
